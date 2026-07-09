@@ -14,10 +14,10 @@ using bms_editer.ViewModels;
 using bms_editer.Views;
 using bms_editer.Views.Controls;
 
-namespace bms_editer
+namespace bms_editer;
+
+public partial class MainWindow : Window
 {
-    public partial class MainWindow : Window
-    {
         private static readonly string[] BmsExtensions = { ".bms", ".bme", ".bml" };
         private static readonly string[] OggExtensions = { ".ogg" };
         private static readonly string[] VideoExtensions = { ".mp4", ".webm", ".mov", ".avi", ".mkv", ".ogv" };
@@ -435,4 +435,3 @@ namespace bms_editer
                 : vm.MeasureCount * vm.RowHeight * vm.VerticalZoom * spacingScale;
         }
     }
-}

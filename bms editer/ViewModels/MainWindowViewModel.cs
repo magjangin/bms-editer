@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Runtime.InteropServices;
 using Avalonia.Threading;
 using bms_editer.Models;
 using bms_editer.Services;
@@ -340,8 +341,9 @@ public sealed partial class MainWindowViewModel : ObservableObject
     }
 
     // WAV 키음 관리 및 재생 믹서 (Win32 PInvoke)
-    [System.Runtime.InteropServices.DllImport("winmm.dll", SetLastError = true, CharSet = System.Runtime.InteropServices.CharSet.Auto)]
-    private static extern bool PlaySound(string pszSound, IntPtr hmod, uint fdwSound);
+    [LibraryImport("winmm.dll", EntryPoint = "PlaySoundW", SetLastError = true, StringMarshalling = StringMarshalling.Utf16)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool PlaySound(string pszSound, IntPtr hmod, uint fdwSound);
 
     private const uint SND_ASYNC = 0x0001;
     private const uint SND_FILENAME = 0x00020000;

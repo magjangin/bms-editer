@@ -503,36 +503,4 @@ public sealed class NoteGridControl : TimelineControlBase
         InvalidateVisual();
     }
 
-    private void DrawPlaybackCursor(DrawingContext context, double width, double height)
-    {
-        if (!IsPlaybackCursorVisible || DurationSeconds <= 0)
-            return;
-
-        var ratio = Math.Clamp(PlaybackPositionSeconds / DurationSeconds, 0, 1);
-        var glowPen = new Pen(new SolidColorBrush(Color.FromArgb(90, 50, 255, 120)), 5);
-        var cursorPen = new Pen(new SolidColorBrush(Color.FromRgb(40, 255, 90)), 2);
-
-        if (IsHorizontalView)
-        {
-            var x = ratio * width;
-            context.DrawLine(glowPen, new Point(x, 0), new Point(x, height));
-            context.DrawLine(cursorPen, new Point(x, 0), new Point(x, height));
-        }
-        else
-        {
-            var y = (1.0 - ratio) * height;
-            context.DrawLine(glowPen, new Point(0, y), new Point(width, y));
-            context.DrawLine(cursorPen, new Point(0, y), new Point(width, y));
-        }
-    }
-
-    private void DrawGridSyncFlash(DrawingContext context, double width, double height)
-    {
-        if (!IsGridSyncFlashVisible)
-            return;
-
-        context.FillRectangle(new SolidColorBrush(Color.FromArgb(36, 80, 255, 140)), new Rect(0, 0, width, height));
-        context.DrawRectangle(null, new Pen(new SolidColorBrush(Color.FromArgb(190, 90, 255, 150)), 2), new Rect(1, 1, width - 2, height - 2));
-    }
-
 }

@@ -7,13 +7,22 @@ using bms_editer.Models;
 
 namespace bms_editer.Services;
 
-public static class BmsParser
+public static partial class BmsParser
 {
-    private static readonly Regex WavRegex = new(@"^#WAV([0-9a-zA-Z]{2,3})\s+(.*)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-    private static readonly Regex TitleRegex = new(@"^#TITLE\s+(.*)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-    private static readonly Regex ArtistRegex = new(@"^#ARTIST\s+(.*)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-    private static readonly Regex BpmRegex = new(@"^#BPM\s+([0-9\.]+)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-    private static readonly Regex DataRegex = new(@"^#([0-9]{3})([0-9a-zA-Z]{2}):(.*)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    [GeneratedRegex(@"^#WAV([0-9a-zA-Z]{2,3})\s+(.*)", RegexOptions.IgnoreCase)]
+    private static partial Regex WavRegex();
+
+    [GeneratedRegex(@"^#TITLE\s+(.*)", RegexOptions.IgnoreCase)]
+    private static partial Regex TitleRegex();
+
+    [GeneratedRegex(@"^#ARTIST\s+(.*)", RegexOptions.IgnoreCase)]
+    private static partial Regex ArtistRegex();
+
+    [GeneratedRegex(@"^#BPM\s+([0-9\.]+)", RegexOptions.IgnoreCase)]
+    private static partial Regex BpmRegex();
+
+    [GeneratedRegex(@"^#([0-9]{3})([0-9a-zA-Z]{2}):(.*)", RegexOptions.IgnoreCase)]
+    private static partial Regex DataRegex();
 
     private static readonly HashSet<string> SupportedChannels = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -62,21 +71,21 @@ public static class BmsParser
             var line = rawLine.Trim();
             if (string.IsNullOrEmpty(line) || !line.StartsWith("#")) continue;
 
-            var titleMatch = TitleRegex.Match(line);
+            var titleMatch = TitleRegex().Match(line);
             if (titleMatch.Success)
             {
                 chart.Header.Title = titleMatch.Groups[1].Value.Trim();
                 continue;
             }
 
-            var artistMatch = ArtistRegex.Match(line);
+            var artistMatch = ArtistRegex().Match(line);
             if (artistMatch.Success)
             {
                 chart.Header.Artist = artistMatch.Groups[1].Value.Trim();
                 continue;
             }
 
-            var bpmMatch = BpmRegex.Match(line);
+            var bpmMatch = BpmRegex().Match(line);
             if (bpmMatch.Success)
             {
                 if (double.TryParse(bpmMatch.Groups[1].Value, out var tempBpm))
@@ -86,7 +95,7 @@ public static class BmsParser
                 continue;
             }
 
-            var wavMatch = WavRegex.Match(line);
+            var wavMatch = WavRegex().Match(line);
             if (wavMatch.Success)
             {
                 var key = wavMatch.Groups[1].Value.ToUpper();
@@ -114,7 +123,7 @@ public static class BmsParser
             var line = rawLine.Trim();
             if (string.IsNullOrEmpty(line) || !line.StartsWith("#")) continue;
 
-            var dataMatch = DataRegex.Match(line);
+            var dataMatch = DataRegex().Match(line);
             if (!dataMatch.Success) continue;
 
             var measureNum = int.Parse(dataMatch.Groups[1].Value);

@@ -4,7 +4,7 @@ using NVorbis;
 
 namespace bms_editer.Services;
 
-public sealed class OggAudioPlayer : IDisposable
+public sealed partial class OggAudioPlayer : IDisposable
 {
     private readonly byte[] _pcmBytes;
     private readonly int _sampleRate;
@@ -121,23 +121,23 @@ public sealed class OggAudioPlayer : IDisposable
             throw new InvalidOperationException($"waveOut error: {result}");
     }
 
-    [DllImport("winmm.dll", EntryPoint = "waveOutOpen")]
-    private static extern int WaveOutOpen(out IntPtr hWaveOut, int deviceId, ref WaveFormat format, IntPtr callback, IntPtr instance, int flags);
+    [LibraryImport("winmm.dll", EntryPoint = "waveOutOpen")]
+    private static partial int WaveOutOpen(out IntPtr hWaveOut, int deviceId, ref WaveFormat format, IntPtr callback, IntPtr instance, int flags);
 
-    [DllImport("winmm.dll", EntryPoint = "waveOutPrepareHeader")]
-    private static extern int WaveOutPrepareHeader(IntPtr hWaveOut, IntPtr header, int headerSize);
+    [LibraryImport("winmm.dll", EntryPoint = "waveOutPrepareHeader")]
+    private static partial int WaveOutPrepareHeader(IntPtr hWaveOut, IntPtr header, int headerSize);
 
-    [DllImport("winmm.dll", EntryPoint = "waveOutWrite")]
-    private static extern int WaveOutWrite(IntPtr hWaveOut, IntPtr header, int headerSize);
+    [LibraryImport("winmm.dll", EntryPoint = "waveOutWrite")]
+    private static partial int WaveOutWrite(IntPtr hWaveOut, IntPtr header, int headerSize);
 
-    [DllImport("winmm.dll", EntryPoint = "waveOutReset")]
-    private static extern int WaveOutReset(IntPtr hWaveOut);
+    [LibraryImport("winmm.dll", EntryPoint = "waveOutReset")]
+    private static partial int WaveOutReset(IntPtr hWaveOut);
 
-    [DllImport("winmm.dll", EntryPoint = "waveOutUnprepareHeader")]
-    private static extern int WaveOutUnprepareHeader(IntPtr hWaveOut, IntPtr header, int headerSize);
+    [LibraryImport("winmm.dll", EntryPoint = "waveOutUnprepareHeader")]
+    private static partial int WaveOutUnprepareHeader(IntPtr hWaveOut, IntPtr header, int headerSize);
 
-    [DllImport("winmm.dll", EntryPoint = "waveOutClose")]
-    private static extern int WaveOutClose(IntPtr hWaveOut);
+    [LibraryImport("winmm.dll", EntryPoint = "waveOutClose")]
+    private static partial int WaveOutClose(IntPtr hWaveOut);
 
     [StructLayout(LayoutKind.Sequential)]
     private struct WaveFormat

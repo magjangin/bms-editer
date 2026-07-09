@@ -115,7 +115,7 @@ public sealed class OggWaveformControl : TimelineControlBase
 
         DrawBeatGrid(context, waveformThickness, timelineLength, IsHorizontalView);
         DrawGridSyncFlash(context, width, height);
-        DrawPlaybackCursor(context, waveformThickness, timelineLength, IsHorizontalView);
+        DrawPlaybackCursor(context, width, height);
     }
 
     private void OnPointerPressed(object? sender, PointerPressedEventArgs e)
@@ -150,29 +150,6 @@ public sealed class OggWaveformControl : TimelineControlBase
         var ratio = IsHorizontalView ? Math.Clamp(pos / timelineLength, 0, 1) : Math.Clamp(1.0 - (pos / timelineLength), 0, 1);
         ScrubRequested?.Invoke(this, new WaveformScrubRequestedEventArgs(ratio));
         e.Handled = true;
-    }
-
-    private void DrawPlaybackCursor(DrawingContext context, double thickness, double timelineLength, bool isHorizontal)
-    {
-        if (!IsPlaybackCursorVisible || DurationSeconds <= 0)
-            return;
-
-        var ratio = Math.Clamp(PlaybackPositionSeconds / DurationSeconds, 0, 1);
-        var glowPen = new Pen(new SolidColorBrush(Color.FromArgb(90, 50, 255, 120)), 5);
-        var cursorPen = new Pen(new SolidColorBrush(Color.FromRgb(40, 255, 90)), 2);
-
-        if (isHorizontal)
-        {
-            var x = ratio * timelineLength;
-            context.DrawLine(glowPen, new Point(x, 0), new Point(x, thickness));
-            context.DrawLine(cursorPen, new Point(x, 0), new Point(x, thickness));
-        }
-        else
-        {
-            var y = (1.0 - ratio) * timelineLength;
-            context.DrawLine(glowPen, new Point(0, y), new Point(thickness, y));
-            context.DrawLine(cursorPen, new Point(0, y), new Point(thickness, y));
-        }
     }
 
     private static void DrawBlockWaveform(
@@ -364,15 +341,6 @@ public sealed class OggWaveformControl : TimelineControlBase
                     tPos -= rowHeight;
             }
         }
-    }
-
-    private void DrawGridSyncFlash(DrawingContext context, double width, double height)
-    {
-        if (!IsGridSyncFlashVisible)
-            return;
-
-        context.FillRectangle(new SolidColorBrush(Color.FromArgb(36, 80, 255, 140)), new Rect(0, 0, width, height));
-        context.DrawRectangle(null, new Pen(new SolidColorBrush(Color.FromArgb(190, 90, 255, 150)), 2), new Rect(1, 1, width - 2, height - 2));
     }
 
     private static double GetDisplayPeak(IReadOnlyList<float> peaks, int displayIndex, int displayPointCount)
