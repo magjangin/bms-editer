@@ -1,0 +1,26 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="using:bms_editer.ViewModels"
+        mc:Ignorable="d"
+        x:Class="bms_editer.Views.BulkEditWindow"
+        x:DataType="vm:BulkEditViewModel"
+        Title="노트 일괄 수정"
+        Width="280" Height="360"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner">
+
+    <StackPanel Margin="16" Spacing="12">
+        <TextBlock Text="{Binding SelectedCount, StringFormat='선택된 노트: {0}개'}" FontWeight="Bold" />
+        <Separator />
+
+        <TextBlock Text="키음 일괄 변경" FontWeight="Bold" />
+        <TextBlock Text="(추가 예정)" Opacity="0.6" />
+
+        <TextBlock Text="N칸 이동" FontWeight="Bold" Margin="0,8,0,0" />
+        <TextBlock Text="(추가 예정)" Opacity="0.6" />
+
+        <TextBlock Text="타입 일괄 변경" FontWeight="Bold" Margin="0,8,0,0" />
+        <TextBlock Text="(추가 예정)" Opacity="0.6" />
+    </StackPanel>
+</Window>

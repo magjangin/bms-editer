@@ -36,6 +36,7 @@
                 <Separator />
                 <Button Content="📊" Click="OnShowStatsClick" ToolTip.Tip="노트 통계" />
                 <ToggleButton Content="✏️" IsChecked="{Binding IsEditMode}" />
+                <Button Content="🧰" Click="OnShowBulkEditClick" ToolTip.Tip="선택 노트 일괄 수정" />
                 <Separator />
                 <Button Content="OGG 열기" Click="OnLoadOggClick" />
             </StackPanel>
@@ -93,8 +94,13 @@
                         IsHorizontalView="{Binding IsHorizontalView}"
                         Notes="{Binding Notes}"
                         IsCircleNoteShape="{Binding IsCircleNoteShape}"
+                        IsEditMode="{Binding IsEditMode}"
+                        SelectedNotes="{Binding SelectedNotes}"
                         PlaceNoteCommand="{Binding PlaceNoteCommand}"
-                        RemoveNoteCommand="{Binding RemoveNoteCommand}" />
+                        RemoveNoteCommand="{Binding RemoveNoteCommand}"
+                        SelectNotesCommand="{Binding SelectNotesCommand}"
+                        KeyDown="OnNoteGridKeyDown"
+                        Focusable="True" />
                 </StackPanel>
             </ScrollViewer>
 

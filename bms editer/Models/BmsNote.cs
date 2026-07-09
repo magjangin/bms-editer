@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace bms_editer.Models;
 
 public enum NoteType
@@ -24,3 +26,13 @@ public sealed class BmsNote
 }
 
 public record NotePlacementArgs(string LaneId, int Measure, double Position);
+
+public record NoteSelectionArgs(IReadOnlyList<BmsNote> Notes);
+
+public enum NoteMoveDirection
+{
+    TimeForward,
+    TimeBackward,
+    LanePrevious,
+    LaneNext,
+}

@@ -317,6 +317,110 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     public IReadOnlyList<BmsNote> Notes => Chart.Notes.ToArray();
 
+    private readonly HashSet<BmsNote> _selectedNotes = new();
+    public IReadOnlyList<BmsNote> SelectedNotes => _selectedNotes.ToArray();
+
+    [RelayCommand]
+    private void SelectNotes(NoteSelectionArgs args)
+    {
+        _selectedNotes.Clear();
+        foreach (var note in args.Notes)
+        {
+            _selectedNotes.Add(note);
+        }
+        OnPropertyChanged(nameof(SelectedNotes));
+    }
+
+    [RelayCommand]
+    private void DeleteSelectedNotes()
+    {
+        if (_selectedNotes.Count == 0) return;
+
+        foreach (var note in _selectedNotes)
+        {
+            Chart.Notes.Remove(note);
+        }
+        _selectedNotes.Clear();
+        OnPropertyChanged(nameof(Notes));
+        OnPropertyChanged(nameof(SelectedNotes));
+    }
+
+    [RelayCommand]
+    private void MoveSelectedNotes(NoteMoveDirection direction)
+    {
+        if (_selectedNotes.Count == 0) return;
+
+        var split = Math.Max(1, BeatSplit);
+        var lanes = Chart.Lanes;
+
+        foreach (var note in _selectedNotes)
+        {
+            switch (direction)
+            {
+                case NoteMoveDirection.TimeForward:
+                    MoveNoteInTime(note, 1, split);
+                    break;
+                case NoteMoveDirection.TimeBackward:
+                    MoveNoteInTime(note, -1, split);
+                    break;
+                case NoteMoveDirection.LanePrevious:
+                    MoveNoteInLane(note, -1, lanes);
+                    break;
+                case NoteMoveDirection.LaneNext:
+                    MoveNoteInLane(note, 1, lanes);
+                    break;
+            }
+        }
+
+        OnPropertyChanged(nameof(Notes));
+    }
+
+    private void MoveNoteInTime(BmsNote note, int steps, int split)
+    {
+        var totalStepIndex = (int)Math.Round((note.Measure + note.Position) * split) + steps;
+        if (totalStepIndex < 0) return;
+
+        var newMeasure = totalStepIndex / split;
+        var newPosition = (double)(totalStepIndex % split) / split;
+        if (newMeasure < 0 || newMeasure >= MeasureCount) return;
+        if (IsSlotOccupied(note.LaneId, newMeasure, newPosition, note)) return;
+
+        note.Measure = newMeasure;
+        note.Position = newPosition;
+    }
+
+    private void MoveNoteInLane(BmsNote note, int steps, IReadOnlyList<LaneDefinition> lanes)
+    {
+        var currentIndex = -1;
+        for (var i = 0; i < lanes.Count; i++)
+        {
+            if (lanes[i].Id == note.LaneId)
+            {
+                currentIndex = i;
+                break;
+            }
+        }
+        if (currentIndex == -1) return;
+
+        var newIndex = currentIndex + steps;
+        if (newIndex < 0 || newIndex >= lanes.Count) return;
+
+        var newLaneId = lanes[newIndex].Id;
+        if (IsSlotOccupied(newLaneId, note.Measure, note.Position, note)) return;
+
+        note.LaneId = newLaneId;
+    }
+
+    private bool IsSlotOccupied(string laneId, int measure, double position, BmsNote excluding)
+    {
+        return Chart.Notes.Any(n =>
+            n != excluding &&
+            !_selectedNotes.Contains(n) &&
+            n.LaneId == laneId &&
+            n.Measure == measure &&
+            Math.Abs(n.Position - position) < 0.0001);
+    }
+
     public void PlayWavSound(string key)
     {
         if (Chart.WavTable.TryGetValue(key, out var path) && System.IO.File.Exists(path))

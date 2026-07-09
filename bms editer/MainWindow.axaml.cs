@@ -6,6 +6,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
+using bms_editer.Models;
 using bms_editer.ViewModels;
 using bms_editer.Views;
 using bms_editer.Views.Controls;
@@ -88,6 +89,43 @@ namespace bms_editer
                 return;
 
             vm.AddWav(path);
+        }
+
+        private void OnNoteGridKeyDown(object? sender, KeyEventArgs e)
+        {
+            if (DataContext is not MainWindowViewModel vm)
+                return;
+
+            if (e.Key == Key.Delete)
+            {
+                vm.DeleteSelectedNotesCommand.Execute(null);
+                e.Handled = true;
+                return;
+            }
+
+            NoteMoveDirection? direction = e.Key switch
+            {
+                Key.Up => vm.IsHorizontalView ? NoteMoveDirection.LanePrevious : NoteMoveDirection.TimeForward,
+                Key.Down => vm.IsHorizontalView ? NoteMoveDirection.LaneNext : NoteMoveDirection.TimeBackward,
+                Key.Left => vm.IsHorizontalView ? NoteMoveDirection.TimeBackward : NoteMoveDirection.LanePrevious,
+                Key.Right => vm.IsHorizontalView ? NoteMoveDirection.TimeForward : NoteMoveDirection.LaneNext,
+                _ => null
+            };
+
+            if (direction is { } d)
+            {
+                vm.MoveSelectedNotesCommand.Execute(d);
+                e.Handled = true;
+            }
+        }
+
+        private void OnShowBulkEditClick(object? sender, RoutedEventArgs e)
+        {
+            if (DataContext is not MainWindowViewModel vm)
+                return;
+
+            var bulkEditWindow = new BulkEditWindow(new BulkEditViewModel(vm.SelectedNotes));
+            bulkEditWindow.ShowDialog(this);
         }
 
         private void OnShowStatsClick(object? sender, RoutedEventArgs e)

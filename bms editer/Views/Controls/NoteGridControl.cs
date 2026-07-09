@@ -23,11 +23,20 @@ public sealed class NoteGridControl : TimelineControlBase
     public static readonly StyledProperty<bool> IsCircleNoteShapeProperty =
         AvaloniaProperty.Register<NoteGridControl, bool>(nameof(IsCircleNoteShape));
 
+    public static readonly StyledProperty<bool> IsEditModeProperty =
+        AvaloniaProperty.Register<NoteGridControl, bool>(nameof(IsEditMode));
+
+    public static readonly StyledProperty<IReadOnlyList<BmsNote>?> SelectedNotesProperty =
+        AvaloniaProperty.Register<NoteGridControl, IReadOnlyList<BmsNote>?>(nameof(SelectedNotes));
+
     public static readonly StyledProperty<System.Windows.Input.ICommand?> PlaceNoteCommandProperty =
         AvaloniaProperty.Register<NoteGridControl, System.Windows.Input.ICommand?>(nameof(PlaceNoteCommand));
 
     public static readonly StyledProperty<System.Windows.Input.ICommand?> RemoveNoteCommandProperty =
         AvaloniaProperty.Register<NoteGridControl, System.Windows.Input.ICommand?>(nameof(RemoveNoteCommand));
+
+    public static readonly StyledProperty<System.Windows.Input.ICommand?> SelectNotesCommandProperty =
+        AvaloniaProperty.Register<NoteGridControl, System.Windows.Input.ICommand?>(nameof(SelectNotesCommand));
 
     public IReadOnlyList<LaneDefinition>? Lanes
     {
@@ -53,6 +62,18 @@ public sealed class NoteGridControl : TimelineControlBase
         set => SetValue(IsCircleNoteShapeProperty, value);
     }
 
+    public bool IsEditMode
+    {
+        get => GetValue(IsEditModeProperty);
+        set => SetValue(IsEditModeProperty, value);
+    }
+
+    public IReadOnlyList<BmsNote>? SelectedNotes
+    {
+        get => GetValue(SelectedNotesProperty);
+        set => SetValue(SelectedNotesProperty, value);
+    }
+
     public System.Windows.Input.ICommand? PlaceNoteCommand
     {
         get => GetValue(PlaceNoteCommandProperty);
@@ -65,15 +86,26 @@ public sealed class NoteGridControl : TimelineControlBase
         set => SetValue(RemoveNoteCommandProperty, value);
     }
 
+    public System.Windows.Input.ICommand? SelectNotesCommand
+    {
+        get => GetValue(SelectNotesCommandProperty);
+        set => SetValue(SelectNotesCommandProperty, value);
+    }
+
     static NoteGridControl()
     {
-        AffectsRender<NoteGridControl>(LanesProperty, LaneWidthProperty, NotesProperty, IsCircleNoteShapeProperty);
+        AffectsRender<NoteGridControl>(LanesProperty, LaneWidthProperty, NotesProperty, IsCircleNoteShapeProperty, SelectedNotesProperty);
         AffectsMeasure<NoteGridControl>(LanesProperty, LaneWidthProperty);
     }
+
+    private Point? _dragStartPoint;
+    private Point? _dragCurrentPoint;
 
     public NoteGridControl()
     {
         PointerPressed += OnPointerPressed;
+        PointerMoved += OnPointerMovedForSelection;
+        PointerReleased += OnPointerReleased;
     }
 
     protected override Size MeasureOverride(Size availableSize)
@@ -219,21 +251,14 @@ public sealed class NoteGridControl : TimelineControlBase
 
         // 배치된 노트 그리기
         var notes = Notes;
+        var selectedSet = SelectedNotes is null ? null : new HashSet<BmsNote>(SelectedNotes);
         if (notes is not null)
         {
             for (var index = 0; index < notes.Count; index++)
             {
                 var note = notes[index];
-                
-                var laneIndex = -1;
-                for (var j = 0; j < lanes.Count; j++)
-                {
-                    if (lanes[j].Id == note.LaneId)
-                    {
-                        laneIndex = j;
-                        break;
-                    }
-                }
+
+                var laneIndex = FindLaneIndex(lanes, note.LaneId);
                 if (laneIndex == -1) continue;
 
                 IBrush noteBrush = Brushes.White;
@@ -250,23 +275,7 @@ public sealed class NoteGridControl : TimelineControlBase
                     noteBrush = new SolidColorBrush(Color.FromRgb(240, 240, 240)); // 백건은 백색
                 }
 
-                double ratio = 0.0;
-                double noteTPos = 0.0;
-                
-                if (DurationSeconds > 0 && Bpm > 0)
-                {
-                    var secondsPerMeasure = 240.0 / Bpm;
-                    var seconds = (note.Measure + note.Position) * secondsPerMeasure;
-                    ratio = seconds / DurationSeconds;
-                    noteTPos = IsHorizontalView ? (ratio * timelineLength) : ((1.0 - ratio) * timelineLength);
-                }
-                else
-                {
-                    var rowHeight = RowHeight * VerticalZoom * GetGridSpacingScale();
-                    var totalOffset = (note.Measure + note.Position) * rowHeight;
-                    noteTPos = IsHorizontalView ? totalOffset : (timelineLength - totalOffset);
-                }
-
+                var noteTPos = ComputeNoteTPos(note, timelineLength);
                 var laneOffset = laneIndex * laneThickness;
                 var blackPen = new Pen(Brushes.Black, 1);
 
@@ -300,19 +309,81 @@ public sealed class NoteGridControl : TimelineControlBase
                         context.DrawRectangle(null, blackPen, rect);
                     }
                 }
+
+                if (selectedSet is not null && selectedSet.Contains(note))
+                {
+                    var highlightPen = new Pen(Brushes.Yellow, 2);
+                    var highlightRect = IsHorizontalView
+                        ? new Rect(noteTPos - 7, laneOffset + 1, 14, laneThickness - 2)
+                        : new Rect(laneOffset + 1, noteTPos - 7, laneThickness - 2, 14);
+                    context.DrawRectangle(null, highlightPen, highlightRect);
+                }
             }
+        }
+
+        if (_dragStartPoint is { } dragStart && _dragCurrentPoint is { } dragEnd)
+        {
+            var selectionRect = NormalizedRect(dragStart, dragEnd);
+            context.FillRectangle(new SolidColorBrush(Color.FromArgb(60, 255, 220, 60)), selectionRect);
+            context.DrawRectangle(null, new Pen(Brushes.Yellow, 1), selectionRect);
         }
 
         DrawGridSyncFlash(context, totalWidth, totalHeight);
         DrawPlaybackCursor(context, totalWidth, totalHeight);
     }
 
+    private double ComputeNoteTPos(BmsNote note, double timelineLength)
+    {
+        if (DurationSeconds > 0 && Bpm > 0)
+        {
+            var secondsPerMeasure = 240.0 / Bpm;
+            var seconds = (note.Measure + note.Position) * secondsPerMeasure;
+            var ratio = seconds / DurationSeconds;
+            return IsHorizontalView ? (ratio * timelineLength) : ((1.0 - ratio) * timelineLength);
+        }
+
+        var rowHeight = RowHeight * VerticalZoom * GetGridSpacingScale();
+        var totalOffset = (note.Measure + note.Position) * rowHeight;
+        return IsHorizontalView ? totalOffset : (timelineLength - totalOffset);
+    }
+
+    private static int FindLaneIndex(IReadOnlyList<LaneDefinition> lanes, string laneId)
+    {
+        for (var j = 0; j < lanes.Count; j++)
+        {
+            if (lanes[j].Id == laneId)
+                return j;
+        }
+        return -1;
+    }
+
+    private static Rect NormalizedRect(Point a, Point b)
+    {
+        var x = Math.Min(a.X, b.X);
+        var y = Math.Min(a.Y, b.Y);
+        return new Rect(x, y, Math.Abs(a.X - b.X), Math.Abs(a.Y - b.Y));
+    }
+
     private void OnPointerPressed(object? sender, Avalonia.Input.PointerPressedEventArgs e)
     {
+        Focus();
+
         var point = e.GetCurrentPoint(this);
         var lanes = Lanes;
         if (lanes is null || lanes.Count == 0 || Bpm <= 0)
             return;
+
+        if (!IsEditMode)
+        {
+            if (point.Properties.IsLeftButtonPressed)
+            {
+                _dragStartPoint = point.Position;
+                _dragCurrentPoint = point.Position;
+                e.Pointer.Capture(this);
+                InvalidateVisual();
+            }
+            return;
+        }
 
         var laneThickness = LaneWidth * HorizontalZoom;
         var timelineLength = GetTimelineHeight();
@@ -374,6 +445,62 @@ public sealed class NoteGridControl : TimelineControlBase
                 RemoveNoteCommand.Execute(args);
             }
         }
+    }
+
+    private void OnPointerMovedForSelection(object? sender, Avalonia.Input.PointerEventArgs e)
+    {
+        if (_dragStartPoint is null)
+            return;
+
+        _dragCurrentPoint = e.GetCurrentPoint(this).Position;
+        InvalidateVisual();
+    }
+
+    private void OnPointerReleased(object? sender, Avalonia.Input.PointerReleasedEventArgs e)
+    {
+        if (_dragStartPoint is not { } dragStart || _dragCurrentPoint is not { } dragEnd)
+            return;
+
+        _dragStartPoint = null;
+        _dragCurrentPoint = null;
+        e.Pointer.Capture(null);
+
+        var lanes = Lanes;
+        var notes = Notes;
+        if (lanes is null || lanes.Count == 0 || notes is null)
+        {
+            InvalidateVisual();
+            return;
+        }
+
+        var laneThickness = LaneWidth * HorizontalZoom;
+        var timelineLength = GetTimelineHeight();
+        var selectionRect = NormalizedRect(dragStart, dragEnd).Inflate(2);
+
+        var selected = new List<BmsNote>();
+        for (var i = 0; i < notes.Count; i++)
+        {
+            var note = notes[i];
+            var laneIndex = FindLaneIndex(lanes, note.LaneId);
+            if (laneIndex == -1) continue;
+
+            var noteTPos = ComputeNoteTPos(note, timelineLength);
+            var laneOffset = laneIndex * laneThickness;
+            var noteCenter = IsHorizontalView
+                ? new Point(noteTPos, laneOffset + laneThickness / 2)
+                : new Point(laneOffset + laneThickness / 2, noteTPos);
+
+            if (selectionRect.Contains(noteCenter))
+                selected.Add(note);
+        }
+
+        var args = new NoteSelectionArgs(selected);
+        if (SelectNotesCommand?.CanExecute(args) == true)
+        {
+            SelectNotesCommand.Execute(args);
+        }
+
+        InvalidateVisual();
     }
 
     private void DrawPlaybackCursor(DrawingContext context, double width, double height)
