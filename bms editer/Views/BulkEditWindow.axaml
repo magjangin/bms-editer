@@ -6,7 +6,7 @@
         x:Class="bms_editer.Views.BulkEditWindow"
         x:DataType="vm:BulkEditViewModel"
         Title="노트 일괄 수정"
-        Width="280" Height="360"
+        Width="280" Height="440"
         CanResize="False"
         WindowStartupLocation="CenterOwner">
 
@@ -21,6 +21,10 @@
         <TextBlock Text="(추가 예정)" Opacity="0.6" />
 
         <TextBlock Text="타입 일괄 변경" FontWeight="Bold" Margin="0,8,0,0" />
+        <TextBlock Text="(추가 예정)" Opacity="0.6" />
+
+        <TextBlock Text="마디 범위 노트 선택 및 복사" FontWeight="Bold" Margin="0,8,0,0" />
+        <TextBlock Text="지정한 시작 마디 ~ 끝 마디 사이의 노트를 한 번에 선택하고 복사/붙여넣기" Opacity="0.6" TextWrapping="Wrap" />
         <TextBlock Text="(추가 예정)" Opacity="0.6" />
     </StackPanel>
 </Window>
