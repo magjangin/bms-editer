@@ -1,0 +1,45 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="using:bms_editer.ViewModels"
+        mc:Ignorable="d"
+        x:Class="bms_editer.Views.NoteStatsWindow"
+        x:DataType="vm:NoteStatsViewModel"
+        Title="노트 통계"
+        Width="280" Height="520"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner">
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="16" Spacing="8">
+            <TextBlock Text="레인별 노트 개수" FontWeight="Bold" />
+            <ItemsControl ItemsSource="{Binding Stats}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:LaneNoteStat">
+                        <Grid ColumnDefinitions="Auto,*" Margin="0,2">
+                            <TextBlock Grid.Column="0" Text="{Binding LaneId}" Width="48" />
+                            <TextBlock Grid.Column="1" Text="{Binding Count}" HorizontalAlignment="Right" />
+                        </Grid>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <Separator Margin="0,4" />
+
+            <TextBlock Text="키음별 노트 개수" FontWeight="Bold" Margin="0,8,0,0" />
+            <ItemsControl ItemsSource="{Binding WavStats}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:WavNoteStat">
+                        <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,2">
+                            <TextBlock Grid.Column="0" Text="{Binding Key, StringFormat='#{0}'}" Width="36" />
+                            <TextBlock Grid.Column="1" Text="{Binding FileName}" TextTrimming="CharacterEllipsis" Margin="0,0,8,0" />
+                            <TextBlock Grid.Column="2" Text="{Binding Count}" HorizontalAlignment="Right" />
+                        </Grid>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <Separator Margin="0,4" />
+
+            <TextBlock Text="{Binding TotalCount, StringFormat='전체 노트: {0}개'}" FontWeight="Bold" />
+        </StackPanel>
+    </ScrollViewer>
+</Window>

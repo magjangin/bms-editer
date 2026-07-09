@@ -20,6 +20,9 @@ public sealed class NoteGridControl : TimelineControlBase
     public static readonly StyledProperty<IReadOnlyList<BmsNote>?> NotesProperty =
         AvaloniaProperty.Register<NoteGridControl, IReadOnlyList<BmsNote>?>(nameof(Notes));
 
+    public static readonly StyledProperty<bool> IsCircleNoteShapeProperty =
+        AvaloniaProperty.Register<NoteGridControl, bool>(nameof(IsCircleNoteShape));
+
     public static readonly StyledProperty<System.Windows.Input.ICommand?> PlaceNoteCommandProperty =
         AvaloniaProperty.Register<NoteGridControl, System.Windows.Input.ICommand?>(nameof(PlaceNoteCommand));
 
@@ -44,6 +47,12 @@ public sealed class NoteGridControl : TimelineControlBase
         set => SetValue(NotesProperty, value);
     }
 
+    public bool IsCircleNoteShape
+    {
+        get => GetValue(IsCircleNoteShapeProperty);
+        set => SetValue(IsCircleNoteShapeProperty, value);
+    }
+
     public System.Windows.Input.ICommand? PlaceNoteCommand
     {
         get => GetValue(PlaceNoteCommandProperty);
@@ -58,7 +67,7 @@ public sealed class NoteGridControl : TimelineControlBase
 
     static NoteGridControl()
     {
-        AffectsRender<NoteGridControl>(LanesProperty, LaneWidthProperty, NotesProperty);
+        AffectsRender<NoteGridControl>(LanesProperty, LaneWidthProperty, NotesProperty, IsCircleNoteShapeProperty);
         AffectsMeasure<NoteGridControl>(LanesProperty, LaneWidthProperty);
     }
 
@@ -259,18 +268,37 @@ public sealed class NoteGridControl : TimelineControlBase
                 }
 
                 var laneOffset = laneIndex * laneThickness;
+                var blackPen = new Pen(Brushes.Black, 1);
 
                 if (IsHorizontalView)
                 {
-                    var rect = new Rect(noteTPos - 3, laneOffset + 2, 6, laneThickness - 4);
-                    context.FillRectangle(noteBrush, rect);
-                    context.DrawRectangle(null, new Pen(Brushes.Black, 1), rect);
+                    if (IsCircleNoteShape)
+                    {
+                        var radius = Math.Min(7.5, (laneThickness - 4) / 2);
+                        var center = new Point(noteTPos, laneOffset + laneThickness / 2);
+                        context.DrawEllipse(noteBrush, blackPen, center, radius, radius);
+                    }
+                    else
+                    {
+                        var rect = new Rect(noteTPos - 3, laneOffset + 2, 6, laneThickness - 4);
+                        context.FillRectangle(noteBrush, rect);
+                        context.DrawRectangle(null, blackPen, rect);
+                    }
                 }
                 else
                 {
-                    var rect = new Rect(laneOffset + 2, noteTPos - 3, laneThickness - 4, 6);
-                    context.FillRectangle(noteBrush, rect);
-                    context.DrawRectangle(null, new Pen(Brushes.Black, 1), rect);
+                    if (IsCircleNoteShape)
+                    {
+                        var radius = Math.Min(7.5, (laneThickness - 4) / 2);
+                        var center = new Point(laneOffset + laneThickness / 2, noteTPos);
+                        context.DrawEllipse(noteBrush, blackPen, center, radius, radius);
+                    }
+                    else
+                    {
+                        var rect = new Rect(laneOffset + 2, noteTPos - 3, laneThickness - 4, 6);
+                        context.FillRectangle(noteBrush, rect);
+                        context.DrawRectangle(null, blackPen, rect);
+                    }
                 }
             }
         }

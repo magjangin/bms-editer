@@ -7,6 +7,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using bms_editer.ViewModels;
+using bms_editer.Views;
 using bms_editer.Views.Controls;
 
 namespace bms_editer
@@ -87,6 +88,15 @@ namespace bms_editer
                 return;
 
             vm.AddWav(path);
+        }
+
+        private void OnShowStatsClick(object? sender, RoutedEventArgs e)
+        {
+            if (DataContext is not MainWindowViewModel vm)
+                return;
+
+            var statsWindow = new NoteStatsWindow(new NoteStatsViewModel(vm.Chart, vm.WavList));
+            statsWindow.ShowDialog(this);
         }
 
         private void OnWaveformScrubRequested(object? sender, WaveformScrubRequestedEventArgs e)

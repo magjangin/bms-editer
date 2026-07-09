@@ -51,6 +51,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
     [ObservableProperty] private bool _lockVerticalPosition;
     [ObservableProperty] private bool _isHorizontalView;
     [ObservableProperty] private bool _isEditMode;
+    [ObservableProperty] private bool _isCircleNoteShape;
 
     public MainWindowViewModel()
     {

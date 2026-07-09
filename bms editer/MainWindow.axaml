@@ -34,6 +34,7 @@
                 <Button Content="열기" Click="OnOpenFileClick" />
                 <Button Content="저장" Command="{Binding SaveFileCommand}" />
                 <Separator />
+                <Button Content="📊" Click="OnShowStatsClick" ToolTip.Tip="노트 통계" />
                 <ToggleButton Content="✏️" IsChecked="{Binding IsEditMode}" />
                 <Separator />
                 <Button Content="OGG 열기" Click="OnLoadOggClick" />
@@ -52,7 +53,8 @@
             <ScrollViewer x:Name="EditorScrollViewer"
                           Grid.Column="0"
                           HorizontalScrollBarVisibility="Auto"
-                          VerticalScrollBarVisibility="Auto">
+                          VerticalScrollBarVisibility="Auto"
+                          AllowAutoHide="False">
                 <StackPanel x:Name="EditorSurface"
                             Orientation="Horizontal"
                             PointerPressed="OnEditorSurfacePointerPressed"
@@ -90,6 +92,7 @@
                         IsGridSyncFlashVisible="{Binding IsGridSyncFlashVisible}"
                         IsHorizontalView="{Binding IsHorizontalView}"
                         Notes="{Binding Notes}"
+                        IsCircleNoteShape="{Binding IsCircleNoteShape}"
                         PlaceNoteCommand="{Binding PlaceNoteCommand}"
                         RemoveNoteCommand="{Binding RemoveNoteCommand}" />
                 </StackPanel>
@@ -158,6 +161,7 @@
                         <CheckBox Content="격자에 맞추기(G)" IsChecked="{Binding SnapToGrid}" />
                         <CheckBox Content="수직위치 고정(D)" IsChecked="{Binding LockVerticalPosition}" />
                         <CheckBox Content="가로 뷰로 돌리기" IsChecked="{Binding IsHorizontalView}" />
+                        <CheckBox Content="네모를 동그라미로 바꾸기" IsChecked="{Binding IsCircleNoteShape}" />
                     </StackPanel>
 
                     <TextBlock Text="키음 (#WAV)" FontWeight="Bold" Margin="0,12,0,0" />
