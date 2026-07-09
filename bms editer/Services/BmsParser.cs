@@ -17,7 +17,7 @@ public static class BmsParser
 
     private static readonly HashSet<string> SupportedChannels = new(StringComparer.OrdinalIgnoreCase)
     {
-        "11", "12", "13", "16", "14", "15", "18"
+        "16", "11", "12", "13", "14", "15", "18"
     };
 
     public static BmsChart Parse(string filePath, out double parsedBpm, out int measureCount, out List<BmsWavItem> wavItems)
@@ -52,6 +52,7 @@ public static class BmsParser
         }
 
         var directory = Path.GetDirectoryName(filePath) ?? "";
+        var mediaPathIndex = BuildFileNameIndex(directory);
         var maxMeasure = 0;
         var has3DigitWav = false;
 
@@ -96,8 +97,7 @@ public static class BmsParser
                     has3DigitWav = true;
                 }
 
-                // 상대 경로를 절대 경로로 보정
-                var absoluteWavPath = Path.Combine(directory, wavFile);
+                var absoluteWavPath = ResolveMediaPath(directory, wavFile, mediaPathIndex);
                 chart.WavTable[key] = absoluteWavPath;
 
                 wavItems.Add(new BmsWavItem
@@ -121,7 +121,7 @@ public static class BmsParser
             var channel = dataMatch.Groups[2].Value; // 예: "11", "12" ...
             var dataStr = dataMatch.Groups[3].Value.Trim();
 
-            // 1P 건반 채널 필터링 (11-12-13-16-14-15-18)
+            // 1P 건반 채널 필터링 (16-11-12-13-14-15-18)
             if (!SupportedChannels.Contains(channel))
             {
                 continue; // 지원하지 않는 다른 채널(예: BGA, BPM 변화, 2P 채널 등)은 우선 무시
@@ -200,6 +200,38 @@ public static class BmsParser
         }
 
         return 2;
+    }
+
+    private static Dictionary<string, string> BuildFileNameIndex(string directory)
+    {
+        var index = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (!Directory.Exists(directory))
+            return index;
+
+        foreach (var path in Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories))
+        {
+            var fileName = Path.GetFileName(path);
+            if (!index.ContainsKey(fileName))
+                index[fileName] = path;
+        }
+
+        return index;
+    }
+
+    private static string ResolveMediaPath(string baseDirectory, string mediaPath, Dictionary<string, string> fileNameIndex)
+    {
+        if (Path.IsPathRooted(mediaPath))
+            return mediaPath;
+
+        var directPath = Path.GetFullPath(Path.Combine(baseDirectory, mediaPath));
+        if (File.Exists(directPath))
+            return directPath;
+
+        var fileName = Path.GetFileName(mediaPath);
+        if (fileNameIndex.TryGetValue(fileName, out var indexedPath))
+            return indexedPath;
+
+        return directPath;
     }
 
     private static bool IsMalformedUtf8(string[] lines)

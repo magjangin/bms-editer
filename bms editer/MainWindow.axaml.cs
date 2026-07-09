@@ -1,6 +1,8 @@
 using System.Linq;
 using System.ComponentModel;
 using System;
+using System.Collections.Generic;
+using System.IO;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -15,6 +17,10 @@ namespace bms_editer
 {
     public partial class MainWindow : Window
     {
+        private static readonly string[] BmsExtensions = { ".bms", ".bme", ".bml" };
+        private static readonly string[] OggExtensions = { ".ogg" };
+        private static readonly string[] VideoExtensions = { ".mp4", ".webm", ".mov", ".avi", ".mkv", ".ogv" };
+
         public MainWindow()
         {
             InitializeComponent();
@@ -47,6 +53,52 @@ namespace bms_editer
             vm.LoadOgg(path);
         }
 
+        private async void OnLoadVideoClick(object? sender, RoutedEventArgs e)
+        {
+            if (DataContext is not MainWindowViewModel vm)
+                return;
+
+            var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+            {
+                Title = "비디오 파일 선택",
+                AllowMultiple = false,
+                FileTypeFilter = new[]
+                {
+                    new FilePickerFileType("비디오 파일") { Patterns = new[] { "*.mp4", "*.webm", "*.mov", "*.avi", "*.mkv" } },
+                },
+            });
+
+            var path = files.FirstOrDefault()?.TryGetLocalPath();
+            if (path is null)
+                return;
+
+            vm.LoadVideo(path);
+        }
+
+        private async void OnOpenFolderClick(object? sender, RoutedEventArgs e)
+        {
+            if (DataContext is not MainWindowViewModel vm)
+                return;
+
+            var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+            {
+                Title = "BMS 폴더 선택",
+                AllowMultiple = false,
+            });
+
+            var folderPath = folders.FirstOrDefault()?.TryGetLocalPath();
+            if (folderPath is null || !Directory.Exists(folderPath))
+                return;
+
+            LoadFolderMedia(vm, folderPath);
+        }
+
+        private void OnClearVideoClick(object? sender, RoutedEventArgs e)
+        {
+            if (DataContext is MainWindowViewModel vm)
+                vm.ClearVideo();
+        }
+
         private async void OnOpenFileClick(object? sender, RoutedEventArgs e)
         {
             if (DataContext is not MainWindowViewModel vm)
@@ -67,6 +119,39 @@ namespace bms_editer
                 return;
 
             vm.LoadBms(path);
+        }
+
+        private static void LoadFolderMedia(MainWindowViewModel vm, string folderPath)
+        {
+            var bmsPath = FindBestFile(folderPath, BmsExtensions);
+            if (bmsPath is not null)
+                vm.LoadBms(bmsPath);
+
+            var oggPath = FindBestFile(folderPath, OggExtensions);
+            if (oggPath is not null)
+                vm.LoadOgg(oggPath);
+
+            var videoPath = FindBestFile(folderPath, VideoExtensions);
+            if (videoPath is not null)
+                vm.LoadVideo(videoPath);
+            else
+                vm.ClearVideo();
+        }
+
+        private static string? FindBestFile(string folderPath, IReadOnlyCollection<string> extensions)
+        {
+            var folderName = new DirectoryInfo(folderPath).Name;
+            var candidates = Directory.EnumerateFiles(folderPath)
+                .Where(path => extensions.Contains(Path.GetExtension(path), StringComparer.OrdinalIgnoreCase))
+                .OrderBy(path => Path.GetFileName(path), StringComparer.CurrentCultureIgnoreCase)
+                .ToArray();
+
+            if (candidates.Length == 0)
+                return null;
+
+            return candidates.FirstOrDefault(path =>
+                string.Equals(Path.GetFileNameWithoutExtension(path), folderName, StringComparison.OrdinalIgnoreCase))
+                ?? candidates[0];
         }
 
         private async void OnAddWavClick(object? sender, RoutedEventArgs e)
@@ -199,10 +284,32 @@ namespace bms_editer
             if (e.PropertyName == nameof(MainWindowViewModel.PlaybackPositionSeconds))
             {
                 FollowPlaybackCursorIfNeeded();
+                if (sender is MainWindowViewModel vm)
+                    VideoPreview.SyncTo(vm.PlaybackPositionSeconds);
             }
             else if (e.PropertyName == nameof(MainWindowViewModel.IsHorizontalView))
             {
                 UpdateEditorOrientation();
+            }
+            else if (e.PropertyName == nameof(MainWindowViewModel.IsPlaying))
+            {
+                if (sender is not MainWindowViewModel vm)
+                    return;
+
+                if (vm.IsPlaying)
+                    VideoPreview.PlayFrom(vm.PlaybackPositionSeconds);
+                else
+                    VideoPreview.PauseAt(vm.PlaybackPositionSeconds);
+            }
+            else if (e.PropertyName == nameof(MainWindowViewModel.VideoFilePath))
+            {
+                if (sender is not MainWindowViewModel vm)
+                    return;
+
+                if (vm.VideoFilePath is { } videoPath)
+                    VideoPreview.LoadVideo(videoPath);
+                else
+                    VideoPreview.ClearVideo();
             }
         }
 

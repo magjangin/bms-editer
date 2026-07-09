@@ -17,6 +17,7 @@
       <IncludeAssets Condition="'$(Configuration)' != 'Debug'">None</IncludeAssets>
       <PrivateAssets Condition="'$(Configuration)' != 'Debug'">All</PrivateAssets>
     </PackageReference>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3124.44" />
     <PackageReference Include="NVorbis" Version="0.10.5" />
   </ItemGroup>
 </Project>

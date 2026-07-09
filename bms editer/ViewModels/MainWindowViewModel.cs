@@ -28,6 +28,11 @@ public sealed partial class MainWindowViewModel : ObservableObject
     [ObservableProperty] private double _playbackPositionSeconds;
     [ObservableProperty] private bool _isPlaybackCursorVisible;
     [ObservableProperty] private bool _isGridSyncFlashVisible;
+    [ObservableProperty] private bool _isPlaying;
+
+    // 오른쪽 패널 비디오 프리뷰
+    [ObservableProperty] private string? _videoFilePath;
+    [ObservableProperty] private string? _videoFileName;
 
     // HEADER 패널
     [ObservableProperty] private string _title = string.Empty;
@@ -106,6 +111,21 @@ public sealed partial class MainWindowViewModel : ObservableObject
         }
     }
 
+    public void LoadVideo(string filePath)
+    {
+        if (!System.IO.File.Exists(filePath))
+            return;
+
+        VideoFilePath = filePath;
+        VideoFileName = System.IO.Path.GetFileName(filePath);
+    }
+
+    public void ClearVideo()
+    {
+        VideoFilePath = null;
+        VideoFileName = null;
+    }
+
     partial void OnBpmChanged(double value)
     {
         UpdateMeasureCountFromAudio();
@@ -162,6 +182,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         PlaybackPositionSeconds = startSeconds;
         _lastPlaybackPositionSeconds = startSeconds;
         IsPlaybackCursorVisible = true;
+        IsPlaying = true;
         _playbackTimer.Start();
     }
 
@@ -224,6 +245,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         _playbackTimer.Stop();
         _audioPlayer?.Stop();
         _playbackNotes = Array.Empty<BmsNote>();
+        IsPlaying = false;
 
         if (resetCursor)
         {
@@ -261,6 +283,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
             Artist = parsedChart.Header.Artist;
             Bpm = parsedBpm;
             MeasureCount = calculatedMeasureCount;
+            Chart.MeasureCount = calculatedMeasureCount;
 
             foreach (var wavItem in parsedWavItems)
             {
