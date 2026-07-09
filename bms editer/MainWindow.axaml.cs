@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -119,6 +120,46 @@ namespace bms_editer
                 return;
 
             vm.LoadBms(path);
+        }
+
+        private async void OnSaveFileClick(object? sender, RoutedEventArgs e)
+        {
+            if (DataContext is not MainWindowViewModel vm)
+                return;
+
+            var path = vm.CurrentFilePath ?? await PickSavePathAsync(vm);
+            if (path is null)
+                return;
+
+            vm.SaveBms(path);
+        }
+
+        private async void OnSaveFileAsClick(object? sender, RoutedEventArgs e)
+        {
+            if (DataContext is not MainWindowViewModel vm)
+                return;
+
+            var path = await PickSavePathAsync(vm);
+            if (path is null)
+                return;
+
+            vm.SaveBms(path);
+        }
+
+        private async Task<string?> PickSavePathAsync(MainWindowViewModel vm)
+        {
+            var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+            {
+                Title = "BMS 파일로 저장",
+                DefaultExtension = "bms",
+                SuggestedFileName = string.IsNullOrWhiteSpace(vm.Title) ? "chart" : vm.Title,
+                FileTypeChoices = new[]
+                {
+                    new FilePickerFileType("BMS 차트 파일") { Patterns = new[] { "*.bms", "*.bme", "*.bml" } },
+                },
+            });
+
+            return file?.TryGetLocalPath();
         }
 
         private static void LoadFolderMedia(MainWindowViewModel vm, string folderPath)

@@ -19,7 +19,8 @@
             <MenuItem Header="파일 (F)">
                 <MenuItem Header="새로 만들기" Command="{Binding NewFileCommand}" />
                 <MenuItem Header="열기..." Click="OnOpenFileClick" />
-                <MenuItem Header="저장" Command="{Binding SaveFileCommand}" />
+                <MenuItem Header="저장" Click="OnSaveFileClick" />
+                <MenuItem Header="다른 이름으로 저장..." Click="OnSaveFileAsClick" />
             </MenuItem>
             <MenuItem Header="편집 (E)" />
             <MenuItem Header="View" />
@@ -32,7 +33,7 @@
             <StackPanel Orientation="Horizontal" Spacing="4">
                 <Button Content="새로" Command="{Binding NewFileCommand}" />
                 <Button Content="열기" Click="OnOpenFileClick" />
-                <Button Content="저장" Command="{Binding SaveFileCommand}" />
+                <Button Content="저장" Click="OnSaveFileClick" />
                 <Separator />
                 <Button Content="📊" Click="OnShowStatsClick" ToolTip.Tip="노트 통계" />
                 <ToggleButton Content="✏️" IsChecked="{Binding IsEditMode}" />

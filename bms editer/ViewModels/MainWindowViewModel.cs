@@ -13,6 +13,7 @@ namespace bms_editer.ViewModels;
 public sealed partial class MainWindowViewModel : ObservableObject
 {
     public BmsChart Chart { get; } = new();
+    public string? CurrentFilePath { get; private set; }
     private readonly DispatcherTimer _playbackTimer;
     private readonly DispatcherTimer _gridSyncFlashTimer;
     private OggAudioPlayer? _audioPlayer;
@@ -301,6 +302,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
                 SelectedWavItem = WavList[0];
             }
 
+            CurrentFilePath = filePath;
+
             // UI 렌더링 강제 업데이트 유도
             OnPropertyChanged(nameof(Notes));
         }
@@ -310,10 +313,18 @@ public sealed partial class MainWindowViewModel : ObservableObject
         }
     }
 
-    [RelayCommand]
-    private void SaveFile()
+    public void SaveBms(string filePath)
     {
-        // TODO: Chart -> .bms 텍스트 포맷 직렬화
+        try
+        {
+            var content = BmsWriter.Write(Chart, Title, Artist, Genre, Bpm, Player, Rank, Level, WavList, filePath);
+            System.IO.File.WriteAllText(filePath, content, new System.Text.UTF8Encoding(false));
+            CurrentFilePath = filePath;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"BMS 저장 실패: {ex.Message}");
+        }
     }
 
     [RelayCommand]
