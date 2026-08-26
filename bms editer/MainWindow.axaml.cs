@@ -27,6 +27,7 @@ public partial class MainWindow : Window
             InitializeComponent();
             var vm = new MainWindowViewModel();
             DataContext = vm;
+            vm.ConfirmDiscardAsync = message => ConfirmWindow.ShowAsync(this, message, "새로 만들기");
             vm.PropertyChanged += OnViewModelPropertyChanged;
             Waveform.ScrubRequested += OnWaveformScrubRequested;
             UpdateEditorOrientation();

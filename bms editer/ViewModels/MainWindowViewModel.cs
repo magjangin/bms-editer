@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Threading.Tasks;
 using Avalonia.Threading;
 using bms_editer.Models;
 using bms_editer.Services;
@@ -260,10 +261,70 @@ public sealed partial class MainWindowViewModel : ObservableObject
         }
     }
 
+    // 새로 만들기처럼 작업 내용을 버리는 동작 전에 사용자 확인을 받는 콜백. (View가 주입)
+    public Func<string, Task<bool>>? ConfirmDiscardAsync { get; set; }
+
+    // 되돌릴 수 없게 사라질 편집 내용이 남아 있는지 여부.
+    private bool HasDocumentContent =>
+        Chart.Notes.Count > 0
+        || WavList.Count > 0
+        || CurrentFilePath is not null
+        || !string.IsNullOrWhiteSpace(Title)
+        || !string.IsNullOrWhiteSpace(Artist);
+
     [RelayCommand]
-    private void NewFile()
+    private async Task NewFileAsync()
     {
-        // TODO: Chart 상태 초기화
+        if (HasDocumentContent && ConfirmDiscardAsync is { } confirm)
+        {
+            var proceed = await confirm("현재 작업 중인 내용이 모두 사라집니다.\n새로 만들까요?");
+            if (!proceed)
+                return;
+        }
+
+        // 재생 중이던 배경 음원을 먼저 정리한다.
+        StopPlayback(resetCursor: true);
+        _audioPlayer?.Dispose();
+        _audioPlayer = null;
+        OggFileName = null;
+        OggPeaks = null;
+        OggOnsets = null;
+        OggDurationSeconds = 0;
+        ClearVideo();
+
+        // 곡 길이가 0이 된 뒤에 초기화해야 UpdateMeasureCountFromAudio가 덮어쓰지 않는다.
+        ResetDocumentState();
+
+        // 새 차트는 명세서 기준값인 16분할 그리드로 시작한다.
+        BeatSplit = 16;
+        GridMeasure = 4;
+    }
+
+    // 차트/키음/헤더 등 문서 상태를 초기 상태로 되돌린다. (배경 음원·비디오는 대상 아님)
+    private void ResetDocumentState()
+    {
+        Chart.Notes.Clear();
+        Chart.WavTable.Clear();
+        Chart.BmpTable.Clear();
+        Chart.MeasureLengths.Clear();
+        WavList.Clear();
+        SelectedWavItem = null;
+        _selectedNotes.Clear();
+
+        Title = string.Empty;
+        Artist = string.Empty;
+        Genre = string.Empty;
+        Level = string.Empty;
+        Bpm = 120.0;
+        Player = 1;
+        Rank = 2;
+
+        MeasureCount = 32;
+        Chart.MeasureCount = 32;
+        CurrentFilePath = null;
+
+        OnPropertyChanged(nameof(Notes));
+        OnPropertyChanged(nameof(SelectedNotes));
     }
 
     public void LoadBms(string filePath)
@@ -272,10 +333,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         try
         {
             // 기존 상태 완전 초기화
-            Chart.Notes.Clear();
-            Chart.WavTable.Clear();
-            WavList.Clear();
-            SelectedWavItem = null;
+            ResetDocumentState();
 
             // BMS 파싱 실행
             var parsedChart = BmsParser.Parse(filePath, out var parsedBpm, out var calculatedMeasureCount, out var parsedWavItems);
