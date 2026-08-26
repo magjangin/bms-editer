@@ -22,6 +22,12 @@ public partial class MainWindow : Window
         private static readonly string[] OggExtensions = { ".ogg" };
         private static readonly string[] VideoExtensions = { ".mp4", ".webm", ".mov", ".avi", ".mkv", ".ogv" };
 
+        // 모드리스로 떠 있는 검색/삭제/교체 창. 닫히면 다시 null이 된다.
+        private NoteSearchWindow? _noteSearchWindow;
+
+        // 모드리스로 떠 있는 노트 통계 창. 닫히면 다시 null이 된다.
+        private NoteStatsWindow? _noteStatsWindow;
+
         public MainWindow()
         {
             InitializeComponent();
@@ -246,22 +252,47 @@ public partial class MainWindow : Window
             }
         }
 
-        private void OnShowBulkEditClick(object? sender, RoutedEventArgs e)
+        // 검색 결과를 격자에서 바로 확인해야 하므로 모달이 아닌 모드리스로 띄운다.
+        // 이미 떠 있으면 새 창을 만들지 않고 기존 창을 앞으로 가져온다.
+        private void OnShowNoteSearchClick(object? sender, RoutedEventArgs e)
         {
             if (DataContext is not MainWindowViewModel vm)
                 return;
 
-            var bulkEditWindow = new BulkEditWindow(new BulkEditViewModel(vm.SelectedNotes));
-            bulkEditWindow.ShowDialog(this);
+            if (_noteSearchWindow is { } existing)
+            {
+                existing.Activate();
+                return;
+            }
+
+            var searchWindow = new NoteSearchWindow(new NoteSearchViewModel(vm));
+            searchWindow.Closed += (_, _) => _noteSearchWindow = null;
+            _noteSearchWindow = searchWindow;
+            searchWindow.Show(this);
         }
 
+        // 편집하는 동안 집계가 따라 움직여야 하므로 검색 창과 같이 모드리스로 띄운다.
+        // 뷰모델이 메인 뷰모델의 변경 알림을 구독하므로 창이 닫힐 때 반드시 해제한다.
         private void OnShowStatsClick(object? sender, RoutedEventArgs e)
         {
             if (DataContext is not MainWindowViewModel vm)
                 return;
 
-            var statsWindow = new NoteStatsWindow(new NoteStatsViewModel(vm.Chart, vm.WavList));
-            statsWindow.ShowDialog(this);
+            if (_noteStatsWindow is { } existing)
+            {
+                existing.Activate();
+                return;
+            }
+
+            var statsViewModel = new NoteStatsViewModel(vm);
+            var statsWindow = new NoteStatsWindow(statsViewModel);
+            statsWindow.Closed += (_, _) =>
+            {
+                statsViewModel.Dispose();
+                _noteStatsWindow = null;
+            };
+            _noteStatsWindow = statsWindow;
+            statsWindow.Show(this);
         }
 
         private void OnWaveformScrubRequested(object? sender, WaveformScrubRequestedEventArgs e)

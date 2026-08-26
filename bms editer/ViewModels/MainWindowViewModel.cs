@@ -415,14 +415,62 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public IReadOnlyList<BmsNote> SelectedNotes => _selectedNotes.ToArray();
 
     [RelayCommand]
-    private void SelectNotes(NoteSelectionArgs args)
+    private void SelectNotes(NoteSelectionArgs args) => SetNoteSelection(args.Notes);
+
+    // 격자 밖(검색/삭제/교체 창 등)에서 선택 집합을 통째로 교체한다.
+    public void SetNoteSelection(IEnumerable<BmsNote> notes)
     {
         _selectedNotes.Clear();
-        foreach (var note in args.Notes)
+        foreach (var note in notes)
         {
             _selectedNotes.Add(note);
         }
         OnPropertyChanged(nameof(SelectedNotes));
+    }
+
+    public void ClearNoteSelection() => SetNoteSelection(Array.Empty<BmsNote>());
+
+    // 선택 여부와 관계없이 지정한 노트들을 지우고, 실제로 지워진 개수를 돌려준다.
+    public int DeleteNotes(IReadOnlyList<BmsNote> notes)
+    {
+        if (notes.Count == 0) return 0;
+
+        var removed = 0;
+        foreach (var note in notes)
+        {
+            if (!Chart.Notes.Remove(note)) continue;
+
+            _selectedNotes.Remove(note);
+            removed++;
+        }
+
+        if (removed > 0)
+        {
+            OnPropertyChanged(nameof(Notes));
+            OnPropertyChanged(nameof(SelectedNotes));
+        }
+
+        return removed;
+    }
+
+    // 지정한 노트들의 키음 번호를 한꺼번에 바꾸고, 실제로 바뀐 개수를 돌려준다.
+    public int ReplaceWavKey(IReadOnlyList<BmsNote> notes, string wavKey)
+    {
+        if (notes.Count == 0 || string.IsNullOrWhiteSpace(wavKey)) return 0;
+
+        var changed = 0;
+        foreach (var note in notes)
+        {
+            if (note.WavKey == wavKey) continue;
+
+            note.WavKey = wavKey;
+            changed++;
+        }
+
+        if (changed > 0)
+            OnPropertyChanged(nameof(Notes));
+
+        return changed;
     }
 
     [RelayCommand]

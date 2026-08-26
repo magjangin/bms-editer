@@ -6,13 +6,15 @@
         x:Class="bms_editer.Views.NoteStatsWindow"
         x:DataType="vm:NoteStatsViewModel"
         Title="노트 통계"
-        Width="280" Height="520"
-        CanResize="False"
+        Width="320" Height="520"
+        MinWidth="260" MinHeight="240"
+        ShowInTaskbar="False"
         WindowStartupLocation="CenterOwner">
 
     <ScrollViewer VerticalScrollBarVisibility="Auto">
         <StackPanel Margin="16" Spacing="8">
             <TextBlock Text="레인별 노트 개수" FontWeight="Bold" />
+            <TextBlock Text="노트가 없습니다." Opacity="0.6" IsVisible="{Binding !HasLaneStats}" />
             <ItemsControl ItemsSource="{Binding Stats}">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:LaneNoteStat">
@@ -26,12 +28,15 @@
             <Separator Margin="0,4" />
 
             <TextBlock Text="키음별 노트 개수" FontWeight="Bold" Margin="0,8,0,0" />
+            <TextBlock Text="실제로 노트에 쓰인 번호만 표시합니다." Opacity="0.6" TextWrapping="Wrap" />
+            <TextBlock Text="쓰인 키음이 없습니다." Opacity="0.6" IsVisible="{Binding !HasWavStats}" />
             <ItemsControl ItemsSource="{Binding WavStats}">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:WavNoteStat">
                         <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,2">
-                            <TextBlock Grid.Column="0" Text="{Binding Key, StringFormat='#{0}'}" Width="36" />
-                            <TextBlock Grid.Column="1" Text="{Binding FileName}" TextTrimming="CharacterEllipsis" Margin="0,0,8,0" />
+                            <TextBlock Grid.Column="0" Text="{Binding Key, StringFormat='#{0}'}" Width="44" />
+                            <TextBlock Grid.Column="1" Text="{Binding FileName}" TextTrimming="CharacterEllipsis"
+                                       ToolTip.Tip="{Binding FileName}" Margin="0,0,8,0" />
                             <TextBlock Grid.Column="2" Text="{Binding Count}" HorizontalAlignment="Right" />
                         </Grid>
                     </DataTemplate>

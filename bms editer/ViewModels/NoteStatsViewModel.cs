@@ -1,7 +1,10 @@
+using System;
 using System.Collections.Generic;
+using System.Collections.Specialized;
+using System.ComponentModel;
 using System.IO;
 using System.Linq;
-using bms_editer.Models;
+using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace bms_editer.ViewModels;
 
@@ -9,22 +12,75 @@ public sealed record LaneNoteStat(string LaneId, int Count);
 
 public sealed record WavNoteStat(string Key, string FileName, int Count);
 
-public sealed class NoteStatsViewModel
+// 노트 통계 창의 상태 모델.
+//
+// 편집 결과가 곧바로 보이도록 메인 뷰모델의 노트 변경 알림을 구독해 다시 집계한다.
+// 개수가 0인 항목은 목록에서 빼고 실제로 쓰인 레인/키음만 보여준다.
+// 키음은 등록된 #WAV 목록이 아니라 노트가 실제로 가리키는 번호를 기준으로 센다.
+// (수백 개짜리 키음 테이블에서 쓰지 않는 번호가 목록을 가득 채우는 걸 막는다)
+public sealed partial class NoteStatsViewModel : ObservableObject, IDisposable
 {
-    public IReadOnlyList<LaneNoteStat> Stats { get; }
+    private readonly MainWindowViewModel _owner;
 
-    public IReadOnlyList<WavNoteStat> WavStats { get; }
+    [ObservableProperty] private IReadOnlyList<LaneNoteStat> _stats = Array.Empty<LaneNoteStat>();
+    [ObservableProperty] private IReadOnlyList<WavNoteStat> _wavStats = Array.Empty<WavNoteStat>();
+    [ObservableProperty] private int _totalCount;
 
-    public int TotalCount { get; }
-
-    public NoteStatsViewModel(BmsChart chart, IReadOnlyList<BmsWavItem> wavItems)
+    public NoteStatsViewModel(MainWindowViewModel owner)
     {
+        _owner = owner;
+        _owner.PropertyChanged += OnOwnerPropertyChanged;
+        _owner.WavList.CollectionChanged += OnWavListChanged;
+        Refresh();
+    }
+
+    public bool HasLaneStats => Stats.Count > 0;
+    public bool HasWavStats => WavStats.Count > 0;
+
+    partial void OnStatsChanged(IReadOnlyList<LaneNoteStat> value) => OnPropertyChanged(nameof(HasLaneStats));
+
+    partial void OnWavStatsChanged(IReadOnlyList<WavNoteStat> value) => OnPropertyChanged(nameof(HasWavStats));
+
+    private void OnOwnerPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(MainWindowViewModel.Notes))
+            Refresh();
+    }
+
+    // 키음을 추가·삭제하면 번호에 딸린 파일명 표시가 달라진다.
+    private void OnWavListChanged(object? sender, NotifyCollectionChangedEventArgs e) => Refresh();
+
+    private void Refresh()
+    {
+        var chart = _owner.Chart;
+
+        // 키음 번호 -> 파일명. 같은 번호가 두 번 정의돼 있으면 마지막 것을 쓴다.
+        var fileNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var item in _owner.WavList)
+        {
+            fileNames[item.Key] = Path.GetFileName(item.FilePath);
+        }
+
         Stats = chart.Lanes
             .Select(lane => new LaneNoteStat(lane.Header, chart.Notes.Count(n => n.LaneId == lane.Id)))
+            .Where(stat => stat.Count > 0)
             .ToList();
-        WavStats = wavItems
-            .Select(item => new WavNoteStat(item.Key, Path.GetFileName(item.FilePath), chart.Notes.Count(n => n.WavKey == item.Key)))
+
+        WavStats = chart.Notes
+            .GroupBy(note => note.WavKey, StringComparer.OrdinalIgnoreCase)
+            .Select(group => new WavNoteStat(
+                group.Key,
+                fileNames.TryGetValue(group.Key, out var fileName) ? fileName : "(등록되지 않은 번호)",
+                group.Count()))
+            .OrderBy(stat => stat.Key, StringComparer.OrdinalIgnoreCase)
             .ToList();
+
         TotalCount = chart.Notes.Count;
+    }
+
+    public void Dispose()
+    {
+        _owner.PropertyChanged -= OnOwnerPropertyChanged;
+        _owner.WavList.CollectionChanged -= OnWavListChanged;
     }
 }

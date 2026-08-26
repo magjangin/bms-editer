@@ -37,7 +37,7 @@
                 <Separator />
                 <Button Content="📊" Click="OnShowStatsClick" ToolTip.Tip="노트 통계" />
                 <ToggleButton Content="✏️" IsChecked="{Binding IsEditMode}" />
-                <Button Content="🧰" Click="OnShowBulkEditClick" ToolTip.Tip="선택 노트 일괄 수정" />
+                <Button Content="🧰" Click="OnShowNoteSearchClick" ToolTip.Tip="검색/삭제/교체" />
                 <Separator />
                 <Button Content="OGG 열기" Click="OnLoadOggClick" />
                 <Button Content="비디오 열기" Click="OnLoadVideoClick" />
