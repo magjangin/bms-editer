@@ -27,6 +27,33 @@ public sealed partial class OggAudioPlayer : IDisposable
 
     public double DurationSeconds { get; }
 
+    private int BlockAlign => _channels * _bitsPerSample / 8;
+
+    // 장치가 실제로 재생한 시간(초). 재생 중이 아니거나 장치가 위치 조회를
+    // 지원하지 않으면 null.
+    //
+    // 벽시계로 커서를 움직이면 두 가지로 어긋난다. 첫째로 waveOutWrite 가
+    // 돌아온 뒤에도 실제 출력까지 드라이버 버퍼링 지연이 있어서 커서가 그만큼
+    // 앞서 나가고, 둘째로 사운드 장치는 시스템 시계와 다른 크리스털로 돌아가
+    // 시간이 갈수록 미세하게 벌어진다. 장치에 직접 물어보면 둘 다 사라진다.
+    public double? GetPlayedSeconds()
+    {
+        if (_waveOut == IntPtr.Zero || _sampleRate <= 0)
+            return null;
+
+        var mmTime = new MmTime { Type = TIME_SAMPLES };
+        if (WaveOutGetPosition(_waveOut, ref mmTime, Marshal.SizeOf<MmTime>()) != 0)
+            return null;
+
+        // 요청한 단위를 장치가 못 맞추면 실제로 채워준 단위가 Type 에 담겨 온다.
+        return mmTime.Type switch
+        {
+            TIME_SAMPLES => mmTime.Value / (double)_sampleRate,
+            TIME_BYTES => mmTime.Value / (double)(_sampleRate * Math.Max(1, BlockAlign)),
+            _ => null,
+        };
+    }
+
     public void Play(double startSeconds)
     {
         Stop();
@@ -138,6 +165,22 @@ public sealed partial class OggAudioPlayer : IDisposable
 
     [LibraryImport("winmm.dll", EntryPoint = "waveOutClose")]
     private static partial int WaveOutClose(IntPtr hWaveOut);
+
+    [LibraryImport("winmm.dll", EntryPoint = "waveOutGetPosition")]
+    private static partial int WaveOutGetPosition(IntPtr hWaveOut, ref MmTime mmTime, int size);
+
+    private const uint TIME_SAMPLES = 0x0002;
+    private const uint TIME_BYTES = 0x0004;
+
+    // MMTIME. wType 뒤에 오는 union 은 smpte 구조체가 가장 커서 8바이트라
+    // 전체 12바이트다. 우리는 union 의 첫 4바이트(sample/cb)만 읽는다.
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MmTime
+    {
+        public uint Type;
+        public uint Value;
+        public uint UnionTail;
+    }
 
     [StructLayout(LayoutKind.Sequential)]
     private struct WaveFormat

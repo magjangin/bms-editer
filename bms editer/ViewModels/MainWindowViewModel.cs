@@ -198,7 +198,15 @@ public sealed partial class MainWindowViewModel : ObservableObject
         if (_audioPlayer is null)
             return;
 
-        var currentSec = _playbackStartSeconds + (DateTimeOffset.UtcNow - _playbackStartedAt).TotalSeconds;
+        // 장치가 실제로 재생한 위치를 기준으로 삼는다. 벽시계를 쓰면 출력 지연만큼
+        // 커서가 처음부터 앞서 나가고, 장치 클럭과도 시간이 갈수록 벌어져서
+        // 화면은 맞아 보이는데 소리와는 안 맞는 상태가 된다.
+        // 장치가 위치 조회를 지원하지 않을 때만 예전처럼 벽시계로 되돌아간다.
+        var playedSeconds = _audioPlayer.GetPlayedSeconds();
+        var currentSec = playedSeconds is { } played
+            ? _playbackStartSeconds + played
+            : _playbackStartSeconds + (DateTimeOffset.UtcNow - _playbackStartedAt).TotalSeconds;
+
         PlaybackPositionSeconds = currentSec;
 
         PlayNotesInTimeRange(_lastPlaybackPositionSeconds, currentSec);
