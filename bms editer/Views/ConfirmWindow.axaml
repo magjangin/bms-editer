@@ -6,6 +6,7 @@
         Title="확인"
         Width="360" SizeToContent="Height"
         CanResize="False"
+        CanMinimize="False"
         ShowInTaskbar="False"
         WindowStartupLocation="CenterOwner">
 

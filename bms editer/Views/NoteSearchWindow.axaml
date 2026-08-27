@@ -8,6 +8,7 @@
         Title="검색/삭제/교체"
         Width="490" SizeToContent="Height"
         CanResize="False"
+        CanMinimize="False"
         ShowInTaskbar="False"
         WindowStartupLocation="CenterOwner">
 

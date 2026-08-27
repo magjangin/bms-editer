@@ -8,6 +8,7 @@
         Title="노트 통계"
         Width="320" Height="520"
         MinWidth="260" MinHeight="240"
+        CanMinimize="False"
         ShowInTaskbar="False"
         WindowStartupLocation="CenterOwner">
 

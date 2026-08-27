@@ -9,6 +9,7 @@
         Title="키음 팔레트"
         Width="720" Height="600"
         MinWidth="360" MinHeight="320"
+        CanMinimize="False"
         ShowInTaskbar="False"
         WindowStartupLocation="CenterOwner">
 
