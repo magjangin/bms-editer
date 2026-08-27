@@ -28,3 +28,6 @@ bld/
 Thumbs.db
 ehthumbs.db
 Desktop.ini
+
+# Publish output
+publish/

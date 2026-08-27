@@ -21,4 +21,15 @@
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3124.44" />
     <PackageReference Include="NVorbis" Version="0.10.5" />
   </ItemGroup>
+
+  <!-- 배포(publish) 산출물에서 PDB와 XML 문서 파일을 제외한다.
+       SkiaSharp/HarfBuzz 네이티브 PDB만 100MB가 넘고, WebView2 XML 문서도 배포에 불필요하다.
+       bin/ 의 PDB는 그대로 남으므로 크래시 스택 심볼 분석에는 영향이 없다. -->
+  <Target Name="ExcludeSymbolsFromPublish" AfterTargets="ComputeResolvedFilesToPublishList">
+    <ItemGroup>
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)"
+                             Condition="'%(Extension)' == '.pdb' Or '%(Extension)' == '.xml'" />
+    </ItemGroup>
+  </Target>
+
 </Project>
