@@ -65,17 +65,6 @@ public sealed partial class MainWindowViewModel : ObservableObject
     // 창을 닫았다 다시 열어도 고른 보기가 남도록 메인 뷰모델이 들고 있는다.
     [ObservableProperty] private int _wavPaletteViewModeIndex = 2;
 
-    // 마디 000의 첫 박이 오디오의 몇 초 지점인지.
-    // 이 값이 없으면 앞 무음을 BPM 으로 흡수할 수밖에 없어서 곡 뒤로 갈수록 격자가 벌어진다.
-    [ObservableProperty] private double _startOffsetSeconds;
-
-    // 싱크 보정용 기준점 두 개. 재생 위치를 담아두고 BPM/오프셋을 역산한다.
-    [ObservableProperty] private int _syncMeasureA;
-    [ObservableProperty] private double _syncSecondsA;
-    [ObservableProperty] private int _syncMeasureB = 32;
-    [ObservableProperty] private double _syncSecondsB;
-    [ObservableProperty] private string _syncStatus = "재생 위치를 기준점에 담고 보정하세요.";
-
     public MainWindowViewModel()
     {
         _playbackTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(33) };
@@ -150,63 +139,6 @@ public sealed partial class MainWindowViewModel : ObservableObject
         FlashGridSync();
     }
 
-    partial void OnStartOffsetSecondsChanged(double value)
-    {
-        UpdateMeasureCountFromAudio();
-        FlashGridSync();
-    }
-
-    // 현재 재생 위치를 기준점에 담는다. 파형에서 가운데 버튼으로 문질러 위치를 잡은 뒤 누른다.
-    [RelayCommand]
-    private void CaptureSyncA() => SyncSecondsA = PlaybackPositionSeconds;
-
-    [RelayCommand]
-    private void CaptureSyncB() => SyncSecondsB = PlaybackPositionSeconds;
-
-    // BPM 은 그대로 두고 오프셋만 맞춘다. BPM 을 알고 있는(고정해서 쓰는) 경우의 기본 동작.
-    [RelayCommand]
-    private void AlignOffsetToSyncA()
-    {
-        if (Bpm <= 0)
-        {
-            SyncStatus = "BPM 이 올바르지 않습니다.";
-            return;
-        }
-
-        StartOffsetSeconds = SyncSecondsA - (SyncMeasureA * 240.0 / Bpm);
-        SyncStatus = $"BPM {Bpm:0.0000} 유지, 오프셋 {StartOffsetSeconds:0.0000}s 적용 "
-            + $"(마디 {SyncMeasureA:D3} = {SyncSecondsA:0.0000}s)";
-    }
-
-    // 두 기준점으로 BPM 과 오프셋을 동시에 역산한다.
-    //   BPM    = 240 × (마디B - 마디A) / (초B - 초A)
-    //   오프셋 = 초A - 마디A × 240 / BPM
-    // 두 점을 멀리 잡을수록 정확해진다. 결과 정확도는 찍은 정밀도와 거의 같다.
-    [RelayCommand]
-    private void ApplySyncCalibration()
-    {
-        var measureSpan = SyncMeasureB - SyncMeasureA;
-        var secondSpan = SyncSecondsB - SyncSecondsA;
-
-        if (measureSpan <= 0 || secondSpan <= 0)
-        {
-            SyncStatus = "기준점 B 가 A 보다 뒤(마디·시간 모두)여야 합니다.";
-            return;
-        }
-
-        var bpm = 240.0 * measureSpan / secondSpan;
-        if (bpm is < 1 or > 999 or double.NaN)
-        {
-            SyncStatus = $"계산된 BPM {bpm:0.0000} 이 범위를 벗어납니다. 기준점을 확인하세요.";
-            return;
-        }
-
-        Bpm = bpm;
-        StartOffsetSeconds = SyncSecondsA - (SyncMeasureA * 240.0 / bpm);
-        SyncStatus = $"BPM {bpm:0.0000}, 오프셋 {StartOffsetSeconds:0.0000}s 적용 "
-            + $"({measureSpan}마디 / {secondSpan:0.0000}s 기준)";
-    }
-
     private void FlashGridSync()
     {
         if (OggDurationSeconds <= 0)
@@ -224,8 +156,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
         // 곡 길이(BPM 기준 4/4 마디 수)에 맞춰 그리드를 늘려서
         // BPM 변경이 즉시 파형/그리드 세로 길이에 반영되게 한다.
-        // 마디 000이 오프셋 지점에서 시작하므로 남은 길이만큼만 마디를 채운다.
-        var totalBeats = (OggDurationSeconds - StartOffsetSeconds) * (Bpm / 60.0);
+        var totalBeats = OggDurationSeconds * (Bpm / 60.0);
         MeasureCount = Math.Max(1, (int)Math.Ceiling(totalBeats / 4.0));
         Chart.MeasureCount = MeasureCount;
     }
@@ -299,7 +230,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         while (low <= high)
         {
             var mid = low + (high - low) / 2;
-            var noteSec = StartOffsetSeconds + ((_playbackNotes[mid].Measure + _playbackNotes[mid].Position) * secondsPerMeasure);
+            var noteSec = (_playbackNotes[mid].Measure + _playbackNotes[mid].Position) * secondsPerMeasure;
 
             if (noteSec >= start)
             {
@@ -315,7 +246,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         for (var i = startIndex; i < _playbackNotes.Length; i++)
         {
             var note = _playbackNotes[i];
-            var noteSec = StartOffsetSeconds + ((note.Measure + note.Position) * secondsPerMeasure);
+            var noteSec = (note.Measure + note.Position) * secondsPerMeasure;
 
             if (noteSec >= end)
                 break;
@@ -407,13 +338,6 @@ public sealed partial class MainWindowViewModel : ObservableObject
         Player = 1;
         Rank = 2;
 
-        StartOffsetSeconds = 0;
-        SyncMeasureA = 0;
-        SyncSecondsA = 0;
-        SyncMeasureB = 32;
-        SyncSecondsB = 0;
-        SyncStatus = "재생 위치를 기준점에 담고 보정하세요.";
-
         MeasureCount = 32;
         Chart.MeasureCount = 32;
         CurrentFilePath = null;
@@ -464,11 +388,6 @@ public sealed partial class MainWindowViewModel : ObservableObject
         Rank = Math.Clamp(parsedChart.Header.Rank, 0, 3);
 
         Bpm = parsedBpm;
-
-        // MeasureCount 를 덮어쓰기 전에 오프셋을 넣는다.
-        // (오프셋이 바뀌면 UpdateMeasureCountFromAudio 가 다시 계산한다)
-        StartOffsetSeconds = parsedChart.Header.StartOffsetSeconds;
-
         MeasureCount = calculatedMeasureCount;
         Chart.MeasureCount = calculatedMeasureCount;
 
@@ -504,9 +423,6 @@ public sealed partial class MainWindowViewModel : ObservableObject
     {
         try
         {
-            // 오프셋은 인자로 넘기지 않고 헤더에 실어 보낸다(라이터 인자가 이미 많다).
-            Chart.Header.StartOffsetSeconds = StartOffsetSeconds;
-
             var content = BmsWriter.Write(Chart, Title, Artist, Genre, Bpm, Player, Rank, Level, WavList, filePath);
             System.IO.File.WriteAllText(filePath, content, new System.Text.UTF8Encoding(false));
             CurrentFilePath = filePath;

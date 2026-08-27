@@ -31,9 +31,6 @@ public abstract class TimelineControlBase : Control
     public static readonly StyledProperty<double> DurationSecondsProperty =
         AvaloniaProperty.Register<TimelineControlBase, double>(nameof(DurationSeconds));
 
-    public static readonly StyledProperty<double> StartOffsetSecondsProperty =
-        AvaloniaProperty.Register<TimelineControlBase, double>(nameof(StartOffsetSeconds));
-
     public static readonly StyledProperty<double> PlaybackPositionSecondsProperty =
         AvaloniaProperty.Register<TimelineControlBase, double>(nameof(PlaybackPositionSeconds));
 
@@ -94,15 +91,6 @@ public abstract class TimelineControlBase : Control
         set => SetValue(DurationSecondsProperty, value);
     }
 
-    // 마디 000의 첫 박이 오디오의 몇 초 지점인지. OGG 앞의 무음이나 인코더 지연
-    // 때문에 첫 박이 sample 0 에 있는 경우는 거의 없다. 이 값이 없으면 BPM 으로
-    // 그 어긋남을 흡수할 수밖에 없고, 그러면 곡 뒤로 갈수록 격자가 음악과 벌어진다.
-    public double StartOffsetSeconds
-    {
-        get => GetValue(StartOffsetSecondsProperty);
-        set => SetValue(StartOffsetSecondsProperty, value);
-    }
-
     public double PlaybackPositionSeconds
     {
         get => GetValue(PlaybackPositionSecondsProperty);
@@ -132,40 +120,12 @@ public abstract class TimelineControlBase : Control
         AffectsRender<TimelineControlBase>(
             RowHeightProperty, VerticalZoomProperty, HorizontalZoomProperty, MeasureCountProperty,
             BeatSplitProperty, GridMeasureProperty, BpmProperty, DurationSecondsProperty,
-            StartOffsetSecondsProperty,
             PlaybackPositionSecondsProperty, IsPlaybackCursorVisibleProperty, IsGridSyncFlashVisibleProperty,
             IsHorizontalViewProperty);
 
         AffectsMeasure<TimelineControlBase>(
             RowHeightProperty, VerticalZoomProperty, MeasureCountProperty,
             BeatSplitProperty, GridMeasureProperty, DurationSecondsProperty, IsHorizontalViewProperty);
-    }
-
-    // ---- 시간 축 변환 (모든 그리기·클릭 판정이 이 세 개만 쓴다) ----
-
-    // 마디+박 위치 -> 오디오 시간(초)
-    protected double MeasurePositionToSeconds(double measurePosition) =>
-        StartOffsetSeconds + (measurePosition * 240.0 / Bpm);
-
-    // 오디오 시간(초) -> 마디+박 위치
-    protected double SecondsToMeasurePosition(double seconds) =>
-        (seconds - StartOffsetSeconds) * Bpm / 240.0;
-
-    // 오디오 시간(초) -> 타임라인 좌표(px)
-    protected double SecondsToTPos(double seconds, double timelineLength)
-    {
-        var ratio = DurationSeconds > 0 ? seconds / DurationSeconds : 0.0;
-        return IsHorizontalView ? (ratio * timelineLength) : ((1.0 - ratio) * timelineLength);
-    }
-
-    // 타임라인 좌표(px) -> 오디오 시간(초)
-    protected double TPosToSeconds(double tPos, double timelineLength)
-    {
-        if (timelineLength <= 0)
-            return 0.0;
-
-        var ratio = IsHorizontalView ? (tPos / timelineLength) : (1.0 - (tPos / timelineLength));
-        return Math.Clamp(ratio, 0.0, 1.0) * DurationSeconds;
     }
 
     protected double GetTimelineHeight()
