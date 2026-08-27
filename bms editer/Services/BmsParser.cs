@@ -35,6 +35,11 @@ public static partial class BmsParser
     [GeneratedRegex(@"^#PLAYLEVEL\s+(.*)", RegexOptions.IgnoreCase)]
     private static partial Regex PlayLevelRegex();
 
+    // 에디터 전용 확장. 마디 000의 첫 박이 오디오의 몇 초 지점인지 담는다.
+    // BMS 표준에는 없는 헤더지만 플레이어는 모르는 헤더를 무시하므로 안전하다.
+    [GeneratedRegex(@"^#OFFSET\s+(-?[0-9.]+)", RegexOptions.IgnoreCase)]
+    private static partial Regex OffsetRegex();
+
     [GeneratedRegex(@"^#([0-9]{3})([0-9a-zA-Z]{2}):(.*)", RegexOptions.IgnoreCase)]
     private static partial Regex DataRegex();
 
@@ -137,6 +142,14 @@ public static partial class BmsParser
             if (playLevelMatch.Success)
             {
                 chart.Header.Level = playLevelMatch.Groups[1].Value.Trim();
+                continue;
+            }
+
+            var offsetMatch = OffsetRegex().Match(line);
+            if (offsetMatch.Success)
+            {
+                if (double.TryParse(offsetMatch.Groups[1].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var tempOffset))
+                    chart.Header.StartOffsetSeconds = tempOffset;
                 continue;
             }
 
@@ -247,6 +260,7 @@ public static partial class BmsParser
         || PlayerRegex().IsMatch(line)
         || RankRegex().IsMatch(line)
         || PlayLevelRegex().IsMatch(line)
+        || OffsetRegex().IsMatch(line)
         || WavRegex().IsMatch(line);
 
     private static int DetermineChunkSize(string dataStr, bool has3DigitWav, Dictionary<string, string> wavTable)

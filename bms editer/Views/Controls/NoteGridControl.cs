@@ -164,15 +164,18 @@ public sealed class NoteGridControl : TimelineControlBase
         var split = Math.Max(1, BeatSplit);
         if (DurationSeconds > 0 && Bpm > 0)
         {
-            var secondsPerStep = 240.0 / (Bpm * split);
             for (var index = 0; ; index++)
             {
-                var seconds = index * secondsPerStep;
+                var seconds = MeasurePositionToSeconds((double)index / split);
                 if (seconds > DurationSeconds)
                     goto FinishedBeatLines;
 
-                var ratio = seconds / DurationSeconds;
-                var tPos = IsHorizontalView ? (ratio * timelineLength) : ((1.0 - ratio) * timelineLength);
+                // 오프셋이 양수면 마디 000이 오디오 시작보다 뒤에 있다.
+                // 음수 구간의 선은 화면 밖이라 건너뛴다.
+                if (seconds < 0)
+                    continue;
+
+                var tPos = SecondsToTPos(seconds, timelineLength);
                 var pen = Mod(index, split) == 0
                     ? measurePen
                     : IsMeasureBeatLine(index, split, GridMeasure)
@@ -336,10 +339,7 @@ public sealed class NoteGridControl : TimelineControlBase
     {
         if (DurationSeconds > 0 && Bpm > 0)
         {
-            var secondsPerMeasure = 240.0 / Bpm;
-            var seconds = (note.Measure + note.Position) * secondsPerMeasure;
-            var ratio = seconds / DurationSeconds;
-            return IsHorizontalView ? (ratio * timelineLength) : ((1.0 - ratio) * timelineLength);
+            return SecondsToTPos(MeasurePositionToSeconds(note.Measure + note.Position), timelineLength);
         }
 
         var rowHeight = RowHeight * VerticalZoom * GetGridSpacingScale();
@@ -403,14 +403,13 @@ public sealed class NoteGridControl : TimelineControlBase
 
         if (DurationSeconds > 0)
         {
-            var ratio = IsHorizontalView ? (tPos / timelineLength) : (1.0 - (tPos / timelineLength));
-            ratio = Math.Clamp(ratio, 0.0, 1.0);
+            // 화면 좌표 -> 초 -> 마디+박. 그리기와 같은 변환을 거꾸로 타야
+            // 클릭한 자리에 노트가 찍힌다.
+            var seconds = TPosToSeconds(tPos, timelineLength);
+            var totalStepIndex = (int)Math.Round(SecondsToMeasurePosition(seconds) * split);
+            if (totalStepIndex < 0)
+                return;
 
-            var seconds = ratio * DurationSeconds;
-            var secondsPerMeasure = 240.0 / Bpm;
-            var secondsPerStep = secondsPerMeasure / split;
-
-            var totalStepIndex = (int)Math.Round(seconds / secondsPerStep);
             measure = totalStepIndex / split;
             position = (double)(totalStepIndex % split) / split;
         }

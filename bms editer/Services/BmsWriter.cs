@@ -34,6 +34,14 @@ public static class BmsWriter
         sb.Append("#RANK ").AppendLine(rank.ToString(CultureInfo.InvariantCulture));
         sb.Append("#PLAYLEVEL ").AppendLine(level);
 
+        // 에디터 전용 헤더. 0 이면 굳이 남기지 않는다(오프셋을 쓰지 않는 파일을 더럽히지 않게).
+        // 다른 플레이어는 모르는 헤더를 무시하므로 넣어도 안전하다.
+        if (Math.Abs(chart.Header.StartOffsetSeconds) > 1e-9)
+        {
+            sb.Append("#OFFSET ")
+              .AppendLine(chart.Header.StartOffsetSeconds.ToString("0.######", CultureInfo.InvariantCulture));
+        }
+
         // 에디터가 다루지 않는 헤더(#TOTAL, #STAGEFILE, #BPMxx, #STOPxx, #BMPxx 등)를
         // 읽어들인 원문 그대로 되돌려 놓는다. 없으면 저장할 때마다 사라진다.
         foreach (var raw in chart.PreservedLines)

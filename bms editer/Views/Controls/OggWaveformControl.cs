@@ -234,15 +234,17 @@ public sealed class OggWaveformControl : TimelineControlBase
 
         if (DurationSeconds > 0)
         {
-            var secondsPerStep = 240.0 / (Bpm * split);
             for (var index = 0; ; index++)
             {
-                var seconds = index * secondsPerStep;
+                var seconds = MeasurePositionToSeconds((double)index / split);
                 if (seconds > DurationSeconds)
                     return;
 
-                var ratio = seconds / DurationSeconds;
-                var tPos = isHorizontal ? (ratio * timelineLength) : ((1.0 - ratio) * timelineLength);
+                // 오프셋이 양수면 마디 000이 오디오 시작보다 뒤에 있다.
+                if (seconds < 0)
+                    continue;
+
+                var tPos = SecondsToTPos(seconds, timelineLength);
 
                 var isMeasure = Mod(index, split) == 0;
                 var pen = isMeasure
