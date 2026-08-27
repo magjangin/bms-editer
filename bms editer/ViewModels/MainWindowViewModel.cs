@@ -504,6 +504,66 @@ public sealed partial class MainWindowViewModel : ObservableObject
         return removed;
     }
 
+    // 지정한 노트들을 마디 단위로 옮긴 자리에 복제한다.
+    //
+    // 이미 노트가 있는 자리와 마디 범위 밖은 건너뛴다. 겹쳐 두면 저장할 때
+    // BmsWriter 가 같은 슬롯을 덮어써서 한쪽이 조용히 사라지므로 아예 만들지 않는다.
+    // 만든 노트를 선택 상태로 두어 결과를 바로 확인하고 이어서 손볼 수 있게 한다.
+    public NoteCopyResult CopyNotesByMeasureOffset(IReadOnlyList<BmsNote> notes, int measureOffset)
+    {
+        if (notes.Count == 0 || measureOffset == 0)
+            return new NoteCopyResult(0, 0, 0);
+
+        // 원본뿐 아니라 이번에 새로 만든 것까지 함께 봐야 복제본끼리 겹치는 것도 막힌다.
+        var occupied = new HashSet<(string Lane, int Measure, long Slot)>();
+        foreach (var existing in Chart.Notes)
+            occupied.Add(ToSlotKey(existing.LaneId, existing.Measure, existing.Position));
+
+        var created = new List<BmsNote>();
+        var blocked = 0;
+        var outOfRange = 0;
+
+        foreach (var note in notes)
+        {
+            var targetMeasure = note.Measure + measureOffset;
+            if (targetMeasure < 0 || targetMeasure >= MeasureCount)
+            {
+                outOfRange++;
+                continue;
+            }
+
+            if (!occupied.Add(ToSlotKey(note.LaneId, targetMeasure, note.Position)))
+            {
+                blocked++;
+                continue;
+            }
+
+            created.Add(new BmsNote
+            {
+                Measure = targetMeasure,
+                LaneId = note.LaneId,
+                Position = note.Position,
+                WavKey = note.WavKey,
+                Type = note.Type,
+            });
+        }
+
+        if (created.Count > 0)
+        {
+            Chart.Notes.AddRange(created);
+            SetNoteSelection(created);
+            OnPropertyChanged(nameof(Notes));
+        }
+
+        return new NoteCopyResult(created.Count, blocked, outOfRange);
+    }
+
+    // 마디 내 위치를 0.0001 단위로 끊어 슬롯 키를 만든다.
+    // BMS 위치는 최대 1/1920(≈0.00052) 간격이라 서로 다른 자리가 같은 칸에 들어가지 않고,
+    // double 오차로 미세하게 다른 같은 자리는 하나로 묶인다.
+    private static (string, int, long) ToSlotKey(string laneId, int measure, double position) =>
+        (laneId, measure, (long)Math.Round(position * 10000));
+
     // 지정한 노트들의 키음 번호를 한꺼번에 바꾸고, 실제로 바뀐 개수를 돌려준다.
     public int ReplaceWavKey(IReadOnlyList<BmsNote> notes, string wavKey)
     {

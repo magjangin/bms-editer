@@ -27,6 +27,9 @@ public sealed class BmsNote
 
 public record NotePlacementArgs(string LaneId, int Measure, double Position);
 
+// 마디 단위 복제 결과. 건너뛴 이유를 나눠서 알려줘야 사용자가 왜 덜 복사됐는지 안다.
+public readonly record struct NoteCopyResult(int Copied, int Blocked, int OutOfRange);
+
 public record NoteSelectionArgs(IReadOnlyList<BmsNote> Notes);
 
 public enum NoteMoveDirection

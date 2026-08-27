@@ -79,6 +79,9 @@ public sealed partial class NoteSearchViewModel : ObservableObject
 
     [ObservableProperty] private string _replacementWavKey = string.Empty;
 
+    // 복사할 때 옮길 마디 수. 음수면 앞쪽으로 복사한다.
+    [ObservableProperty] private int _copyMeasureOffset = 1;
+
     [ObservableProperty] private string _statusMessage = "조건을 정한 뒤 아래 작업 버튼을 누르세요.";
 
     // 조건에 맞는 노트를 차트 순서 그대로 모아 돌려준다.
@@ -151,6 +154,41 @@ public sealed partial class NoteSearchViewModel : ObservableObject
         StatusMessage = removed == 0
             ? "조건에 맞는 노트가 없습니다."
             : $"{removed}개를 삭제했습니다.";
+    }
+
+    // 조건에 맞는 노트를 지정한 마디 수만큼 옮긴 자리에 복제한다.
+    // 후렴 패턴을 뒤쪽 마디로 옮겨 붙일 때 쓴다.
+    [RelayCommand]
+    private void CopyMatches()
+    {
+        if (CopyMeasureOffset == 0)
+        {
+            StatusMessage = "옮길 마디 수가 0이면 제자리라 복사할 수 없습니다.";
+            return;
+        }
+
+        var matches = FindMatches();
+        if (matches.Count == 0)
+        {
+            StatusMessage = "조건에 맞는 노트가 없습니다.";
+            return;
+        }
+
+        var result = _owner.CopyNotesByMeasureOffset(matches, CopyMeasureOffset);
+
+        var skipped = new List<string>();
+        if (result.Blocked > 0)
+            skipped.Add($"이미 노트가 있는 자리 {result.Blocked}개");
+        if (result.OutOfRange > 0)
+            skipped.Add($"마디 범위 밖 {result.OutOfRange}개");
+
+        var tail = skipped.Count > 0 ? $" (건너뜀: {string.Join(", ", skipped)})" : string.Empty;
+        var direction = CopyMeasureOffset > 0 ? "뒤" : "앞";
+        var distance = Math.Abs(CopyMeasureOffset);
+
+        StatusMessage = result.Copied == 0
+            ? $"복사된 노트가 없습니다.{tail}"
+            : $"{result.Copied}개를 {distance}마디 {direction}로 복사하고 선택했습니다.{tail}";
     }
 
     [RelayCommand]

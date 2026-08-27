@@ -123,7 +123,7 @@
         <StackPanel Spacing="4">
             <TextBlock Text="작업" FontWeight="Bold" />
             <Border BorderBrush="Gray" BorderThickness="1" CornerRadius="3" Padding="10">
-                <Grid ColumnDefinitions="*,12,Auto,Auto" RowDefinitions="Auto,Auto"
+                <Grid ColumnDefinitions="*,12,Auto,Auto" RowDefinitions="Auto,Auto,Auto"
                       ColumnSpacing="4" RowSpacing="4">
                     <Grid Grid.Row="0" Grid.Column="0" ColumnDefinitions="*,Auto" ColumnSpacing="8">
                         <Button Grid.Column="0" Content="번호 바꾸기 :"
@@ -131,6 +131,16 @@
                                 Command="{Binding ReplaceWavKeyCommand}"
                                 ToolTip.Tip="조건에 맞는 노트의 키음 번호를 오른쪽 값으로 바꿉니다" />
                         <TextBox Grid.Column="1" Width="72" Text="{Binding ReplacementWavKey}" MaxLength="3" />
+                    </Grid>
+
+                    <Grid Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="4"
+                          ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                        <Button Grid.Column="0" Content="마디 옮겨 복사 :"
+                                HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                                Command="{Binding CopyMatchesCommand}"
+                                ToolTip.Tip="조건에 맞는 노트를 오른쪽 마디 수만큼 옮긴 자리에 복제합니다. 음수를 넣으면 앞쪽으로 복사합니다. 이미 노트가 있는 자리는 건너뜁니다." />
+                        <NumericUpDown Grid.Column="1" Width="96" Value="{Binding CopyMeasureOffset}"
+                                       Minimum="-999" Maximum="999" Increment="1" FormatString="0" />
                     </Grid>
 
                     <Button Grid.Row="0" Grid.Column="2" Classes="action" Content="선택"
