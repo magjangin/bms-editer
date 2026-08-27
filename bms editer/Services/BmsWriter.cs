@@ -33,6 +33,15 @@ public static class BmsWriter
         sb.Append("#PLAYER ").AppendLine((player + 1).ToString(CultureInfo.InvariantCulture));
         sb.Append("#RANK ").AppendLine(rank.ToString(CultureInfo.InvariantCulture));
         sb.Append("#PLAYLEVEL ").AppendLine(level);
+
+        // 에디터가 다루지 않는 헤더(#TOTAL, #STAGEFILE, #BPMxx, #STOPxx, #BMPxx 등)를
+        // 읽어들인 원문 그대로 되돌려 놓는다. 없으면 저장할 때마다 사라진다.
+        foreach (var raw in chart.PreservedLines)
+        {
+            if (!raw.IsData)
+                sb.AppendLine(raw.Text);
+        }
+
         sb.AppendLine();
 
         var keyWidth = wavItems.Any(w => w.Key.Length > 2) ? 3 : 2;
@@ -48,6 +57,17 @@ public static class BmsWriter
         sb.AppendLine();
 
         var laneOrder = BuildLaneOrder(chart.Lanes);
+
+        // 편집한 건반 줄과 보존한 원문 줄을 마디 순서로 합쳐서 내보낸다.
+        // 같은 마디 안에서는 원문 줄(BGM·마디 길이·BPM 변화 등)을 앞에 두어
+        // 보통의 BMS 파일과 같은 배치가 되게 한다. 원문끼리는 파일에 있던 순서를 지킨다.
+        var dataLines = new List<(int Measure, int Order, string Text)>();
+
+        foreach (var raw in chart.PreservedLines)
+        {
+            if (raw.IsData)
+                dataLines.Add((raw.Measure, 0, raw.Text));
+        }
 
         var groups = chart.Notes
             .GroupBy(n => (n.Measure, n.LaneId))
@@ -70,8 +90,16 @@ public static class BmsWriter
             }
 
             var measureTag = group.Key.Measure.ToString("000", CultureInfo.InvariantCulture);
-            sb.Append('#').Append(measureTag).Append(group.Key.LaneId).Append(':').AppendLine(string.Concat(slots));
+            var order = laneOrder.TryGetValue(group.Key.LaneId, out var laneIndex) ? laneIndex + 1 : int.MaxValue;
+            dataLines.Add((
+                group.Key.Measure,
+                order,
+                $"#{measureTag}{group.Key.LaneId}:{string.Concat(slots)}"));
         }
+
+        // OrderBy 는 안정 정렬이라 순서 값이 같은 원문 줄끼리는 담은 순서가 유지된다.
+        foreach (var line in dataLines.OrderBy(d => d.Measure).ThenBy(d => d.Order))
+            sb.AppendLine(line.Text);
 
         return sb.ToString();
     }

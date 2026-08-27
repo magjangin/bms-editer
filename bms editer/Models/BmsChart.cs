@@ -13,6 +13,10 @@ public sealed class BmsChart
 
     public List<BmsNote> Notes { get; } = new();
 
+    // 편집 대상이 아닌 원본 줄(BGM·BPM 변화·BGA·2P 채널·확장 헤더 등).
+    // 저장할 때 그대로 다시 내보내야 하므로 파일에 있던 순서대로 담는다.
+    public List<BmsRawLine> PreservedLines { get; } = new();
+
     public Dictionary<string, string> WavTable { get; } = new();
     public Dictionary<string, string> BmpTable { get; } = new();
 

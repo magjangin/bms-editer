@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -20,6 +21,19 @@ public static partial class BmsParser
 
     [GeneratedRegex(@"^#BPM\s+([0-9\.]+)", RegexOptions.IgnoreCase)]
     private static partial Regex BpmRegex();
+
+    [GeneratedRegex(@"^#GENRE\s+(.*)", RegexOptions.IgnoreCase)]
+    private static partial Regex GenreRegex();
+
+    // #PLAYLEVEL 과 겹치지 않는다. "#PLAYER" 뒤에는 반드시 공백이 와야 한다.
+    [GeneratedRegex(@"^#PLAYER\s+([0-9]+)", RegexOptions.IgnoreCase)]
+    private static partial Regex PlayerRegex();
+
+    [GeneratedRegex(@"^#RANK\s+([0-9]+)", RegexOptions.IgnoreCase)]
+    private static partial Regex RankRegex();
+
+    [GeneratedRegex(@"^#PLAYLEVEL\s+(.*)", RegexOptions.IgnoreCase)]
+    private static partial Regex PlayLevelRegex();
 
     [GeneratedRegex(@"^#([0-9]{3})([0-9a-zA-Z]{2}):(.*)", RegexOptions.IgnoreCase)]
     private static partial Regex DataRegex();
@@ -88,10 +102,41 @@ public static partial class BmsParser
             var bpmMatch = BpmRegex().Match(line);
             if (bpmMatch.Success)
             {
-                if (double.TryParse(bpmMatch.Groups[1].Value, out var tempBpm))
+                if (double.TryParse(bpmMatch.Groups[1].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var tempBpm))
                 {
                     parsedBpm = tempBpm;
                 }
+                continue;
+            }
+
+            var genreMatch = GenreRegex().Match(line);
+            if (genreMatch.Success)
+            {
+                chart.Header.Genre = genreMatch.Groups[1].Value.Trim();
+                continue;
+            }
+
+            // #PLAYER 는 1(Single)/2(Couple)/3(Double). 파일 값을 그대로 담아둔다.
+            var playerMatch = PlayerRegex().Match(line);
+            if (playerMatch.Success)
+            {
+                if (int.TryParse(playerMatch.Groups[1].Value, out var tempPlayer))
+                    chart.Header.Player = tempPlayer;
+                continue;
+            }
+
+            var rankMatch = RankRegex().Match(line);
+            if (rankMatch.Success)
+            {
+                if (int.TryParse(rankMatch.Groups[1].Value, out var tempRank))
+                    chart.Header.Rank = tempRank;
+                continue;
+            }
+
+            var playLevelMatch = PlayLevelRegex().Match(line);
+            if (playLevelMatch.Success)
+            {
+                chart.Header.Level = playLevelMatch.Groups[1].Value.Trim();
                 continue;
             }
 
@@ -124,16 +169,33 @@ public static partial class BmsParser
             if (string.IsNullOrEmpty(line) || !line.StartsWith("#")) continue;
 
             var dataMatch = DataRegex().Match(line);
-            if (!dataMatch.Success) continue;
+            if (!dataMatch.Success)
+            {
+                // 데이터 줄도 아니고 1단계에서 읽어간 헤더도 아니면 에디터가 모르는 줄이다.
+                // 저장할 때 그대로 되돌려 놓으려고 원문을 보관한다.
+                if (!IsConsumedHeader(line))
+                    chart.PreservedLines.Add(new BmsRawLine { Text = line });
+                continue;
+            }
 
             var measureNum = int.Parse(dataMatch.Groups[1].Value);
             var channel = dataMatch.Groups[2].Value; // 예: "11", "12" ...
             var dataStr = dataMatch.Groups[3].Value.Trim();
 
-            // 1P 건반 채널 필터링 (16-11-12-13-14-15-18)
+            // 편집 대상은 1P 건반 채널(16-11-12-13-14-15-18)뿐이다.
+            // 나머지(BGM·마디 길이·BPM 변화·STOP·BGA·롱노트·2P 등)는 원문 그대로 보관한다.
             if (!SupportedChannels.Contains(channel))
             {
-                continue; // 지원하지 않는 다른 채널(예: BGA, BPM 변화, 2P 채널 등)은 우선 무시
+                chart.PreservedLines.Add(new BmsRawLine
+                {
+                    Text = line,
+                    Measure = measureNum,
+                    Channel = channel,
+                });
+
+                // 건반이 없는 뒷마디까지 그리드가 이어지도록 마디 수에도 반영한다.
+                maxMeasure = Math.Max(maxMeasure, measureNum);
+                continue;
             }
 
             maxMeasure = Math.Max(maxMeasure, measureNum);
@@ -174,6 +236,18 @@ public static partial class BmsParser
         chart.Header.Bpm = parsedBpm;
         return chart;
     }
+
+    // 1단계에서 이미 읽어간(= 저장할 때 에디터가 새로 써주는) 헤더인지 판별한다.
+    // 여기서 false 인 줄만 원문 보관 대상이 된다.
+    private static bool IsConsumedHeader(string line) =>
+        TitleRegex().IsMatch(line)
+        || ArtistRegex().IsMatch(line)
+        || BpmRegex().IsMatch(line)
+        || GenreRegex().IsMatch(line)
+        || PlayerRegex().IsMatch(line)
+        || RankRegex().IsMatch(line)
+        || PlayLevelRegex().IsMatch(line)
+        || WavRegex().IsMatch(line);
 
     private static int DetermineChunkSize(string dataStr, bool has3DigitWav, Dictionary<string, string> wavTable)
     {

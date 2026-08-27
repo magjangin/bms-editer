@@ -276,15 +276,21 @@ public sealed partial class MainWindowViewModel : ObservableObject
         || !string.IsNullOrWhiteSpace(Title)
         || !string.IsNullOrWhiteSpace(Artist);
 
+    // 작업 내용을 버리는 동작(새로 만들기·열기) 앞에서 확인을 받는다.
+    // 버릴 내용이 없거나 콜백이 없으면 그냥 진행한다.
+    public async Task<bool> ConfirmDiscardIfNeededAsync(string message)
+    {
+        if (!HasDocumentContent || ConfirmDiscardAsync is not { } confirm)
+            return true;
+
+        return await confirm(message);
+    }
+
     [RelayCommand]
     private async Task NewFileAsync()
     {
-        if (HasDocumentContent && ConfirmDiscardAsync is { } confirm)
-        {
-            var proceed = await confirm("현재 작업 중인 내용이 모두 사라집니다.\n새로 만들까요?");
-            if (!proceed)
-                return;
-        }
+        if (!await ConfirmDiscardIfNeededAsync("현재 작업 중인 내용이 모두 사라집니다.\n새로 만들까요?"))
+            return;
 
         // 재생 중이던 배경 음원을 먼저 정리한다.
         StopPlayback(resetCursor: true);
@@ -311,6 +317,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         Chart.WavTable.Clear();
         Chart.BmpTable.Clear();
         Chart.MeasureLengths.Clear();
+        Chart.PreservedLines.Clear();
         WavList.Clear();
         SelectedWavItem = null;
         _selectedNotes.Clear();
@@ -331,62 +338,94 @@ public sealed partial class MainWindowViewModel : ObservableObject
         OnPropertyChanged(nameof(SelectedNotes));
     }
 
-    public void LoadBms(string filePath)
+    // 마지막 열기/저장이 실패한 이유. 성공하면 null.
+    public string? LastErrorMessage { get; private set; }
+
+    // 실패하면 false. 예전에는 조용히 무시해서 사용자가 성공한 줄 알았다.
+    public bool LoadBms(string filePath)
     {
-        if (!System.IO.File.Exists(filePath)) return;
+        if (!System.IO.File.Exists(filePath))
+        {
+            LastErrorMessage = "파일을 찾을 수 없습니다.";
+            return false;
+        }
+
+        BmsChart parsedChart;
+        double parsedBpm;
+        int calculatedMeasureCount;
+        List<BmsWavItem> parsedWavItems;
+
         try
         {
-            // 기존 상태 완전 초기화
-            ResetDocumentState();
-
-            // BMS 파싱 실행
-            var parsedChart = BmsParser.Parse(filePath, out var parsedBpm, out var calculatedMeasureCount, out var parsedWavItems);
-
-            // 데이터 동기화
-            Title = parsedChart.Header.Title;
-            Artist = parsedChart.Header.Artist;
-            Bpm = parsedBpm;
-            MeasureCount = calculatedMeasureCount;
-            Chart.MeasureCount = calculatedMeasureCount;
-
-            foreach (var wavItem in parsedWavItems)
-            {
-                Chart.WavTable[wavItem.Key] = wavItem.FilePath;
-                WavList.Add(wavItem);
-            }
-
-            foreach (var note in parsedChart.Notes)
-            {
-                Chart.Notes.Add(note);
-            }
-
-            if (WavList.Count > 0)
-            {
-                SelectedWavItem = WavList[0];
-            }
-
-            CurrentFilePath = filePath;
-
-            // UI 렌더링 강제 업데이트 유도
-            OnPropertyChanged(nameof(Notes));
+            // 먼저 다 읽고 나서 지운다. 파싱이 중간에 실패했을 때
+            // 작업 중이던 내용까지 같이 날아가지 않도록 순서를 지킨다.
+            parsedChart = BmsParser.Parse(filePath, out parsedBpm, out calculatedMeasureCount, out parsedWavItems);
         }
         catch (Exception ex)
         {
+            LastErrorMessage = ex.Message;
             System.Diagnostics.Debug.WriteLine($"BMS 로드 실패: {ex.Message}");
+            return false;
         }
+
+        ResetDocumentState();
+
+        Title = parsedChart.Header.Title;
+        Artist = parsedChart.Header.Artist;
+        Genre = parsedChart.Header.Genre;
+        Level = parsedChart.Header.Level;
+
+        // #PLAYER 는 파일에서 1/2/3, 콤보박스는 0부터 시작하는 인덱스다.
+        Player = Math.Clamp(parsedChart.Header.Player - 1, 0, 2);
+        Rank = Math.Clamp(parsedChart.Header.Rank, 0, 3);
+
+        Bpm = parsedBpm;
+        MeasureCount = calculatedMeasureCount;
+        Chart.MeasureCount = calculatedMeasureCount;
+
+        foreach (var wavItem in parsedWavItems)
+        {
+            Chart.WavTable[wavItem.Key] = wavItem.FilePath;
+            WavList.Add(wavItem);
+        }
+
+        foreach (var note in parsedChart.Notes)
+        {
+            Chart.Notes.Add(note);
+        }
+
+        // 편집 대상이 아닌 채널·헤더는 원문 그대로 들고 있다가 저장할 때 되돌려 놓는다.
+        Chart.PreservedLines.AddRange(parsedChart.PreservedLines);
+
+        if (WavList.Count > 0)
+        {
+            SelectedWavItem = WavList[0];
+        }
+
+        CurrentFilePath = filePath;
+        LastErrorMessage = null;
+
+        // UI 렌더링 강제 업데이트 유도
+        OnPropertyChanged(nameof(Notes));
+        return true;
     }
 
-    public void SaveBms(string filePath)
+    // 실패하면 false. 호출한 쪽에서 LastErrorMessage 를 사용자에게 보여준다.
+    public bool SaveBms(string filePath)
     {
         try
         {
             var content = BmsWriter.Write(Chart, Title, Artist, Genre, Bpm, Player, Rank, Level, WavList, filePath);
             System.IO.File.WriteAllText(filePath, content, new System.Text.UTF8Encoding(false));
             CurrentFilePath = filePath;
+            LastErrorMessage = null;
+            return true;
         }
         catch (Exception ex)
         {
+            LastErrorMessage = ex.Message;
             System.Diagnostics.Debug.WriteLine($"BMS 저장 실패: {ex.Message}");
+            return false;
         }
     }
 

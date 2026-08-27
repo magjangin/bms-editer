@@ -91,6 +91,10 @@ public partial class MainWindow : Window
             if (DataContext is not MainWindowViewModel vm)
                 return;
 
+            // 폴더 열기도 차트를 갈아끼우므로 열기와 같은 확인을 받는다.
+            if (!await vm.ConfirmDiscardIfNeededAsync("현재 작업 중인 내용이 모두 사라집니다.\n폴더를 열까요?"))
+                return;
+
             var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
             {
                 Title = "BMS 폴더 선택",
@@ -101,7 +105,7 @@ public partial class MainWindow : Window
             if (folderPath is null || !Directory.Exists(folderPath))
                 return;
 
-            LoadFolderMedia(vm, folderPath);
+            await LoadFolderMediaAsync(vm, folderPath);
         }
 
         private void OnClearVideoClick(object? sender, RoutedEventArgs e)
@@ -113,6 +117,10 @@ public partial class MainWindow : Window
         private async void OnOpenFileClick(object? sender, RoutedEventArgs e)
         {
             if (DataContext is not MainWindowViewModel vm)
+                return;
+
+            // 새로 만들기와 마찬가지로, 열기도 작업 내용을 덮어쓰므로 먼저 확인을 받는다.
+            if (!await vm.ConfirmDiscardIfNeededAsync("현재 작업 중인 내용이 모두 사라집니다.\n파일을 열까요?"))
                 return;
 
             var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
@@ -129,7 +137,8 @@ public partial class MainWindow : Window
             if (path is null)
                 return;
 
-            vm.LoadBms(path);
+            if (!vm.LoadBms(path))
+                await ConfirmWindow.ShowMessageAsync(this, $"파일을 열지 못했습니다.\n\n{vm.LastErrorMessage}", "열기 실패");
         }
 
         private async void OnSaveFileClick(object? sender, RoutedEventArgs e)
@@ -141,7 +150,7 @@ public partial class MainWindow : Window
             if (path is null)
                 return;
 
-            vm.SaveBms(path);
+            await SaveAndReportAsync(vm, path);
         }
 
         private async void OnSaveFileAsClick(object? sender, RoutedEventArgs e)
@@ -153,7 +162,14 @@ public partial class MainWindow : Window
             if (path is null)
                 return;
 
-            vm.SaveBms(path);
+            await SaveAndReportAsync(vm, path);
+        }
+
+        // 저장은 조용히 실패하면 안 된다. 실패하면 사유까지 보여준다.
+        private async Task SaveAndReportAsync(MainWindowViewModel vm, string path)
+        {
+            if (!vm.SaveBms(path))
+                await ConfirmWindow.ShowMessageAsync(this, $"저장하지 못했습니다.\n\n{vm.LastErrorMessage}", "저장 실패");
         }
 
         private async Task<string?> PickSavePathAsync(MainWindowViewModel vm)
@@ -172,11 +188,11 @@ public partial class MainWindow : Window
             return file?.TryGetLocalPath();
         }
 
-        private static void LoadFolderMedia(MainWindowViewModel vm, string folderPath)
+        private async Task LoadFolderMediaAsync(MainWindowViewModel vm, string folderPath)
         {
             var bmsPath = FindBestFile(folderPath, BmsExtensions);
-            if (bmsPath is not null)
-                vm.LoadBms(bmsPath);
+            if (bmsPath is not null && !vm.LoadBms(bmsPath))
+                await ConfirmWindow.ShowMessageAsync(this, $"차트를 열지 못했습니다.\n\n{vm.LastErrorMessage}", "열기 실패");
 
             var oggPath = FindBestFile(folderPath, OggExtensions);
             if (oggPath is not null)
