@@ -18,23 +18,53 @@ public static class OggPeakLoader
 
         var channels = reader.Channels;
         var totalFrames = reader.TotalSamples;
-        var framesPerBucket = Math.Max(1, (int)(totalFrames / Math.Max(1, peakCount)));
 
         var peaks = new float[peakCount];
         var energies = new float[peakCount];
+
+        if (totalFrames <= 0 || channels <= 0)
+            return new OggWaveform(peaks, BuildOnsets(energies), durationSeconds);
+
         var buffer = new float[4096 * channels];
 
+        // 버킷 크기를 정수 프레임 수로 고정하면(예: 44100/80 = 551.25 → 551) 피크 배열이
+        // 곡 전체를 덮지 못한 채 타임라인 전체 폭에 늘어나 그려져서, 재생 시간에 비례하는
+        // 어긋남이 쌓인다(44.1kHz 기준 약 0.045%, 2분 지점에서 50ms 이상).
+        // 그래서 프레임 절대 위치로 버킷을 직접 계산해, peaks[i]가 항상
+        // i * DurationSeconds / peakCount 시점에 정확히 대응하도록 한다.
+        long frameIndex = 0;
         var bucketIndex = 0;
         var frameInBucket = 0;
         double sumSquares = 0;
         var maxInBucket = 0f;
 
+        void FlushBucket()
+        {
+            if (frameInBucket == 0)
+                return;
+
+            var rms = ToRms(sumSquares, frameInBucket);
+            energies[bucketIndex] = rms;
+            peaks[bucketIndex] = ToDisplayAmplitude(rms, maxInBucket);
+            sumSquares = 0;
+            frameInBucket = 0;
+            maxInBucket = 0f;
+        }
+
         int samplesRead;
-        while ((samplesRead = reader.ReadSamples(buffer, 0, buffer.Length)) > 0 && bucketIndex < peakCount)
+        while ((samplesRead = reader.ReadSamples(buffer, 0, buffer.Length)) > 0)
         {
             var frames = samplesRead / channels;
             for (var i = 0; i < frames; i++)
             {
+                // 디코더가 TotalSamples보다 조금 더 내보내도 마지막 버킷에 흡수시킨다.
+                var bucket = (int)Math.Min(peakCount - 1, frameIndex * peakCount / totalFrames);
+                if (bucket != bucketIndex)
+                {
+                    FlushBucket();
+                    bucketIndex = bucket;
+                }
+
                 var value = 0f;
                 for (var c = 0; c < channels; c++)
                     value = Math.Max(value, Math.Abs(buffer[i * channels + c]));
@@ -42,28 +72,11 @@ public static class OggPeakLoader
                 sumSquares += (double)value * value;
                 maxInBucket = Math.Max(maxInBucket, value);
                 frameInBucket++;
-
-                if (frameInBucket >= framesPerBucket)
-                {
-                    var rms = ToRms(sumSquares, frameInBucket);
-                    energies[bucketIndex] = rms;
-                    peaks[bucketIndex++] = ToDisplayAmplitude(rms, maxInBucket);
-                    sumSquares = 0;
-                    frameInBucket = 0;
-                    maxInBucket = 0f;
-
-                    if (bucketIndex >= peakCount)
-                        break;
-                }
+                frameIndex++;
             }
         }
 
-        if (bucketIndex < peakCount && frameInBucket > 0)
-        {
-            var rms = ToRms(sumSquares, frameInBucket);
-            energies[bucketIndex] = rms;
-            peaks[bucketIndex] = ToDisplayAmplitude(rms, maxInBucket);
-        }
+        FlushBucket();
 
         return new OggWaveform(peaks, BuildOnsets(energies), durationSeconds);
     }
