@@ -105,3 +105,15 @@ dotnet publish "bms editer/bms editer.csproj" -p:PublishProfile=win-x64
   - `TimelineControlBase`: 공통 타임라인 조절 파라미터를 담당하는 베이스 클래스.
   - `NoteGridControl`: 노트 배치 격자 렌더러.
   - `OggWaveformControl`: 배경 파형 및 온셋 가이드 라인 렌더러.
+
+---
+
+## 📖 문서 (Documents)
+
+| 문서 | 내용 |
+|------|------|
+| [known_issues.md](docs/known_issues.md) | **확인이 필요한 알려진 문제 목록.** 실사용 중 하나씩 확인하고 결과를 기록합니다. |
+| [specification.md](docs/specification.md) | 마디 내부 그리드 분할 규칙과 기본 동작 사양. |
+| [code_explanation.md](docs/code_explanation.md) | 소스 파일별 역할과 설계 구조. |
+| [bpm_sync_principles.md](docs/bpm_sync_principles.md) | BPM 변경에 따른 격자·파형 동기화 원리. |
+| [video_ogg_principles.md](docs/video_ogg_principles.md) | 비디오·OGG 연동 원리. |
