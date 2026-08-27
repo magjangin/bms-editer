@@ -74,6 +74,23 @@ dotnet build "bms editer/bms editer.csproj"
 dotnet run --project "bms editer/bms editer.csproj"
 ```
 
+### 배포 명령어
+`publish/win-x64/bms editer.exe` 하나로 떨어지는 self-contained 단일 실행 파일을 만듭니다.
+.NET 런타임이 필요 없으므로 이 exe만 복사하면 실행됩니다.
+
+```powershell
+dotnet publish "bms editer/bms editer.csproj" -p:PublishProfile=win-x64
+```
+
+배포 설정(`RuntimeIdentifier`, `SelfContained`, `PublishSingleFile`,
+`IncludeNativeLibrariesForSelfExtract`)은 `bms editer/Properties/PublishProfiles/win-x64.pubxml`에
+들어 있습니다. 명령줄에 플래그를 직접 붙이지 마세요 — 특히
+`IncludeNativeLibrariesForSelfExtract`를 빠뜨리면 단일 exe가 아니라
+네이티브 DLL 4개와 `runtimes` 폴더가 함께 흩어져 나옵니다.
+
+> 배포본에서 PDB/XML을 빼는 처리는 csproj의 `ExcludeSymbolsFromPublish` 타겟이 맡습니다.
+> `bin/`의 PDB는 그대로 남아 크래시 스택 심볼 분석에는 영향이 없습니다.
+
 ---
 
 ## 📂 프로젝트 구조 (Project Structure)
