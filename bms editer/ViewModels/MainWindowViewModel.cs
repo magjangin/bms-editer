@@ -61,6 +61,10 @@ public sealed partial class MainWindowViewModel : ObservableObject
     [ObservableProperty] private bool _isEditMode;
     [ObservableProperty] private bool _isCircleNoteShape;
 
+    // 키음 팔레트 창의 보기 모드(0 목록, 1 보통, 2 큰, 3 아주 큰 아이콘).
+    // 창을 닫았다 다시 열어도 고른 보기가 남도록 메인 뷰모델이 들고 있는다.
+    [ObservableProperty] private int _wavPaletteViewModeIndex = 2;
+
     public MainWindowViewModel()
     {
         _playbackTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(33) };

@@ -28,6 +28,9 @@ public partial class MainWindow : Window
         // 모드리스로 떠 있는 노트 통계 창. 닫히면 다시 null이 된다.
         private NoteStatsWindow? _noteStatsWindow;
 
+        // 모드리스로 떠 있는 키음 팔레트 창. 닫히면 다시 null이 된다.
+        private WavPaletteWindow? _wavPaletteWindow;
+
         public MainWindow()
         {
             InitializeComponent();
@@ -293,6 +296,31 @@ public partial class MainWindow : Window
             };
             _noteStatsWindow = statsWindow;
             statsWindow.Show(this);
+        }
+
+        // 사이드바의 좁은 키음 목록 대신 넓은 타일 판에서 고르는 창.
+        // 선택이 곧 편집용 붓이라 편집하는 동안 계속 띄워둘 수 있게 모드리스로 연다.
+        // 뷰모델이 메인 뷰모델의 변경 알림을 구독하므로 창이 닫힐 때 반드시 해제한다.
+        private void OnShowWavPaletteClick(object? sender, RoutedEventArgs e)
+        {
+            if (DataContext is not MainWindowViewModel vm)
+                return;
+
+            if (_wavPaletteWindow is { } existing)
+            {
+                existing.Activate();
+                return;
+            }
+
+            var paletteViewModel = new WavPaletteViewModel(vm);
+            var paletteWindow = new WavPaletteWindow(paletteViewModel);
+            paletteWindow.Closed += (_, _) =>
+            {
+                paletteViewModel.Dispose();
+                _wavPaletteWindow = null;
+            };
+            _wavPaletteWindow = paletteWindow;
+            paletteWindow.Show(this);
         }
 
         private void OnWaveformScrubRequested(object? sender, WaveformScrubRequestedEventArgs e)

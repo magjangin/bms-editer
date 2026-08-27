@@ -38,6 +38,7 @@
                 <Button Content="📊" Click="OnShowStatsClick" ToolTip.Tip="노트 통계" />
                 <ToggleButton Content="✏️" IsChecked="{Binding IsEditMode}" />
                 <Button Content="🧰" Click="OnShowNoteSearchClick" ToolTip.Tip="검색/삭제/교체" />
+                <Button Content="🎨" Click="OnShowWavPaletteClick" ToolTip.Tip="키음 팔레트 (별도 창)" />
                 <Separator />
                 <Button Content="OGG 열기" Click="OnLoadOggClick" />
                 <Button Content="비디오 열기" Click="OnLoadVideoClick" />
