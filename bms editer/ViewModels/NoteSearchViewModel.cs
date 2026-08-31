@@ -140,7 +140,7 @@ public sealed partial class NoteSearchViewModel : ObservableObject
     private void SelectMatches()
     {
         var matches = FindMatches();
-        _owner.SetNoteSelection(matches);
+        _owner.SetNoteSelection(matches, NoteSelectionSource.Search);
         StatusMessage = matches.Count == 0
             ? "조건에 맞는 노트가 없습니다."
             : $"{matches.Count}개를 선택했습니다.";

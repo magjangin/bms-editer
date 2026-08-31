@@ -12,6 +12,23 @@
         ShowInTaskbar="False"
         WindowStartupLocation="CenterOwner">
 
+    <Window.Styles>
+        <!-- 목록 줄을 그대로 누를 수 있게 버튼으로 감싸되, 버튼처럼 보이지는 않게 한다. -->
+        <Style Selector="Button.statRow">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="2,3" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="CornerRadius" Value="3" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+        <Style Selector="Button.statRow:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#3B6FD4" />
+            <Setter Property="Foreground" Value="White" />
+        </Style>
+    </Window.Styles>
+
     <ScrollViewer VerticalScrollBarVisibility="Auto">
         <StackPanel Margin="16" Spacing="8">
             <TextBlock Text="레인별 노트 개수" FontWeight="Bold" />
@@ -34,12 +51,17 @@
             <ItemsControl ItemsSource="{Binding WavStats}">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:WavNoteStat">
-                        <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,2">
-                            <TextBlock Grid.Column="0" Text="{Binding Key, StringFormat='#{0}'}" Width="44" />
-                            <TextBlock Grid.Column="1" Text="{Binding FileName}" TextTrimming="CharacterEllipsis"
-                                       ToolTip.Tip="{Binding FileName}" Margin="0,0,8,0" />
-                            <TextBlock Grid.Column="2" Text="{Binding Count}" HorizontalAlignment="Right" />
-                        </Grid>
+                        <Button Classes="statRow"
+                                Command="{Binding $parent[ItemsControl].((vm:NoteStatsViewModel)DataContext).SelectByWavKeyCommand}"
+                                CommandParameter="{Binding Key}"
+                                ToolTip.Tip="누르면 이 번호를 쓰는 노트를 격자에서 모두 선택합니다">
+                            <Grid ColumnDefinitions="Auto,*,Auto">
+                                <TextBlock Grid.Column="0" Text="{Binding Key, StringFormat='#{0}'}" Width="44" />
+                                <TextBlock Grid.Column="1" Text="{Binding FileName}" TextTrimming="CharacterEllipsis"
+                                           ToolTip.Tip="{Binding FileName}" Margin="0,0,8,0" />
+                                <TextBlock Grid.Column="2" Text="{Binding Count}" HorizontalAlignment="Right" />
+                            </Grid>
+                        </Button>
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
