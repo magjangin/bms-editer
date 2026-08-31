@@ -3,11 +3,14 @@
 이 문서는 코드를 훑어 찾아낸 **의심 동작과 확정 버그**를 모아둔 것입니다.
 실제로 써보면서 하나씩 확인하고, 확인이 끝난 항목은 아래 [확인 기록](#-확인-기록)에 남깁니다.
 
-* 기준 커밋: `1b58a18` (2026-08-27)
+* 기준 커밋: `b3aa64a` (2026-08-28)
 * 심각도 표기
   * 🔴 **재현 완료** — 테스트 코드로 실제 재현했습니다. 데이터가 손상됩니다.
   * 🟠 **코드상 확실** — 코드를 읽어 확인했습니다. 눌러보면 바로 드러납니다.
   * 🟡 **확인 필요** — 의심되는 동작입니다. 실사용 확인이 필요합니다.
+
+> 1~7번은 `1b58a18` 기준 점검, 8번 이후는 `b3aa64a` 기준 전체 파일 재점검에서 나온 것입니다.
+> 8~11번은 파서/라이터를 실제로 돌려 결과를 붙였습니다.
 
 ---
 
@@ -110,11 +113,200 @@
 
 ---
 
+## 🔴 8. Shift_JIS(일본어) 차트가 통째로 깨진다 — 키음까지 안 나온다
+
+### 증상
+야생의 BMS 차트 대부분이 Shift_JIS(CP932)인데, 열면 제목·아티스트가 뜻 모를 한글이 되고
+**키음 파일명까지 깨져서 키음이 하나도 로드되지 않습니다.**
+
+### 원인
+[BmsParser.cs](file:///h:/source/repos/bms%20editer/bms%20editer/Services/BmsParser.cs) 의 인코딩 감지가
+**UTF-8 실패 → CP949** 한 갈래뿐입니다. CP949는 Shift_JIS 바이트를 오류 없이 삼켜 버리기 때문에
+`\uFFFD` 검사에도 안 걸리고, 그대로 엉뚱한 한글로 디코딩됩니다.
+
+### 재현 결과
+```
+원본 (Shift_JIS)          파싱 결과
+#TITLE 東方紅魔郷    →    '뱦뺴뛤뻷떭'
+#WAV01 キック.wav    →    '긌긞긏.wav'   실제파일존재=False
+#WAV02 スネア.wav    →    '긚긨귺.wav'   실제파일존재=False
+```
+
+### 고칠 방향
+파일을 바이트로 한 번만 읽고 UTF-8(strict) → CP932 → CP949 순으로 시도한 뒤,
+**어느 인코딩으로 읽었는지 기억해 둡니다.** 9번과 한 덩어리로 고쳐야 합니다.
+
+---
+
+## 🔴 9. 저장은 항상 UTF-8이라 원본 인코딩이 갈아치워진다
+
+`SaveBms` 가 무조건 `new UTF8Encoding(false)` 로 씁니다.
+CP949 한글 차트를 열어 저장하면 파일이 UTF-8로 바뀌어, 다른 플레이어·에디터에서 열면 깨집니다.
+8번에서 기억해 둔 인코딩으로 되돌려 쓰면 됩니다.
+
+---
+
+## 🔴 10. 새로 만든 차트가 `#PLAYER 2`(Couple)로 저장된다
+
+### 증상
+새로 만들기 후 저장하면 Single이 아니라 **Couple**로 저장됩니다.
+
+### 원인
+`_player` 는 콤보박스 **인덱스**(0=Single, 1=Couple, 2=Double)인데 기본값이 `1` 입니다.
+[BmsWriter.cs](file:///h:/source/repos/bms%20editer/bms%20editer/Services/BmsWriter.cs) 가 `player + 1` 을 쓰므로 결과는 `#PLAYER 2`.
+`ResetDocumentState()` 도 `Player = 1` 로 되돌리니, Single 차트를 열었다가 새로 만들기를 눌러도 Couple이 됩니다.
+
+### 재현 결과
+```
+=== 새 문서 저장 결과 ===
+  #PLAYER 2      <-- Single(1) 이어야 함
+  #RANK 2
+```
+
+### 고칠 방향
+`_player` 기본값과 `ResetDocumentState()` 의 값을 둘 다 `0` 으로.
+
+---
+
+## 🔴 11. 3자리 노트 키가 잘려서 저장된다 (1번과는 다른 경로)
+
+### 증상
+노트가 3자리 키음을 가리키는데 `#WAV` 테이블에 3자리 항목이 없으면,
+저장할 때 **키가 앞 두 글자만 남고 잘립니다.** 노트가 전혀 다른 소리를 가리키게 됩니다.
+
+### 원인
+`BmsWriter` 가 `keyWidth` 를 **WAV 테이블만 보고** 정합니다.
+그래서 `keyWidth = 2` 가 되고, `code.Substring(0, keyWidth)` 로 노트 키가 잘립니다.
+
+### 재현 결과
+```
+노트 WavKey = "0ZZ", "1AB"  /  WAV 테이블 = { "01" }
+
+=== 저장 결과 ===
+  #00011:0Z        <-- "0ZZ" 가 "0Z" 로 잘림
+  #00012:001A      <-- "1AB" 가 "1A" 로 잘림
+```
+
+### 고칠 방향
+`keyWidth` 를 WAV 테이블과 **노트 키 양쪽**의 최대 길이로 잡습니다.
+
+---
+
+## 🟠 12. OGG를 나중에 열면 뒤쪽 마디를 편집할 수 없게 된다
+
+`UpdateMeasureCountFromAudio()` 가 `MeasureCount` 를 오디오 길이 기준으로 **무조건 덮어씁니다.**
+200마디짜리 차트를 열고 그보다 짧은 OGG를 얹으면 `MeasureCount` 가 75로 줄고,
+75마디 이후 노트는 **화면에는 보이지만** 배치·이동·복사가 전부 거부됩니다.
+BPM을 만질 때마다 다시 계산되므로 BPM 조율 중에도 튀어나옵니다.
+
+`Math.Max(오디오 기준, 차트 기준)` 이어야 합니다. 7-2번과 뿌리가 같습니다.
+
+**확인 방법**: 마디가 많은 차트를 열고, 그보다 짧은 OGG를 얹은 뒤 뒤쪽 마디에 노트를 찍어봅니다.
+
+---
+
+## 🟠 13. 창을 X로 닫으면 저장 안 한 작업이 경고 없이 사라진다
+
+새로 만들기·열기·폴더 열기에는 `ConfirmDiscardIfNeededAsync` 확인창이 있는데,
+정작 **창 닫기에는 없습니다.** `Closing` 핸들러가 코드 전체에 하나도 없습니다.
+
+곁들여, 지금은 "고친 내용이 있는지"(dirty)를 추적하지 않고 `HasDocumentContent`(내용이 있는지)로만
+판단하므로, 아무것도 안 고쳤는데도 확인창이 뜹니다.
+
+---
+
+## 🟠 14. `#xxx02`(박자 변경)를 격자가 무시한다
+
+`#xxx02` 줄은 원문 보존 대상이라 저장하면 되돌아오지만,
+`BmsChart.MeasureLengths` 를 **채우는 코드가 아예 없습니다**(`GetMeasureLength` 도 호출처 0건).
+그래서 4/4가 아닌 마디가 섞인 차트는 격자와 노트가 오디오와 어긋납니다.
+
+**확인 방법**: `#00002:0.75` 같은 줄이 있는 차트를 열고, 그 마디 이후 격자가 소리와 맞는지 봅니다.
+
+---
+
+## 🟠 15. 검색창의 "롱" / "숨기기" 필터는 절대 걸리지 않는다
+
+`BmsParser` 는 편집 대상 채널(11~18)만 읽고 **모든 노트를 `NoteType.Normal` 로만** 만듭니다.
+롱노트(51~59)·숨김(31~39) 채널은 원문 보존으로 빠지므로,
+`NoteSearchViewModel` 의 `IncludeLong` · `IncludeHidden` 은 어떤 노트에도 해당되지 않습니다.
+즉 화면에는 있는데 아무 효과가 없는 버튼입니다. `NoteType.Mine` 도 만들어지는 곳이 없습니다.
+
+---
+
+## 🟠 16. 저장할 때 `#WAV` 경로가 추측 결과로 덮어써진다
+
+파일이 없으면 하위 폴더에서 동명 파일을 찾아 대신 쓰는 보강 기능(README 8번)이 있는데,
+그 **추측 결과가 저장 파일에 그대로 박힙니다.** 원문은 되돌아오지 않습니다.
+
+### 재현 결과
+```
+원본:        #WAV01 kick.wav          (실제 파일 없음, old_backup/ 에 동명 파일 있음)
+저장 결과:   #WAV01 old_backup\kick.wav
+```
+
+오래된 백업 폴더가 남아 있으면 그쪽을 가리키도록 차트가 바뀝니다.
+재생용으로만 쓰고 저장은 원문 문자열을 유지하는 편이 안전합니다.
+
+> 참고로 파일이 정상적으로 있는 보통의 경우는 `sounds/kick.wav` → `sounds\kick.wav` 로
+> 구분자만 바뀌어 제대로 왕복합니다. 문제는 **못 찾았을 때**뿐입니다.
+
+---
+
+## 🟠 17. 디코더가 `TotalSamples` 보다 많이 내보내면 OGG 로드가 통째로 실패한다
+
+`OggAudioPlayer.DecodePcm16` 이 `TotalSamples` 크기로 버퍼를 잡고 `bytes[byteOffset++]` 로 그냥 씁니다.
+granule 값이 어긋난 파일에서 디코더가 조금 더 내보내면 `IndexOutOfRangeException` 이 나고,
+`LoadOgg` 가 삼켜서 "로드 실패"로만 표시됩니다.
+
+`OggPeakLoader` 는 같은 상황을 "디코더가 TotalSamples보다 조금 더 내보내도 마지막 버킷에 흡수시킨다"로
+명시적으로 처리하고 있습니다. 이쪽만 빠졌습니다.
+
+---
+
 ## 📉 참고: 성능
 
-`MainWindowViewModel.Notes` 프로퍼티가 `Chart.Notes.ToArray()` 로
-**접근할 때마다 배열을 새로 만듭니다.** 노트가 수천 개인 차트에서는 렌더링마다 할당이 발생합니다.
-체감되지 않는다면 급하지 않습니다.
+노트가 수천 개인 차트, 또는 분할을 크게 둔 상태에서 체감될 수 있는 것들입니다.
+
+| 항목 | 내용 |
+|------|------|
+| **뷰포트 컬링 없음** | `NoteGridControl` · `OggWaveformControl` 이 매 프레임 타임라인 **전체**를 그립니다. 5분·BPM 150·16분할이면 격자선만 약 3,000개 × 2컨트롤, 192분할이면 약 36,000개 × 2. 재생 타이머가 33ms마다 `PlaybackPositionSeconds` 를 바꾸므로 초당 30번 반복됩니다. 가장 크게 남는 개선 여지입니다 |
+| **렌더마다 Pen/Brush 새로 생성** | `NoteGridControl` 은 노트 하나마다 `SolidColorBrush` + `Pen` 을, `OggWaveformControl.DrawOnsetMarkers` 는 온셋 마커(최대 20,000개)마다 `Pen` + `SolidColorBrush` 를 새로 만듭니다. `static readonly` 로 올리면 그대로 사라집니다 |
+| **`Notes` 프로퍼티가 매번 배열 복사** | `MainWindowViewModel.Notes` 가 `Chart.Notes.ToArray()`, `SelectedNotes` 가 `_selectedNotes.ToArray()` 입니다 |
+| **노트 조회가 선형 탐색** | `PlaceNote` 의 `Find`, `IsSlotOccupied` 의 `Any` 가 O(n). 여러 개 선택 이동은 O(n×m)이 됩니다 |
+| **통계 창이 클릭마다 전체 재집계** | `NoteStatsViewModel.Refresh()` 가 `Notes` 변경마다 (레인 수 × 노트 수) 순회 + `GroupBy` 를 다시 돕니다. 통계 창을 띄워둔 채 편집하면 노트 하나 찍을 때마다 실행됩니다 |
+
+---
+
+## 🧹 참고: 정리하면 좋을 코드
+
+| 항목 | 위치 |
+|------|------|
+| **죽은 대입** — `tPos` 를 루프 안에서 매번 다시 계산하는데 루프 끝에서 `tPos += rowHeight` 를 합니다. 아무 효과가 없습니다 | `OggWaveformControl.DrawBeatGrid` 의 `else` 분기 |
+| **타임라인 길이 공식 중복** — `MainWindow.GetTimelineLength()` 와 `TimelineControlBase.GetTimelineHeight()` 가 같은 계산을 따로 합니다. 이미 `Math.Max(1.0, …)` 유무로 미세하게 갈라져 있어, 한쪽만 고치면 스크롤 추적이 어긋납니다 | MainWindow.axaml.cs / TimelineControlBase.cs |
+| `goto FinishedBeatLines` — 루프가 `if` 블록의 마지막이라 `break` 로 충분합니다 | `NoteGridControl.Render` |
+| 안 쓰이는 멤버 — `BmsRawLine.Channel`(설정만 하고 읽는 곳 없음), `BmsChart.BmpTable`(채우는 곳 없음), `NoteType.Mine` | Models |
+| 스타일 불일치 — `MainWindow.axaml.cs` 만 멤버 들여쓰기가 8칸, `Program.cs` · `App.axaml.cs` 만 블록 네임스페이스 | — |
+| 메뉴 `편집 (E)` · `View` · `설정 (O)` · `보기 (C)` · `프리뷰 (P)` 가 빈 껍데기 | MainWindow.axaml |
+| `.gitignore` 의 `[Re]leases/` 오타 (`[Rr]eleases/` 의도로 보임) | .gitignore |
+| **테스트 프로젝트 없음** — 8·10·11번은 파서/라이터 왕복 테스트 하나면 전부 걸립니다. Services 가 UI에 안 묶여 있어 붙이기 쉽습니다 | — |
+
+빌드 경고는 WebView2가 끌고 오는 `MSB3277`(WindowsBase 4.0 vs 5.0) 하나뿐입니다.
+`CoreWebView2` 만 쓰므로 동작에는 영향이 없습니다.
+
+---
+
+## 🧩 참고: 빠진 기능
+
+버그는 아니지만 에디터로서 비어 있는 자리입니다.
+
+* **Undo / Redo 가 없습니다.** 가장 큰 빈 자리입니다.
+* **단축키가 하나도 없습니다.** Ctrl+S · Ctrl+O · Ctrl+N 모두 미연결 (`KeyGesture` 검색 결과 0건).
+* **제목 표시줄에 파일명·수정 표시가 없습니다.** 항상 `bms editer` 로만 뜹니다.
+* **노트에 키음 번호가 표시되지 않습니다.** `NoteGridControl` 의 `DrawText` 는 레인 머리글 3곳뿐이고,
+  노트는 색 채운 네모/동그라미로만 그립니다. 어떤 키음이 찍혔는지는 클릭해 보기 전에는 알 수 없습니다.
+* **레인 구성이 1P 7키+스크래치 고정입니다.** `Chart.Lanes` 에 setter 는 있으나 아무도 쓰지 않아
+  5키·10키·14키·Double 차트는 1P 쪽만 보입니다.
 
 ---
 
@@ -136,6 +328,16 @@
 | 7-4 | 키음 개수 한계 | | | |
 | 7-5 | 저장 성공 표시 | | | |
 | 7-6 | 주석 줄 유실 | | | |
+| 8 | Shift_JIS 차트 깨짐 (키음 포함) | | | |
+| 9 | 저장 시 인코딩 UTF-8 고정 | | | |
+| 10 | 새 문서가 `#PLAYER 2` 로 저장 | | | |
+| 11 | 3자리 노트 키 잘림 | | | |
+| 12 | OGG 로드 후 뒤쪽 마디 편집 불가 | | | |
+| 13 | 창 닫기 시 경고 없음 | | | |
+| 14 | `#xxx02` 박자 변경 무시 | | | |
+| 15 | 롱·숨기기 필터 무효 | | | |
+| 16 | 저장 시 `#WAV` 경로 덮어쓰기 | | | |
+| 17 | OGG 디코딩 버퍼 초과 실패 | | | |
 
 ---
 
