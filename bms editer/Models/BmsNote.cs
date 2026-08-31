@@ -32,6 +32,16 @@ public readonly record struct NoteCopyResult(int Copied, int Blocked, int OutOfR
 
 public record NoteSelectionArgs(IReadOnlyList<BmsNote> Notes);
 
+// 지금 선택이 어디서 만들어졌는지. 격자가 강조 색을 이걸로 고른다.
+// 통계 창에서 고른 것은 "이 키음이 어디에 찍혀 있나"를 훑어보는 용도라,
+// 손으로 고른 선택(노랑)과 한눈에 구별되도록 다른 색으로 그린다.
+public enum NoteSelectionSource
+{
+    Grid,
+    Search,
+    Stats,
+}
+
 public enum NoteMoveDirection
 {
     TimeForward,

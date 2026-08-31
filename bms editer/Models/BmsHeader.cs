@@ -14,4 +14,21 @@ public sealed class BmsHeader
 
     // #<필드명> 형태의 비표준/확장 헤더 필드를 그대로 보관
     public Dictionary<string, string> ExtendedFields { get; } = new();
+
+    public void CopyFrom(BmsHeader source)
+    {
+        Title = source.Title;
+        Artist = source.Artist;
+        Genre = source.Genre;
+        Bpm = source.Bpm;
+        Player = source.Player;
+        Rank = source.Rank;
+        Level = source.Level;
+
+        ExtendedFields.Clear();
+        foreach (var (key, value) in source.ExtendedFields)
+            ExtendedFields[key] = value;
+    }
+
+    public void Reset() => CopyFrom(new BmsHeader());
 }

@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
-using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using Avalonia.Threading;
 using bms_editer.Models;
@@ -42,7 +41,10 @@ public sealed partial class MainWindowViewModel : ObservableObject
     [ObservableProperty] private string _artist = string.Empty;
     [ObservableProperty] private string _genre = string.Empty;
     [ObservableProperty] private double _bpm = 120.0;
-    [ObservableProperty] private int _player = 1;
+
+    // 콤보박스 인덱스(0=Single, 1=Couple, 2=Double). 파일의 #PLAYER 값보다 하나 작다.
+    // 예전에는 기본값이 1 이라 새 차트가 Couple 로 저장됐다.
+    [ObservableProperty] private int _player;
     [ObservableProperty] private int _rank = 2;
     [ObservableProperty] private string _level = string.Empty;
 
@@ -321,29 +323,32 @@ public sealed partial class MainWindowViewModel : ObservableObject
     // 차트/키음/헤더 등 문서 상태를 초기 상태로 되돌린다. (배경 음원·비디오는 대상 아님)
     private void ResetDocumentState()
     {
-        Chart.Notes.Clear();
-        Chart.WavTable.Clear();
-        Chart.BmpTable.Clear();
-        Chart.MeasureLengths.Clear();
-        Chart.PreservedLines.Clear();
+        Chart.Clear();
         WavList.Clear();
         SelectedWavItem = null;
         _selectedNotes.Clear();
 
-        Title = string.Empty;
-        Artist = string.Empty;
-        Genre = string.Empty;
-        Level = string.Empty;
-        Bpm = 120.0;
-        Player = 1;
-        Rank = 2;
-
-        MeasureCount = 32;
-        Chart.MeasureCount = 32;
+        PullHeaderFromChart();
+        MeasureCount = Chart.MeasureCount;
         CurrentFilePath = null;
 
         OnPropertyChanged(nameof(Notes));
         OnPropertyChanged(nameof(SelectedNotes));
+    }
+
+    // Chart.Header 의 값을 화면에 묶인 프로퍼티로 옮긴다.
+    //
+    // #PLAYER 는 파일에서 1/2/3 인데 콤보박스는 0부터 시작하는 인덱스라 한 칸 어긋난다.
+    // 그 변환을 여기 한 곳에서만 하고, 되돌리는 쪽은 PlayerHeaderValue 가 맡는다.
+    private void PullHeaderFromChart()
+    {
+        Title = Chart.Header.Title;
+        Artist = Chart.Header.Artist;
+        Genre = Chart.Header.Genre;
+        Level = Chart.Header.Level;
+        Bpm = Chart.Header.Bpm;
+        Player = Math.Clamp(Chart.Header.Player - 1, 0, 2);
+        Rank = Math.Clamp(Chart.Header.Rank, 0, 3);
     }
 
     // 마지막 열기/저장이 실패한 이유. 성공하면 null.
@@ -358,16 +363,13 @@ public sealed partial class MainWindowViewModel : ObservableObject
             return false;
         }
 
-        BmsChart parsedChart;
-        double parsedBpm;
-        int calculatedMeasureCount;
-        List<BmsWavItem> parsedWavItems;
+        BmsParseResult parsed;
 
         try
         {
             // 먼저 다 읽고 나서 지운다. 파싱이 중간에 실패했을 때
             // 작업 중이던 내용까지 같이 날아가지 않도록 순서를 지킨다.
-            parsedChart = BmsParser.Parse(filePath, out parsedBpm, out calculatedMeasureCount, out parsedWavItems);
+            parsed = BmsParser.Parse(filePath);
         }
         catch (Exception ex)
         {
@@ -378,32 +380,15 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
         ResetDocumentState();
 
-        Title = parsedChart.Header.Title;
-        Artist = parsedChart.Header.Artist;
-        Genre = parsedChart.Header.Genre;
-        Level = parsedChart.Header.Level;
+        // 노트·보존줄·마디길이·키음표 등 차트 안의 모든 컬렉션이 여기서 한꺼번에 옮겨진다.
+        Chart.ReplaceContentWith(parsed.Chart);
+        PullHeaderFromChart();
+        MeasureCount = Chart.MeasureCount;
 
-        // #PLAYER 는 파일에서 1/2/3, 콤보박스는 0부터 시작하는 인덱스다.
-        Player = Math.Clamp(parsedChart.Header.Player - 1, 0, 2);
-        Rank = Math.Clamp(parsedChart.Header.Rank, 0, 3);
-
-        Bpm = parsedBpm;
-        MeasureCount = calculatedMeasureCount;
-        Chart.MeasureCount = calculatedMeasureCount;
-
-        foreach (var wavItem in parsedWavItems)
+        foreach (var wavItem in parsed.WavItems)
         {
-            Chart.WavTable[wavItem.Key] = wavItem.FilePath;
             WavList.Add(wavItem);
         }
-
-        foreach (var note in parsedChart.Notes)
-        {
-            Chart.Notes.Add(note);
-        }
-
-        // 편집 대상이 아닌 채널·헤더는 원문 그대로 들고 있다가 저장할 때 되돌려 놓는다.
-        Chart.PreservedLines.AddRange(parsedChart.PreservedLines);
 
         if (WavList.Count > 0)
         {
@@ -449,13 +434,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         StopPlayback(resetCursor: false);
     }
 
-    // WAV 키음 관리 및 재생 믹서 (Win32 PInvoke)
-    [LibraryImport("winmm.dll", EntryPoint = "PlaySoundW", SetLastError = true, StringMarshalling = StringMarshalling.Utf16)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static partial bool PlaySound(string pszSound, IntPtr hmod, uint fdwSound);
-
-    private const uint SND_ASYNC = 0x0001;
-    private const uint SND_FILENAME = 0x00020000;
+    private readonly KeySoundPlayer _keySoundPlayer = new();
 
     public ObservableCollection<BmsWavItem> WavList { get; } = new();
     [ObservableProperty] private BmsWavItem? _selectedWavItem;
@@ -465,17 +444,22 @@ public sealed partial class MainWindowViewModel : ObservableObject
     private readonly HashSet<BmsNote> _selectedNotes = new();
     public IReadOnlyList<BmsNote> SelectedNotes => _selectedNotes.ToArray();
 
+    // 지금 선택을 누가 만들었는지. 격자가 강조 색을 이 값으로 고른다.
+    [ObservableProperty] private NoteSelectionSource _selectionSource = NoteSelectionSource.Grid;
+
     [RelayCommand]
     private void SelectNotes(NoteSelectionArgs args) => SetNoteSelection(args.Notes);
 
-    // 격자 밖(검색/삭제/교체 창 등)에서 선택 집합을 통째로 교체한다.
-    public void SetNoteSelection(IEnumerable<BmsNote> notes)
+    // 격자 밖(검색/삭제/교체 창, 통계 창 등)에서 선택 집합을 통째로 교체한다.
+    // source 는 격자가 강조 색을 고르는 데만 쓴다. 선택 자체의 의미는 같다.
+    public void SetNoteSelection(IEnumerable<BmsNote> notes, NoteSelectionSource source = NoteSelectionSource.Grid)
     {
         _selectedNotes.Clear();
         foreach (var note in notes)
         {
             _selectedNotes.Add(note);
         }
+        SelectionSource = source;
         OnPropertyChanged(nameof(SelectedNotes));
     }
 
@@ -551,7 +535,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         if (created.Count > 0)
         {
             Chart.Notes.AddRange(created);
-            SetNoteSelection(created);
+            SetNoteSelection(created, NoteSelectionSource.Search);
             OnPropertyChanged(nameof(Notes));
         }
 
@@ -676,17 +660,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     public void PlayWavSound(string key)
     {
-        if (Chart.WavTable.TryGetValue(key, out var path) && System.IO.File.Exists(path))
-        {
-            try
-            {
-                PlaySound(path, IntPtr.Zero, SND_ASYNC | SND_FILENAME);
-            }
-            catch
-            {
-                // 음원 재생 실패 시 무시
-            }
-        }
+        if (Chart.WavTable.TryGetValue(key, out var path))
+            _keySoundPlayer.Play(path);
     }
 
     private string GetNextWavKey()

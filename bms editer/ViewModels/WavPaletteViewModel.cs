@@ -1,7 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Collections.Specialized;
-using System.ComponentModel;
 using System.Linq;
 using bms_editer.Models;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -15,41 +13,33 @@ namespace bms_editer.ViewModels;
 // 고른 키음이 곧 노트를 찍을 때 쓰이는 붓이므로 선택 상태를 따로 두지 않고
 // 메인 뷰모델의 SelectedWavItem 을 그대로 읽고 쓴다. 그래서 사이드바 목록과
 // 팔레트가 언제나 같은 항목을 가리킨다.
-public sealed partial class WavPaletteViewModel : ObservableObject, IDisposable
+public sealed partial class WavPaletteViewModel : OwnerObservingViewModel
 {
-    private readonly MainWindowViewModel _owner;
-
     [ObservableProperty] private string _filter = string.Empty;
     [ObservableProperty] private IReadOnlyList<BmsWavItem> _items = Array.Empty<BmsWavItem>();
 
     // 팔레트에서 색을 고르면 바로 소리가 나야 붓을 고르는 느낌이 난다.
     [ObservableProperty] private bool _previewOnSelect = true;
 
-    public WavPaletteViewModel(MainWindowViewModel owner)
+    public WavPaletteViewModel(MainWindowViewModel owner) : base(owner)
     {
-        _owner = owner;
-        _owner.PropertyChanged += OnOwnerPropertyChanged;
-        _owner.WavList.CollectionChanged += OnWavListChanged;
         Refresh();
     }
 
-    // 삭제·재생 테스트는 메인 뷰모델의 명령을 그대로 쓴다(동작이 갈라지지 않게).
-    public MainWindowViewModel Owner => _owner;
-
     public BmsWavItem? SelectedWavItem
     {
-        get => _owner.SelectedWavItem;
+        get => Owner.SelectedWavItem;
         set
         {
             // 검색어를 좁혀 선택 항목이 목록에서 빠지면 ListBox 가 null 을 밀어 넣는다.
             // 그때 편집용 붓까지 풀려버리지 않도록 무시한다.
-            if (value is null || ReferenceEquals(_owner.SelectedWavItem, value))
+            if (value is null || ReferenceEquals(Owner.SelectedWavItem, value))
                 return;
 
-            _owner.SelectedWavItem = value;
+            Owner.SelectedWavItem = value;
 
             if (PreviewOnSelect)
-                _owner.PlayWavSound(value.Key);
+                Owner.PlayWavSound(value.Key);
         }
     }
 
@@ -58,13 +48,13 @@ public sealed partial class WavPaletteViewModel : ObservableObject, IDisposable
     // 값은 창을 닫아도 남도록 메인 뷰모델에 둔다.
     public int ViewModeIndex
     {
-        get => _owner.WavPaletteViewModeIndex;
+        get => Owner.WavPaletteViewModeIndex;
         set
         {
-            if (_owner.WavPaletteViewModeIndex == value)
+            if (Owner.WavPaletteViewModeIndex == value)
                 return;
 
-            _owner.WavPaletteViewModeIndex = value;
+            Owner.WavPaletteViewModeIndex = value;
             OnPropertyChanged();
             RaiseViewModeFlags();
         }
@@ -75,9 +65,9 @@ public sealed partial class WavPaletteViewModel : ObservableObject, IDisposable
     public bool IsLargeMode => ViewModeIndex == 2;
     public bool IsExtraLargeMode => ViewModeIndex == 3;
 
-    public int TotalCount => _owner.WavList.Count;
+    public int TotalCount => Owner.WavList.Count;
     public bool HasItems => Items.Count > 0;
-    public bool IsEmptyTable => _owner.WavList.Count == 0;
+    public bool IsEmptyTable => Owner.WavList.Count == 0;
 
     // 목록 보기와 아이콘 보기는 판이 따로라 어느 쪽을 띄울지 여기서 정한다.
     public bool ShowListView => HasItems && IsListMode;
@@ -111,22 +101,22 @@ public sealed partial class WavPaletteViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(ShowIconView));
     }
 
-    private void OnOwnerPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    protected override void OnOwnerPropertyChanged(string? propertyName)
     {
         // 사이드바에서 고른 항목이 팔레트에도 그대로 반영돼야 한다.
-        if (e.PropertyName == nameof(MainWindowViewModel.SelectedWavItem))
+        if (propertyName == nameof(MainWindowViewModel.SelectedWavItem))
             OnPropertyChanged(nameof(SelectedWavItem));
-        else if (e.PropertyName == nameof(MainWindowViewModel.WavPaletteViewModeIndex))
+        else if (propertyName == nameof(MainWindowViewModel.WavPaletteViewModeIndex))
             RaiseViewModeFlags();
     }
 
-    private void OnWavListChanged(object? sender, NotifyCollectionChangedEventArgs e) => Refresh();
+    protected override void OnWavListChanged() => Refresh();
 
     // 새로 넣은 키음이 검색어에 걸려 안 보이면 추가한 걸 못 찾으므로 검색어를 지운다.
     public void AddWav(string filePath)
     {
         Filter = string.Empty;
-        _owner.AddWav(filePath);
+        Owner.AddWav(filePath);
     }
 
     [RelayCommand]
@@ -137,8 +127,8 @@ public sealed partial class WavPaletteViewModel : ObservableObject, IDisposable
         var filter = Filter.Trim();
 
         Items = filter.Length == 0
-            ? _owner.WavList.ToList()
-            : _owner.WavList
+            ? Owner.WavList.ToList()
+            : Owner.WavList
                 .Where(item =>
                     item.Key.Contains(filter, StringComparison.OrdinalIgnoreCase) ||
                     item.FileName.Contains(filter, StringComparison.OrdinalIgnoreCase))
@@ -147,11 +137,5 @@ public sealed partial class WavPaletteViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(TotalCount));
         OnPropertyChanged(nameof(IsEmptyTable));
         OnPropertyChanged(nameof(StatusText));
-    }
-
-    public void Dispose()
-    {
-        _owner.PropertyChanged -= OnOwnerPropertyChanged;
-        _owner.WavList.CollectionChanged -= OnWavListChanged;
     }
 }

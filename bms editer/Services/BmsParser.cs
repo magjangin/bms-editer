@@ -8,6 +8,15 @@ using bms_editer.Models;
 
 namespace bms_editer.Services;
 
+// 파일 하나를 읽어낸 결과. BPM 과 마디 수는 Chart 안에 들어 있다.
+// 키음 목록만 따로 나오는데, 정의된 순서를 그대로 지켜야 해서
+// 순서가 없는 Chart.WavTable 로는 대신할 수 없기 때문이다.
+public sealed record BmsParseResult(BmsChart Chart, IReadOnlyList<BmsWavItem> WavItems)
+{
+    public double Bpm => Chart.Header.Bpm;
+    public int MeasureCount => Chart.MeasureCount;
+}
+
 public static partial class BmsParser
 {
     [GeneratedRegex(@"^#WAV([0-9a-zA-Z]{2,3})\s+(.*)", RegexOptions.IgnoreCase)]
@@ -43,15 +52,22 @@ public static partial class BmsParser
         "16", "11", "12", "13", "14", "15", "18"
     };
 
-    public static BmsChart Parse(string filePath, out double parsedBpm, out int measureCount, out List<BmsWavItem> wavItems)
+    // 예전에는 반환값 하나에 out 3개였다. 그중 BPM 과 마디 수는 차트 안에도 같은 값이
+    // 들어 있어서, 호출한 쪽이 어느 쪽을 믿어야 하는지 매번 헷갈렸다.
+    // 이제 차트를 다 채워서 하나로 돌려준다.
+    public static BmsParseResult Parse(string filePath)
     {
         var chart = new BmsChart();
-        parsedBpm = 120.0;
-        measureCount = 32;
-        wavItems = new List<BmsWavItem>();
+        var parsedBpm = 120.0;
+        var measureCount = 32;
+        var wavItems = new List<BmsWavItem>();
 
         if (!File.Exists(filePath))
-            return chart;
+        {
+            chart.Header.Bpm = parsedBpm;
+            chart.MeasureCount = measureCount;
+            return new BmsParseResult(chart, wavItems);
+        }
 
         // 다양한 인코딩 대응을 위해 C# Default (ANSI/UTF-8)을 우선하되 한국어 완성형(CP949) 디코딩 대비
         Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
@@ -234,7 +250,8 @@ public static partial class BmsParser
 
         measureCount = Math.Max(32, maxMeasure + 1);
         chart.Header.Bpm = parsedBpm;
-        return chart;
+        chart.MeasureCount = measureCount;
+        return new BmsParseResult(chart, wavItems);
     }
 
     // 1단계에서 이미 읽어간(= 저장할 때 에디터가 새로 써주는) 헤더인지 판별한다.

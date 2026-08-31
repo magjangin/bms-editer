@@ -29,6 +29,9 @@ public sealed class NoteGridControl : TimelineControlBase
     public static readonly StyledProperty<IReadOnlyList<BmsNote>?> SelectedNotesProperty =
         AvaloniaProperty.Register<NoteGridControl, IReadOnlyList<BmsNote>?>(nameof(SelectedNotes));
 
+    public static readonly StyledProperty<NoteSelectionSource> SelectionSourceProperty =
+        AvaloniaProperty.Register<NoteGridControl, NoteSelectionSource>(nameof(SelectionSource));
+
     public static readonly StyledProperty<System.Windows.Input.ICommand?> PlaceNoteCommandProperty =
         AvaloniaProperty.Register<NoteGridControl, System.Windows.Input.ICommand?>(nameof(PlaceNoteCommand));
 
@@ -74,6 +77,13 @@ public sealed class NoteGridControl : TimelineControlBase
         set => SetValue(SelectedNotesProperty, value);
     }
 
+    // 선택이 어디서 만들어졌는지. 강조 색만 여기서 갈린다.
+    public NoteSelectionSource SelectionSource
+    {
+        get => GetValue(SelectionSourceProperty);
+        set => SetValue(SelectionSourceProperty, value);
+    }
+
     public System.Windows.Input.ICommand? PlaceNoteCommand
     {
         get => GetValue(PlaceNoteCommandProperty);
@@ -92,9 +102,18 @@ public sealed class NoteGridControl : TimelineControlBase
         set => SetValue(SelectNotesCommandProperty, value);
     }
 
+    // 노트 한 개마다 새로 만들면 프레임당 수천 개가 할당된다. 색이 고정이라 나눠 쓴다.
+    private static readonly Pen NoteOutlinePen = new(Brushes.Black, 1);
+
+    // 손으로 고른 선택은 노랑. 통계 창에서 "이 키음이 어디 있나" 훑어보려고 켠
+    // 선택은 빨강이라, 지금 보고 있는 게 어느 쪽인지 색만 보고 안다.
+    private static readonly Pen SelectionPen = new(Brushes.Yellow, 2);
+    private static readonly Pen StatsSelectionPen = new(Brushes.Red, 2);
+
     static NoteGridControl()
     {
-        AffectsRender<NoteGridControl>(LanesProperty, LaneWidthProperty, NotesProperty, IsCircleNoteShapeProperty, SelectedNotesProperty);
+        AffectsRender<NoteGridControl>(LanesProperty, LaneWidthProperty, NotesProperty, IsCircleNoteShapeProperty,
+            SelectedNotesProperty, SelectionSourceProperty);
         AffectsMeasure<NoteGridControl>(LanesProperty, LaneWidthProperty);
     }
 
@@ -161,70 +180,25 @@ public sealed class NoteGridControl : TimelineControlBase
                 thicknessOffset += laneThickness;
         }
 
-        var split = Math.Max(1, BeatSplit);
-        if (DurationSeconds > 0 && Bpm > 0)
+        foreach (var line in EnumerateGridLines(timelineLength))
         {
-            var secondsPerStep = 240.0 / (Bpm * split);
-            for (var index = 0; ; index++)
+            var pen = line.Kind switch
             {
-                var seconds = index * secondsPerStep;
-                if (seconds > DurationSeconds)
-                    goto FinishedBeatLines;
+                GridLineKind.Measure => measurePen,
+                GridLineKind.Beat => beatPen,
+                _ => subBeatPen,
+            };
 
-                var ratio = seconds / DurationSeconds;
-                var tPos = IsHorizontalView ? (ratio * timelineLength) : ((1.0 - ratio) * timelineLength);
-                var pen = Mod(index, split) == 0
-                    ? measurePen
-                    : IsMeasureBeatLine(index, split, GridMeasure)
-                        ? beatPen
-                        : subBeatPen;
-
-                if (IsHorizontalView)
-                {
-                    context.DrawLine(pen, new Point(tPos, 0), new Point(tPos, totalHeight));
-                }
-                else
-                {
-                    context.DrawLine(pen, new Point(0, tPos), new Point(totalWidth, tPos));
-                }
+            if (IsHorizontalView)
+            {
+                context.DrawLine(pen, new Point(line.Position, 0), new Point(line.Position, totalHeight));
             }
-        }
-        else
-        {
-            var rowHeight = RowHeight * VerticalZoom * GetGridSpacingScale();
-            var tPos = IsHorizontalView ? 0.0 : timelineLength;
-            for (var measure = 0; measure < MeasureCount; measure++)
+            else
             {
-                for (var beat = 0; beat < split; beat++)
-                {
-                    var beatTPos = IsHorizontalView 
-                        ? (tPos + (rowHeight * beat / split))
-                        : (tPos - (rowHeight * beat / split));
-
-                    var pen = beat == 0
-                        ? measurePen
-                        : IsMeasureBeatLine(beat, split, GridMeasure)
-                            ? beatPen
-                            : subBeatPen;
-
-                    if (IsHorizontalView)
-                    {
-                        context.DrawLine(pen, new Point(beatTPos, 0), new Point(beatTPos, totalHeight));
-                    }
-                    else
-                    {
-                        context.DrawLine(pen, new Point(0, beatTPos), new Point(totalWidth, beatTPos));
-                    }
-                }
-
-                if (IsHorizontalView)
-                    tPos += rowHeight;
-                else
-                    tPos -= rowHeight;
+                context.DrawLine(pen, new Point(0, line.Position), new Point(totalWidth, line.Position));
             }
         }
 
-    FinishedBeatLines:
         // 래인 번호(채널 번호) 텍스트 그리기
         for (var i = 0; i < lanes.Count; i++)
         {
@@ -252,6 +226,7 @@ public sealed class NoteGridControl : TimelineControlBase
         // 배치된 노트 그리기
         var notes = Notes;
         var selectedSet = SelectedNotes is null ? null : new HashSet<BmsNote>(SelectedNotes);
+        var selectionPen = SelectionSource == NoteSelectionSource.Stats ? StatsSelectionPen : SelectionPen;
         if (notes is not null)
         {
             for (var index = 0; index < notes.Count; index++)
@@ -277,7 +252,7 @@ public sealed class NoteGridControl : TimelineControlBase
 
                 var noteTPos = ComputeNoteTPos(note, timelineLength);
                 var laneOffset = laneIndex * laneThickness;
-                var blackPen = new Pen(Brushes.Black, 1);
+                var blackPen = NoteOutlinePen;
 
                 if (IsHorizontalView)
                 {
@@ -312,7 +287,7 @@ public sealed class NoteGridControl : TimelineControlBase
 
                 if (selectedSet is not null && selectedSet.Contains(note))
                 {
-                    var highlightPen = new Pen(Brushes.Yellow, 2);
+                    var highlightPen = selectionPen;
                     var highlightRect = IsHorizontalView
                         ? new Rect(noteTPos - 7, laneOffset + 1, 14, laneThickness - 2)
                         : new Rect(laneOffset + 1, noteTPos - 7, laneThickness - 2, 14);
@@ -336,10 +311,8 @@ public sealed class NoteGridControl : TimelineControlBase
     {
         if (DurationSeconds > 0 && Bpm > 0)
         {
-            var secondsPerMeasure = 240.0 / Bpm;
-            var seconds = (note.Measure + note.Position) * secondsPerMeasure;
-            var ratio = seconds / DurationSeconds;
-            return IsHorizontalView ? (ratio * timelineLength) : ((1.0 - ratio) * timelineLength);
+            var seconds = (note.Measure + note.Position) * (240.0 / Bpm);
+            return ToTimelinePosition(seconds / DurationSeconds, timelineLength);
         }
 
         var rowHeight = RowHeight * VerticalZoom * GetGridSpacingScale();

@@ -227,119 +227,40 @@ public sealed class OggWaveformControl : TimelineControlBase
         if (timelineLength <= 0 || Bpm <= 0)
             return;
 
-        var split = Math.Max(1, BeatSplit);
         var subBeatPen = new Pen(new SolidColorBrush(Color.FromArgb(45, 150, 160, 170)), 1);
         var beatPen = new Pen(new SolidColorBrush(Color.FromArgb(120, 200, 210, 220)), 1);
         var measurePen = new Pen(new SolidColorBrush(Color.FromArgb(210, 255, 255, 255)), 1.5);
 
-        if (DurationSeconds > 0)
+        foreach (var line in EnumerateGridLines(timelineLength))
         {
-            var secondsPerStep = 240.0 / (Bpm * split);
-            for (var index = 0; ; index++)
+            var pen = line.Kind switch
             {
-                var seconds = index * secondsPerStep;
-                if (seconds > DurationSeconds)
-                    return;
+                GridLineKind.Measure => measurePen,
+                GridLineKind.Beat => beatPen,
+                _ => subBeatPen,
+            };
 
-                var ratio = seconds / DurationSeconds;
-                var tPos = isHorizontal ? (ratio * timelineLength) : ((1.0 - ratio) * timelineLength);
+            if (isHorizontal)
+                context.DrawLine(pen, new Point(line.Position, 0), new Point(line.Position, thickness));
+            else
+                context.DrawLine(pen, new Point(0, line.Position), new Point(thickness, line.Position));
 
-                var isMeasure = Mod(index, split) == 0;
-                var pen = isMeasure
-                    ? measurePen
-                    : IsMeasureBeatLine(index, split, GridMeasure)
-                        ? beatPen
-                        : subBeatPen;
+            if (line.Kind != GridLineKind.Measure)
+                continue;
 
-                if (isHorizontal)
-                {
-                    context.DrawLine(pen, new Point(tPos, 0), new Point(tPos, thickness));
-                }
-                else
-                {
-                    context.DrawLine(pen, new Point(0, tPos), new Point(thickness, tPos));
-                }
+            // 마디 번호와 그 지점의 초. BPM 을 맞출 때 소리와 대조하는 기준이 된다.
+            var label = new FormattedText(
+                $"#{line.Measure:D3} ({line.Seconds:F4}s)",
+                System.Globalization.CultureInfo.CurrentCulture,
+                FlowDirection.LeftToRight,
+                new Typeface("Inter, Arial, sans-serif"),
+                11.0,
+                Brushes.LightGray);
 
-                if (isMeasure)
-                {
-                    var measure = index / split;
-                    var text = $"#{measure:D3} ({seconds:F4}s)";
-                    var formattedText = new FormattedText(
-                        text,
-                        System.Globalization.CultureInfo.CurrentCulture,
-                        FlowDirection.LeftToRight,
-                        new Typeface("Inter, Arial, sans-serif"),
-                        11.0,
-                        Brushes.LightGray);
-                    
-                    if (isHorizontal)
-                    {
-                        context.DrawText(formattedText, new Point(tPos + 3, 8));
-                    }
-                    else
-                    {
-                        context.DrawText(formattedText, new Point(8, tPos - formattedText.Height - 2));
-                    }
-                }
-            }
-        }
-        else
-        {
-            var rowHeight = RowHeight * VerticalZoom * GetGridSpacingScale();
-            var secondsPerMeasure = 240.0 / Bpm;
-
-            for (var measure = 0; measure <= MeasureCount; measure++)
-            {
-                var seconds = measure * secondsPerMeasure;
-                var tPos = isHorizontal ? (measure * rowHeight) : (timelineLength - measure * rowHeight);
-
-                for (var beat = 0; beat < split; beat++)
-                {
-                    if (beat > 0)
-                    {
-                        var beatTPos = isHorizontal ? (tPos + (rowHeight * beat / split)) : (tPos - (rowHeight * beat / split));
-                        if (beatTPos >= 0 && beatTPos <= timelineLength)
-                        {
-                            var pen = IsMeasureBeatLine(beat, split, GridMeasure) ? beatPen : subBeatPen;
-                            if (isHorizontal)
-                                context.DrawLine(pen, new Point(beatTPos, 0), new Point(beatTPos, thickness));
-                            else
-                                context.DrawLine(pen, new Point(0, beatTPos), new Point(thickness, beatTPos));
-                        }
-                    }
-                }
-
-                if (tPos >= 0 && tPos <= timelineLength)
-                {
-                    if (isHorizontal)
-                        context.DrawLine(measurePen, new Point(tPos, 0), new Point(tPos, thickness));
-                    else
-                        context.DrawLine(measurePen, new Point(0, tPos), new Point(thickness, tPos));
-
-                    var text = $"#{measure:D3} ({seconds:F4}s)";
-                    var formattedText = new FormattedText(
-                        text,
-                        System.Globalization.CultureInfo.CurrentCulture,
-                        FlowDirection.LeftToRight,
-                        new Typeface("Inter, Arial, sans-serif"),
-                        11.0,
-                        Brushes.LightGray);
-
-                    if (isHorizontal)
-                    {
-                        context.DrawText(formattedText, new Point(tPos + 3, 8));
-                    }
-                    else
-                    {
-                        context.DrawText(formattedText, new Point(8, tPos - formattedText.Height - 2));
-                    }
-                }
-
-                if (isHorizontal)
-                    tPos += rowHeight;
-                else
-                    tPos -= rowHeight;
-            }
+            if (isHorizontal)
+                context.DrawText(label, new Point(line.Position + 3, 8));
+            else
+                context.DrawText(label, new Point(8, line.Position - label.Height - 2));
         }
     }
 

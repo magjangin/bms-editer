@@ -24,4 +24,38 @@ public sealed class BmsChart
 
     public double GetMeasureLength(int measure) =>
         MeasureLengths.TryGetValue(measure, out var length) ? length : 1.0;
+
+    // 읽어들인 차트의 내용을 이 인스턴스로 옮긴다.
+    //
+    // Chart 는 뷰에 바인딩돼 있어 통째로 갈아끼울 수 없고, 그렇다고 부르는 쪽에서
+    // 컬렉션을 하나씩 옮기면 새 컬렉션이 생길 때마다 빠뜨리기 쉽다. 실제로
+    // MeasureLengths 와 BmpTable 이 그렇게 빠져 있었다. 옮기는 자리를 여기 하나로 모은다.
+    public void ReplaceContentWith(BmsChart source)
+    {
+        Header.CopyFrom(source.Header);
+        Lanes = source.Lanes;
+        MeasureCount = source.MeasureCount;
+
+        Notes.Clear();
+        Notes.AddRange(source.Notes);
+
+        PreservedLines.Clear();
+        PreservedLines.AddRange(source.PreservedLines);
+
+        CopyInto(source.MeasureLengths, MeasureLengths);
+        CopyInto(source.WavTable, WavTable);
+        CopyInto(source.BmpTable, BmpTable);
+    }
+
+    // 새로 만들기처럼 문서를 비울 때. ReplaceContentWith 와 같은 자리에 두어
+    // 컬렉션이 늘어나면 양쪽을 같이 고치게 한다.
+    public void Clear() => ReplaceContentWith(new BmsChart());
+
+    private static void CopyInto<TKey, TValue>(Dictionary<TKey, TValue> source, Dictionary<TKey, TValue> target)
+        where TKey : notnull
+    {
+        target.Clear();
+        foreach (var (key, value) in source)
+            target[key] = value;
+    }
 }

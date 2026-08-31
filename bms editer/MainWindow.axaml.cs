@@ -22,14 +22,8 @@ public partial class MainWindow : Window
         private static readonly string[] OggExtensions = { ".ogg" };
         private static readonly string[] VideoExtensions = { ".mp4", ".webm", ".mov", ".avi", ".mkv", ".ogv" };
 
-        // 모드리스로 떠 있는 검색/삭제/교체 창. 닫히면 다시 null이 된다.
-        private NoteSearchWindow? _noteSearchWindow;
-
-        // 모드리스로 떠 있는 노트 통계 창. 닫히면 다시 null이 된다.
-        private NoteStatsWindow? _noteStatsWindow;
-
-        // 모드리스로 떠 있는 키음 팔레트 창. 닫히면 다시 null이 된다.
-        private WavPaletteWindow? _wavPaletteWindow;
+        // 지금 떠 있는 모드리스 보조 창(검색/통계/키음 팔레트). 종류당 하나만 띄운다.
+        private readonly Dictionary<Type, Window> _toolWindows = new();
 
         public MainWindow()
         {
@@ -272,71 +266,44 @@ public partial class MainWindow : Window
         }
 
         // 검색 결과를 격자에서 바로 확인해야 하므로 모달이 아닌 모드리스로 띄운다.
-        // 이미 떠 있으면 새 창을 만들지 않고 기존 창을 앞으로 가져온다.
-        private void OnShowNoteSearchClick(object? sender, RoutedEventArgs e)
-        {
-            if (DataContext is not MainWindowViewModel vm)
-                return;
-
-            if (_noteSearchWindow is { } existing)
-            {
-                existing.Activate();
-                return;
-            }
-
-            var searchWindow = new NoteSearchWindow(new NoteSearchViewModel(vm));
-            searchWindow.Closed += (_, _) => _noteSearchWindow = null;
-            _noteSearchWindow = searchWindow;
-            searchWindow.Show(this);
-        }
+        private void OnShowNoteSearchClick(object? sender, RoutedEventArgs e) =>
+            ShowToolWindow(vm => new NoteSearchWindow(new NoteSearchViewModel(vm)));
 
         // 편집하는 동안 집계가 따라 움직여야 하므로 검색 창과 같이 모드리스로 띄운다.
-        // 뷰모델이 메인 뷰모델의 변경 알림을 구독하므로 창이 닫힐 때 반드시 해제한다.
-        private void OnShowStatsClick(object? sender, RoutedEventArgs e)
-        {
-            if (DataContext is not MainWindowViewModel vm)
-                return;
-
-            if (_noteStatsWindow is { } existing)
-            {
-                existing.Activate();
-                return;
-            }
-
-            var statsViewModel = new NoteStatsViewModel(vm);
-            var statsWindow = new NoteStatsWindow(statsViewModel);
-            statsWindow.Closed += (_, _) =>
-            {
-                statsViewModel.Dispose();
-                _noteStatsWindow = null;
-            };
-            _noteStatsWindow = statsWindow;
-            statsWindow.Show(this);
-        }
+        private void OnShowStatsClick(object? sender, RoutedEventArgs e) =>
+            ShowToolWindow(vm => new NoteStatsWindow(new NoteStatsViewModel(vm)));
 
         // 사이드바의 좁은 키음 목록 대신 넓은 타일 판에서 고르는 창.
         // 선택이 곧 편집용 붓이라 편집하는 동안 계속 띄워둘 수 있게 모드리스로 연다.
-        // 뷰모델이 메인 뷰모델의 변경 알림을 구독하므로 창이 닫힐 때 반드시 해제한다.
-        private void OnShowWavPaletteClick(object? sender, RoutedEventArgs e)
+        private void OnShowWavPaletteClick(object? sender, RoutedEventArgs e) =>
+            ShowToolWindow(vm => new WavPaletteWindow(new WavPaletteViewModel(vm)));
+
+        // 모드리스 보조 창을 종류당 하나만 띄운다. 이미 떠 있으면 앞으로 가져온다.
+        //
+        // 보조 창의 뷰모델은 메인 뷰모델의 변경 알림을 구독하므로, 창이 닫힐 때
+        // 반드시 해제해야 닫은 창이 계속 살아남지 않는다. 세 창이 같은 절차를
+        // 따로 복사해 갖고 있었는데, 하나라도 Dispose 를 빠뜨리면 조용히 새는 자리였다.
+        private void ShowToolWindow<TWindow>(Func<MainWindowViewModel, TWindow> create)
+            where TWindow : Window
         {
             if (DataContext is not MainWindowViewModel vm)
                 return;
 
-            if (_wavPaletteWindow is { } existing)
+            if (_toolWindows.TryGetValue(typeof(TWindow), out var existing))
             {
                 existing.Activate();
                 return;
             }
 
-            var paletteViewModel = new WavPaletteViewModel(vm);
-            var paletteWindow = new WavPaletteWindow(paletteViewModel);
-            paletteWindow.Closed += (_, _) =>
+            var window = create(vm);
+            window.Closed += (_, _) =>
             {
-                paletteViewModel.Dispose();
-                _wavPaletteWindow = null;
+                _toolWindows.Remove(typeof(TWindow));
+                (window.DataContext as IDisposable)?.Dispose();
             };
-            _wavPaletteWindow = paletteWindow;
-            paletteWindow.Show(this);
+
+            _toolWindows[typeof(TWindow)] = window;
+            window.Show(this);
         }
 
         private void OnWaveformScrubRequested(object? sender, WaveformScrubRequestedEventArgs e)
