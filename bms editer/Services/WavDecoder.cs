@@ -48,11 +48,14 @@ public static class WavDecoder
 
             while (stream.Position + 8 <= stream.Length)
             {
-                var chunkId = System.Text.Encoding.ASCII.GetString(reader.ReadBytes(4));
+                var chunkIdBytes = reader.ReadBytes(4);
+                var chunkId = System.Text.Encoding.ASCII.GetString(chunkIdBytes);
                 var chunkSize = reader.ReadInt32();
 
-                if (chunkSize < 0 || stream.Position + chunkSize > stream.Length)
+                if (chunkSize < 0)
                     break;
+
+                var safeChunkSize = (int)Math.Min((long)chunkSize, stream.Length - stream.Position);
 
                 if (chunkId == "fmt ")
                 {
@@ -63,18 +66,42 @@ public static class WavDecoder
                     reader.ReadInt16(); // blockAlign
                     bitsPerSample = reader.ReadInt16();
 
-                    var remaining = chunkSize - 16;
+                    var readBytes = 16;
+
+                    // WAVE_FORMAT_EXTENSIBLE (0xFFFE) 처리
+                    if (audioFormat == -2 || audioFormat == unchecked((short)0xFFFE))
+                    {
+                        var extraSize = reader.ReadInt16();
+                        readBytes += 2;
+                        if (extraSize >= 22)
+                        {
+                            reader.ReadInt16(); // validBitsPerSample
+                            reader.ReadInt32(); // channelMask
+                            var subFormatTag = reader.ReadInt16(); // 첫 2바이트가 GUID 포맷 (1 = PCM, 3 = Float)
+                            reader.ReadBytes(14); // 나머지 14바이트 GUID
+                            readBytes += 22;
+                            audioFormat = subFormatTag;
+                        }
+                    }
+
+                    var remaining = safeChunkSize - readBytes;
                     if (remaining > 0)
                         reader.ReadBytes(remaining);
                 }
                 else if (chunkId == "data")
                 {
-                    dataBytes = reader.ReadBytes(chunkSize);
+                    dataBytes = reader.ReadBytes(safeChunkSize);
                     break;
                 }
                 else
                 {
-                    reader.ReadBytes(chunkSize);
+                    reader.ReadBytes(safeChunkSize);
+                }
+
+                // RIFF 청크 2바이트 워드 패딩 처리
+                if ((chunkSize & 1) != 0 && stream.Position < stream.Length)
+                {
+                    stream.Position++;
                 }
             }
 
