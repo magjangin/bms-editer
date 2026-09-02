@@ -23,7 +23,7 @@
 화면의 상태 및 사용자 인터랙션 흐름을 제어합니다.
 * **[MainWindowViewModel.cs](file:///h:/source/repos/bms%20editer/bms%20editer/ViewModels/MainWindowViewModel.cs)**: 메인 에디터 화면의 모든 상태(현재 차트, 재생 중 위치, 줌 배율, 가로/세로 뷰 옵션 등)를 관리하고 노트 배치, 삭제, 선택, 이동 명령(Command)들을 제공합니다. 오프라인 음원 믹서 역할을 수행하며, `PlaySound` API로 키음 재생을 비동기 수행합니다.
 * **[NoteSearchViewModel.cs](file:///h:/source/repos/bms%20editer/bms%20editer/ViewModels/NoteSearchViewModel.cs)**: 검색/삭제/교체 창의 상태 모델입니다. 대상 노트(선택 여부·롱 여부·숨김 여부), 마디 범위, 키음 번호 범위(base-36 두 자리), 열(레인) 조건을 조합해 노트를 걸러내고 선택·삭제·키음 번호 일괄 변경을 수행합니다.
-* **[NoteStatsViewModel.cs](file:///h:/source/repos/bms%20editer/bms%20editer/ViewModels/NoteStatsViewModel.cs)**: 레인별 노트 개수와 키음별 사용 빈도를 집계합니다. 메인 뷰모델의 노트 변경 알림과 키음 목록 변경을 구독해 편집하는 즉시 다시 집계하며(창을 닫을 때 `Dispose`로 구독 해제), 개수가 0인 항목은 빼고 실제로 쓰인 레인·키음만 보여줍니다. 키음은 등록된 `#WAV` 테이블이 아니라 노트가 실제로 가리키는 번호를 기준으로 세므로, 쓰지 않는 번호가 목록을 채우지 않습니다.
+* **[NoteStatsViewModel.cs](file:///h:/source/repos/bms%20editer/bms%20editer/ViewModels/NoteStatsViewModel.cs)**: 레인별 노트 개수와 키음별 사용 빈도를 집계합니다. 메인 뷰모델의 노트 변경 알림과 키음 목록 변경을 구독해 편집하는 즉시 다시 집계하며(창을 닫을 때 `Dispose`로 구독 해제), 개수가 0인 항목은 빼고 실제로 쓰인 레인·키음만 보여줍니다. 키음은 등록된 `#WAV` 테이블이 아니라 노트가 실제로 가리키는 번호를 기준으로 세므로, 쓰지 않는 번호가 목록을 채우지 않습니다. *(향후 **🎛️ 컨트롤 패널 / 🧮 스마트 집계기**로 확장되어 실시간 집계 + 인터랙티브 일괄 선택/조작 공구함으로 통합될 예정입니다.)*
 
 ### 4. Views / Controls (UI 뷰 및 커스텀 컨트롤)
 사용자에게 렌더링되고 입력을 받는 프레젠테이션 레이어입니다.
