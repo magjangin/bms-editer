@@ -25,7 +25,7 @@
                 <MenuItem Header="다른 이름으로 저장..." Click="OnSaveFileAsClick" InputGesture="Ctrl+Shift+S" />
             </MenuItem>
             <MenuItem Header="편집 (E)">
-                <MenuItem Header="선택 해제" Command="{Binding ClearNoteSelectionCommand}" InputGesture="Esc" />
+                <MenuItem Header="선택 해제" Command="{Binding ClearNoteSelectionCommand}" InputGesture="Escape" />
                 <MenuItem Header="선택 삭제" Command="{Binding DeleteSelectedNotesCommand}" InputGesture="Delete" />
                 <Separator />
                 <MenuItem Header="검색/삭제/교체..." Click="OnShowNoteSearchClick" />
