@@ -93,32 +93,38 @@ public sealed partial class MainWindowViewModel : ObservableObject
         OnPropertyChanged(nameof(GridDisplay));
     }
 
-    public void LoadOgg(string filePath)
+    // 실패하면 false. 실패해도 이미 물려 있던 음원은 그대로 둔다.
+    //
+    // 예전에는 catch 가 _audioPlayer(= 기존 플레이어)를 Dispose 하고 파형·길이를 0/null 로
+    // 밀어버렸다. 새로 고른 파일이 깨졌을 뿐인데 멀쩡하던 파형과 재생이 같이 사라졌다.
+    public bool LoadOgg(string filePath)
     {
+        OggWaveform waveform;
+        OggAudioPlayer audioPlayer;
+
         try
         {
-            var waveform = OggPeakLoader.Load(filePath);
-            var audioPlayer = new OggAudioPlayer(filePath);
-
-            StopPlayback(resetCursor: true);
-            _audioPlayer?.Dispose();
-            _audioPlayer = audioPlayer;
-            OggDurationSeconds = waveform.DurationSeconds;
-            OggPeaks = waveform.Peaks;
-            OggOnsets = waveform.Onsets;
-            OggFileName = System.IO.Path.GetFileName(filePath);
-            UpdateMeasureCountFromAudio();
+            // 새 음원을 끝까지 다 읽고 나서야 기존 것을 건드린다.
+            waveform = OggPeakLoader.Load(filePath);
+            audioPlayer = new OggAudioPlayer(filePath);
         }
         catch (Exception ex)
         {
-            _audioPlayer?.Dispose();
-            _audioPlayer = null;
-            OggDurationSeconds = 0;
-            OggPeaks = null;
-            OggOnsets = null;
-            IsPlaybackCursorVisible = false;
-            OggFileName = $"로드 실패: {ex.Message}";
+            LastErrorMessage = ex.Message;
+            System.Diagnostics.Debug.WriteLine($"OGG 로드 실패: {ex.Message}");
+            return false;
         }
+
+        StopPlayback(resetCursor: true);
+        _audioPlayer?.Dispose();
+        _audioPlayer = audioPlayer;
+        OggDurationSeconds = waveform.DurationSeconds;
+        OggPeaks = waveform.Peaks;
+        OggOnsets = waveform.Onsets;
+        OggFileName = System.IO.Path.GetFileName(filePath);
+        UpdateMeasureCountFromAudio();
+        LastErrorMessage = null;
+        return true;
     }
 
     public void LoadVideo(string filePath)
@@ -164,7 +170,22 @@ public sealed partial class MainWindowViewModel : ObservableObject
         Chart.MeasureCount = MeasureCount;
     }
 
-    public void ScrubToRatio(double ratio)
+    // 드래그하는 동안에는 커서만 옮긴다.
+    //
+    // 예전에는 마우스가 움직일 때마다 PlayFrom 을 불렀다. 초당 100번 넘게 들어오는
+    // 이벤트마다 오디오 장치를 닫았다 다시 열고(딸깍거림) 노트 전체를 다시 정렬했다.
+    public void ScrubPreview(double ratio)
+    {
+        if (OggDurationSeconds <= 0)
+            return;
+
+        StopPlayback(resetCursor: false);
+        PlaybackPositionSeconds = Math.Clamp(ratio, 0, 1) * OggDurationSeconds;
+        IsPlaybackCursorVisible = true;
+    }
+
+    // 버튼을 뗄 때 한 번만 실제로 재생을 옮긴다.
+    public void ScrubCommit(double ratio)
     {
         if (_audioPlayer is null || OggDurationSeconds <= 0)
             return;
@@ -176,17 +197,44 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     private double _lastPlaybackPositionSeconds;
 
-    private void PlayFrom(double seconds)
+    // 시각 순으로 정렬한 노트. 재생 중 "지금 울릴 노트"를 이진 탐색으로 찾는 데 쓴다.
+    // 노트가 바뀔 때만 다시 만든다. (NotifyNotesChanged 참고)
+    private BmsNote[]? _sortedNotesCache;
+
+    private BmsNote[] GetSortedNotes() =>
+        _sortedNotesCache ??= Chart.Notes.OrderBy(n => n.Measure + n.Position).ToArray();
+
+    // 노트가 바뀌었다고 알린다. 화면 갱신과 정렬 캐시 무효화가 늘 짝이어야 해서 한곳에 모은다.
+    private void NotifyNotesChanged()
+    {
+        _sortedNotesCache = null;
+        OnPropertyChanged(nameof(Notes));
+    }
+
+    // 재생을 시작한다. 오디오 장치를 열 수 없으면(장치 없음·다른 앱이 독점) false.
+    //
+    // 예전에는 OggAudioPlayer 가 던진 예외를 아무도 받지 않아서, 재생 버튼 한 번에
+    // 앱이 그대로 죽고 편집 중이던 내용이 전부 사라졌다.
+    private bool PlayFrom(double seconds)
     {
         if (_audioPlayer is null)
-            return;
+            return false;
 
         var startSeconds = Math.Clamp(seconds, 0, OggDurationSeconds);
-        _playbackNotes = Chart.Notes
-            .OrderBy(n => n.Measure + n.Position)
-            .ToArray();
+        _playbackNotes = GetSortedNotes();
 
-        _audioPlayer.Play(startSeconds);
+        try
+        {
+            _audioPlayer.Play(startSeconds);
+        }
+        catch (Exception ex)
+        {
+            StopPlayback(resetCursor: false);
+            LastErrorMessage = $"재생을 시작하지 못했습니다.\n\n{ex.Message}";
+            System.Diagnostics.Debug.WriteLine($"재생 실패: {ex.Message}");
+            return false;
+        }
+
         _playbackStartSeconds = startSeconds;
         _playbackStartedAt = DateTimeOffset.UtcNow;
         PlaybackPositionSeconds = startSeconds;
@@ -194,6 +242,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
         IsPlaybackCursorVisible = true;
         IsPlaying = true;
         _playbackTimer.Start();
+        LastErrorMessage = null;
+        return true;
     }
 
     private void UpdatePlaybackPosition()
@@ -334,7 +384,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         CurrentFilePath = null;
         DocumentEncoding = new UTF8Encoding(false);
 
-        OnPropertyChanged(nameof(Notes));
+        NotifyNotesChanged();
         OnPropertyChanged(nameof(SelectedNotes));
     }
 
@@ -409,7 +459,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         LastErrorMessage = null;
 
         // UI 렌더링 강제 업데이트 유도
-        OnPropertyChanged(nameof(Notes));
+        NotifyNotesChanged();
         return true;
     }
 
@@ -502,6 +552,16 @@ public sealed partial class MainWindowViewModel : ObservableObject
         StopPlayback(resetCursor: false);
     }
 
+    // 스페이스바 한 키로 재생/정지를 오간다. 편집하면서 가장 자주 하는 동작이다.
+    [RelayCommand]
+    private void TogglePlayback()
+    {
+        if (IsPlaying)
+            StopPlayback(resetCursor: false);
+        else
+            Play();
+    }
+
     private readonly KeySoundPlayer _keySoundPlayer = new();
 
     public ObservableCollection<BmsWavItem> WavList { get; } = new();
@@ -549,7 +609,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
         if (removed > 0)
         {
-            OnPropertyChanged(nameof(Notes));
+            NotifyNotesChanged();
             OnPropertyChanged(nameof(SelectedNotes));
         }
 
@@ -604,7 +664,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         {
             Chart.Notes.AddRange(created);
             SetNoteSelection(created, NoteSelectionSource.Search);
-            OnPropertyChanged(nameof(Notes));
+            NotifyNotesChanged();
         }
 
         return new NoteCopyResult(created.Count, blocked, outOfRange);
@@ -631,7 +691,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         }
 
         if (changed > 0)
-            OnPropertyChanged(nameof(Notes));
+            NotifyNotesChanged();
 
         return changed;
     }
@@ -646,7 +706,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
             Chart.Notes.Remove(note);
         }
         _selectedNotes.Clear();
-        OnPropertyChanged(nameof(Notes));
+        NotifyNotesChanged();
         OnPropertyChanged(nameof(SelectedNotes));
     }
 
@@ -677,7 +737,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
             }
         }
 
-        OnPropertyChanged(nameof(Notes));
+        NotifyNotesChanged();
     }
 
     private void MoveNoteInTime(BmsNote note, int steps, int split)
@@ -850,7 +910,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         }
 
         PlayWavSound(wavKey);
-        OnPropertyChanged(nameof(Notes));
+        NotifyNotesChanged();
     }
 
     [RelayCommand]
@@ -864,7 +924,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         if (existing is not null)
         {
             Chart.Notes.Remove(existing);
-            OnPropertyChanged(nameof(Notes));
+            NotifyNotesChanged();
         }
     }
 }

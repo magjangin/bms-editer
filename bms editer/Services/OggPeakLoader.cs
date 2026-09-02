@@ -8,6 +8,20 @@ public sealed record OggWaveform(float[] Peaks, float[] Onsets, double DurationS
 // OGG Vorbis 파일을 디코딩해서 파형 표시용 피크와 박자 확인용 어택 값을 다운샘플링한다.
 public static class OggPeakLoader
 {
+    // 버킷 index 가 대응하는 시각의 비율(0~1).
+    //
+    // Load() 가 버킷을 `frameIndex * peakCount / totalFrames` 로 담으므로,
+    // peaks[i] · onsets[i] 는 정확히 `i * DurationSeconds / count` 시점을 가리킨다.
+    // 그리는 쪽은 반드시 이 규칙을 써야 한다.
+    //
+    // 이 한 줄을 각자 다시 쓰다가 세 번 어긋났다.
+    //   f86a58c — 버킷 크기를 정수로 절삭해서 2분 지점 53ms
+    //   e19c25b — 재생 커서를 벽시계로 잡아서 약 12ms
+    //   (27번)  — 온셋 마커만 i/(count-1) 이라 곡 끝에서 12~15ms
+    // 그래서 규칙을 담은 곳 옆에 두고 한 군데서만 정의한다.
+    public static double GetBucketRatio(int index, int count) =>
+        count <= 0 ? 0.0 : (double)index / count;
+
     // peaksPerSecond: 초당 샘플 개수. 곡 길이에 비례해서 정하므로
     // 짧은 곡/긴 곡 모두 화면에서 비슷한 밀도로 보인다(고정 총 개수 대비 개선).
     public static OggWaveform Load(string filePath, double peaksPerSecond = 80.0)

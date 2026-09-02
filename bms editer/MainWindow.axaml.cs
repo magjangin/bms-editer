@@ -8,7 +8,9 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Controls.Primitives;
 using Avalonia.Platform.Storage;
+using Avalonia.VisualTree;
 using bms_editer.Models;
 using bms_editer.ViewModels;
 using bms_editer.Views;
@@ -55,7 +57,9 @@ public partial class MainWindow : Window
             if (path is null)
                 return;
 
-            vm.LoadOgg(path);
+            // 실패해도 이미 물려 있던 음원은 그대로 남는다. 사유만 알려준다.
+            if (!vm.LoadOgg(path))
+                await ConfirmWindow.ShowMessageAsync(this, $"OGG를 불러오지 못했습니다.\n\n{vm.LastErrorMessage}", "OGG 로드 실패");
         }
 
         private async void OnLoadVideoClick(object? sender, RoutedEventArgs e)
@@ -85,10 +89,6 @@ public partial class MainWindow : Window
             if (DataContext is not MainWindowViewModel vm)
                 return;
 
-            // 폴더 열기도 차트를 갈아끼우므로 열기와 같은 확인을 받는다.
-            if (!await vm.ConfirmDiscardIfNeededAsync("현재 작업 중인 내용이 모두 사라집니다.\n폴더를 열까요?"))
-                return;
-
             var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
             {
                 Title = "BMS 폴더 선택",
@@ -97,6 +97,11 @@ public partial class MainWindow : Window
 
             var folderPath = folders.FirstOrDefault()?.TryGetLocalPath();
             if (folderPath is null || !Directory.Exists(folderPath))
+                return;
+
+            // 확인은 **고를 것을 다 고른 뒤에** 받는다. 먼저 물으면, 선택을 취소해도
+            // 이미 "버리시겠습니까"에 답한 뒤라 사용자만 헷갈린다.
+            if (!await vm.ConfirmDiscardIfNeededAsync("현재 작업 중인 내용이 모두 사라집니다.\n폴더를 열까요?"))
                 return;
 
             await LoadFolderMediaAsync(vm, folderPath);
@@ -113,10 +118,6 @@ public partial class MainWindow : Window
             if (DataContext is not MainWindowViewModel vm)
                 return;
 
-            // 새로 만들기와 마찬가지로, 열기도 작업 내용을 덮어쓰므로 먼저 확인을 받는다.
-            if (!await vm.ConfirmDiscardIfNeededAsync("현재 작업 중인 내용이 모두 사라집니다.\n파일을 열까요?"))
-                return;
-
             var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
             {
                 Title = "BMS 파일 선택",
@@ -129,6 +130,10 @@ public partial class MainWindow : Window
 
             var path = files.FirstOrDefault()?.TryGetLocalPath();
             if (path is null)
+                return;
+
+            // 확인은 열 파일을 고른 뒤에 받는다. (폴더 열기와 같은 이유)
+            if (!await vm.ConfirmDiscardIfNeededAsync("현재 작업 중인 내용이 모두 사라집니다.\n파일을 열까요?"))
                 return;
 
             if (!vm.LoadBms(path))
@@ -192,12 +197,31 @@ public partial class MainWindow : Window
         private async Task LoadFolderMediaAsync(MainWindowViewModel vm, string folderPath)
         {
             var bmsPath = FindBestFile(folderPath, BmsExtensions);
-            if (bmsPath is not null && !vm.LoadBms(bmsPath))
+
+            // 차트가 없는 폴더를 고르면 아무것도 건드리지 않는다.
+            //
+            // 예전에는 차트만 건너뛰고 음원·영상을 얹었다. 사용자는 새로 열렸다고 생각하는데
+            // 화면의 차트는 옛것이고, CurrentFilePath 도 옛 파일을 가리켜서
+            // 그대로 [저장]을 누르면 방금 연 폴더가 아니라 옛 차트가 덮어써졌다.
+            if (bmsPath is null)
+            {
+                await ConfirmWindow.ShowMessageAsync(
+                    this,
+                    $"이 폴더에 BMS 차트가 없습니다.\n\n{folderPath}\n\n" +
+                    "지금 작업 중인 차트를 그대로 두었습니다. 음원·영상도 바꾸지 않았습니다.",
+                    "폴더 열기");
+                return;
+            }
+
+            if (!vm.LoadBms(bmsPath))
+            {
                 await ConfirmWindow.ShowMessageAsync(this, $"차트를 열지 못했습니다.\n\n{vm.LastErrorMessage}", "열기 실패");
+                return;
+            }
 
             var oggPath = FindBestFile(folderPath, OggExtensions);
-            if (oggPath is not null)
-                vm.LoadOgg(oggPath);
+            if (oggPath is not null && !vm.LoadOgg(oggPath))
+                await ConfirmWindow.ShowMessageAsync(this, $"OGG를 불러오지 못했습니다.\n\n{vm.LastErrorMessage}", "OGG 로드 실패");
 
             var videoPath = FindBestFile(folderPath, VideoExtensions);
             if (videoPath is not null)
@@ -244,16 +268,94 @@ public partial class MainWindow : Window
             vm.AddWav(path);
         }
 
-        private void OnNoteGridKeyDown(object? sender, KeyEventArgs e)
+        private void OnNoteGridKeyDown(object? sender, KeyEventArgs e) => HandleEditorKey(e);
+
+        // 창 전체에서 받는 단축키.
+        //
+        // 예전에는 Delete·방향키가 **격자에 포커스가 있을 때만** 먹었다. 팔레트나 사이드바를
+        // 한 번 만지면 조용히 안 먹었고 안내도 없었다. 이제 창이 받아준다.
+        // 격자가 먼저 처리했으면 e.Handled 가 서 있어 두 번 돌지 않는다.
+        protected override void OnKeyDown(KeyEventArgs e)
+        {
+            base.OnKeyDown(e);
+
+            if (e.Handled || DataContext is not MainWindowViewModel vm)
+                return;
+
+            var focused = FocusManager?.GetFocusedElement();
+
+            // 글자를 치는 중이면 단축키가 아니라 입력이다.
+            if (IsWithin<TextBox>(focused))
+                return;
+
+            if (e.KeyModifiers.HasFlag(KeyModifiers.Control))
+            {
+                HandleControlShortcut(e);
+                return;
+            }
+
+            if (e.Key == Key.Space)
+            {
+                // 스페이스는 포커스가 잡힌 버튼·체크박스를 누르는 키이기도 하다. 그쪽이 우선이다.
+                if (IsWithin<Button>(focused) || IsWithin<ToggleButton>(focused))
+                    return;
+
+                vm.TogglePlaybackCommand.Execute(null);
+                e.Handled = true;
+                return;
+            }
+
+            // 방향키·Delete 는 목록·콤보·슬라이더에서는 그쪽 것이다.
+            if (IsWithin<ListBox>(focused) || IsWithin<ComboBox>(focused)
+                || IsWithin<Slider>(focused) || IsWithin<NumericUpDown>(focused))
+            {
+                return;
+            }
+
+            HandleEditorKey(e);
+        }
+
+        private void HandleControlShortcut(KeyEventArgs e)
+        {
+            switch (e.Key)
+            {
+                case Key.S when e.KeyModifiers.HasFlag(KeyModifiers.Shift):
+                    OnSaveFileAsClick(this, new RoutedEventArgs());
+                    e.Handled = true;
+                    break;
+                case Key.S:
+                    OnSaveFileClick(this, new RoutedEventArgs());
+                    e.Handled = true;
+                    break;
+                case Key.O:
+                    OnOpenFileClick(this, new RoutedEventArgs());
+                    e.Handled = true;
+                    break;
+                case Key.N:
+                    if (DataContext is MainWindowViewModel vm)
+                        vm.NewFileCommand.Execute(null);
+                    e.Handled = true;
+                    break;
+            }
+        }
+
+        // 격자 편집 키(선택 해제·삭제·이동). 격자에서도 창에서도 같은 규칙을 쓴다.
+        private void HandleEditorKey(KeyEventArgs e)
         {
             if (DataContext is not MainWindowViewModel vm)
                 return;
 
-            if (e.Key == Key.Delete)
+            switch (e.Key)
             {
-                vm.DeleteSelectedNotesCommand.Execute(null);
-                e.Handled = true;
-                return;
+                case Key.Delete:
+                    vm.DeleteSelectedNotesCommand.Execute(null);
+                    e.Handled = true;
+                    return;
+
+                case Key.Escape:
+                    vm.ClearNoteSelection();
+                    e.Handled = true;
+                    return;
             }
 
             NoteMoveDirection? direction = e.Key switch
@@ -270,6 +372,21 @@ public partial class MainWindow : Window
                 vm.MoveSelectedNotesCommand.Execute(d);
                 e.Handled = true;
             }
+        }
+
+        // 포커스가 T 안에(또는 T 자신에) 있는지.
+        private static bool IsWithin<T>(IInputElement? focused) where T : class
+        {
+            if (focused is not Visual visual)
+                return false;
+
+            foreach (var ancestor in visual.GetSelfAndVisualAncestors())
+            {
+                if (ancestor is T)
+                    return true;
+            }
+
+            return false;
         }
 
         // 검색 결과를 격자에서 바로 확인해야 하므로 모달이 아닌 모드리스로 띄운다.
@@ -315,16 +432,25 @@ public partial class MainWindow : Window
 
         private void OnWaveformScrubRequested(object? sender, WaveformScrubRequestedEventArgs e)
         {
-            if (DataContext is MainWindowViewModel vm)
-                vm.ScrubToRatio(e.Ratio);
+            if (DataContext is not MainWindowViewModel vm)
+                return;
+
+            if (e.IsFinal)
+                vm.ScrubCommit(e.Ratio);
+            else
+                vm.ScrubPreview(e.Ratio);
         }
+
+        private bool _isSurfaceScrubbing;
 
         private void OnEditorSurfacePointerPressed(object? sender, PointerPressedEventArgs e)
         {
             var point = e.GetCurrentPoint(EditorSurface);
             if (point.Properties.IsMiddleButtonPressed)
             {
-                ScrubFromEditorSurface(e);
+                _isSurfaceScrubbing = true;
+                e.Pointer.Capture(EditorSurface);
+                ScrubFromEditorSurface(e, isFinal: false);
             }
             else if (IsNonMiddleMouseButtonPressed(point.Properties))
             {
@@ -335,12 +461,22 @@ public partial class MainWindow : Window
 
         private void OnEditorSurfacePointerMoved(object? sender, PointerEventArgs e)
         {
-            var point = e.GetCurrentPoint(EditorSurface);
-            if (point.Properties.IsMiddleButtonPressed)
-                ScrubFromEditorSurface(e);
+            if (_isSurfaceScrubbing)
+                ScrubFromEditorSurface(e, isFinal: false);
         }
 
-        private void ScrubFromEditorSurface(PointerEventArgs e)
+        // 드래그 중에는 커서만 옮기고, 버튼을 뗄 때 한 번만 재생을 옮긴다. (알려진 문제 24번)
+        private void OnEditorSurfacePointerReleased(object? sender, PointerReleasedEventArgs e)
+        {
+            if (!_isSurfaceScrubbing)
+                return;
+
+            _isSurfaceScrubbing = false;
+            e.Pointer.Capture(null);
+            ScrubFromEditorSurface(e, isFinal: true);
+        }
+
+        private void ScrubFromEditorSurface(PointerEventArgs e, bool isFinal)
         {
             if (DataContext is not MainWindowViewModel vm || vm.OggDurationSeconds <= 0)
                 return;
@@ -349,18 +485,16 @@ public partial class MainWindow : Window
             if (timelineLength <= 0)
                 return;
 
-            if (vm.IsHorizontalView)
-            {
-                var x = e.GetPosition(EditorSurface).X;
-                var ratio = x / timelineLength;
-                vm.ScrubToRatio(ratio);
-            }
+            var position = e.GetPosition(EditorSurface);
+            var ratio = vm.IsHorizontalView
+                ? position.X / timelineLength
+                : 1.0 - (position.Y / timelineLength);
+
+            if (isFinal)
+                vm.ScrubCommit(ratio);
             else
-            {
-                var y = e.GetPosition(EditorSurface).Y;
-                var ratio = 1.0 - (y / timelineLength);
-                vm.ScrubToRatio(ratio);
-            }
+                vm.ScrubPreview(ratio);
+
             e.Handled = true;
         }
 

@@ -4,6 +4,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
+using bms_editer.Services;
 
 namespace bms_editer.Views.Controls;
 
@@ -42,6 +43,7 @@ public sealed class OggWaveformControl : TimelineControlBase
     {
         PointerPressed += OnPointerPressed;
         PointerMoved += OnPointerMoved;
+        PointerReleased += OnPointerReleased;
     }
 
     protected override Size MeasureOverride(Size availableSize)
@@ -118,27 +120,42 @@ public sealed class OggWaveformControl : TimelineControlBase
         DrawPlaybackCursor(context, width, height);
     }
 
+    private bool _isScrubbing;
+
     private void OnPointerPressed(object? sender, PointerPressedEventArgs e)
     {
         var point = e.GetCurrentPoint(this);
-        if (point.Properties.IsMiddleButtonPressed)
-        {
-            var pos = IsHorizontalView ? point.Position.X : point.Position.Y;
-            RequestScrub(pos, e);
-        }
+        if (!point.Properties.IsMiddleButtonPressed)
+            return;
+
+        _isScrubbing = true;
+        e.Pointer.Capture(this);
+        RequestScrub(PositionAlongTimeline(point.Position), isFinal: false, e);
     }
 
     private void OnPointerMoved(object? sender, PointerEventArgs e)
     {
-        var point = e.GetCurrentPoint(this);
-        if (point.Properties.IsMiddleButtonPressed)
-        {
-            var pos = IsHorizontalView ? point.Position.X : point.Position.Y;
-            RequestScrub(pos, e);
-        }
+        if (!_isScrubbing)
+            return;
+
+        RequestScrub(PositionAlongTimeline(e.GetCurrentPoint(this).Position), isFinal: false, e);
     }
 
-    private void RequestScrub(double pos, PointerEventArgs e)
+    // 버튼을 뗄 때 한 번만 실제로 재생을 옮긴다. 드래그 중에 매번 옮기면
+    // 오디오 장치를 계속 여닫아 딸깍거린다. (알려진 문제 24번)
+    private void OnPointerReleased(object? sender, PointerReleasedEventArgs e)
+    {
+        if (!_isScrubbing)
+            return;
+
+        _isScrubbing = false;
+        e.Pointer.Capture(null);
+        RequestScrub(PositionAlongTimeline(e.GetCurrentPoint(this).Position), isFinal: true, e);
+    }
+
+    private double PositionAlongTimeline(Point position) => IsHorizontalView ? position.X : position.Y;
+
+    private void RequestScrub(double pos, bool isFinal, PointerEventArgs e)
     {
         if (DurationSeconds <= 0)
             return;
@@ -148,7 +165,7 @@ public sealed class OggWaveformControl : TimelineControlBase
             return;
 
         var ratio = IsHorizontalView ? Math.Clamp(pos / timelineLength, 0, 1) : Math.Clamp(1.0 - (pos / timelineLength), 0, 1);
-        ScrubRequested?.Invoke(this, new WaveformScrubRequestedEventArgs(ratio));
+        ScrubRequested?.Invoke(this, new WaveformScrubRequestedEventArgs(ratio, isFinal));
         e.Handled = true;
     }
 
@@ -190,22 +207,40 @@ public sealed class OggWaveformControl : TimelineControlBase
         }
     }
 
+    // 온셋 마커는 한 화면에 최대 2만 개가 그려진다. 색은 알파(25~145)만 달라지므로
+    // 그 121가지를 미리 만들어 두고 나눠 쓴다. 예전에는 마커마다 Pen+Brush 를 새로 만들었다.
+    private static readonly IPen[] OnsetPens = CreateOnsetPens();
+
+    private static IPen[] CreateOnsetPens()
+    {
+        var pens = new IPen[146];
+        for (var alpha = 25; alpha < pens.Length; alpha++)
+            pens[alpha] = new Pen(new SolidColorBrush(Color.FromArgb((byte)alpha, 230, 230, 210)), 1);
+        return pens;
+    }
+
+    private static IPen GetOnsetPen(byte alpha) => OnsetPens[Math.Clamp((int)alpha, 25, 145)];
+
     private static void DrawOnsetMarkers(DrawingContext context, double thickness, double timelineLength, IReadOnlyList<float>? onsets, bool isHorizontal)
     {
         if (onsets is not { Count: > 1 })
             return;
 
         var count = onsets.Count;
-        var denom = count - 1;
         for (var i = 1; i < count; i++)
         {
             var strength = onsets[i];
             if (strength < 0.18)
                 continue;
 
-            var ratio = (double)i / denom;
+            // 버킷 -> 시각 규칙은 담은 쪽(OggPeakLoader)이 정한다. 여기서 다시 쓰지 않는다.
+            //
+            // 예전에는 여기만 i / (count - 1) 이라 곡 뒤로 갈수록 마커가 앞당겨졌다
+            // (곡 끝에서 12~15ms). 온셋 마커는 격자를 맞추라고 있는 기준선이라,
+            // 이게 어긋나면 그걸 믿고 맞춘 씽크가 통째로 틀어진다.
+            var ratio = OggPeakLoader.GetBucketRatio(i, count);
             var alpha = (byte)Math.Clamp(25 + (strength * 120), 25, 145);
-            var pen = new Pen(new SolidColorBrush(Color.FromArgb(alpha, 230, 230, 210)), 1);
+            var pen = GetOnsetPen(alpha);
             var half = (thickness * 0.10) + (strength * thickness * 0.18);
             var center = thickness / 2;
 
@@ -286,7 +321,10 @@ public sealed class OggWaveformControl : TimelineControlBase
 
 }
 
-public sealed class WaveformScrubRequestedEventArgs(double ratio) : EventArgs
+// IsFinal: 버튼을 뗀 순간인지. 드래그 중(false)에는 커서만 옮기고,
+// 뗄 때(true) 한 번만 실제 재생 위치를 옮긴다.
+public sealed class WaveformScrubRequestedEventArgs(double ratio, bool isFinal) : EventArgs
 {
     public double Ratio { get; } = ratio;
+    public bool IsFinal { get; } = isFinal;
 }
