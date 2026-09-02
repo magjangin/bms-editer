@@ -1,9 +1,13 @@
 using Avalonia.Controls;
-using Avalonia.Interactivity;
 using bms_editer.ViewModels;
 
 namespace bms_editer.Views;
 
+// 키음 목록의 클릭 처리는 여기 없다. ListBox 의 SelectedItem 이
+// NoteStatsViewModel.SelectedWavStat 로 바로 들어가고, 거기서 격자 선택이 일어난다.
+//
+// 예전에는 줄마다 Button 을 만들어 명령을 물려야 했는데, 그 배선이 조용히 끊어져
+// 눌러도 아무 일이 없었다. 중간 단계를 없애서 끊어질 자리 자체를 지웠다.
 public partial class NoteStatsWindow : Window
 {
     public NoteStatsWindow()
@@ -14,22 +18,5 @@ public partial class NoteStatsWindow : Window
     public NoteStatsWindow(NoteStatsViewModel viewModel) : this()
     {
         DataContext = viewModel;
-    }
-
-    // 키음 목록의 줄을 눌렀을 때.
-    //
-    // 예전에는 XAML 에서 `{Binding $parent[ItemsControl].((vm:NoteStatsViewModel)DataContext).…}` 로
-    // 명령을 끌어왔는데, 이 프로젝트는 컴파일된 바인딩(AvaloniaUseCompiledBindingsByDefault)을 쓴다.
-    // 조상을 타고 올라가 캐스팅까지 하는 경로는 실패해도 예외가 나지 않고 **조용히 무시된다.**
-    // 그래서 눌러도 아무 일이 없었다. 누른 줄의 DataContext 에서 직접 꺼내 쓴다.
-    private void OnWavStatRowClick(object? sender, RoutedEventArgs e)
-    {
-        if (sender is not Control { DataContext: WavNoteStat stat })
-            return;
-
-        if (DataContext is not NoteStatsViewModel viewModel)
-            return;
-
-        viewModel.SelectByWavKeyCommand.Execute(stat.Key);
     }
 }
