@@ -18,11 +18,6 @@ public sealed class GridLineTests
             EnumerateGridLines(length)
                 .Select(line => (line.Position, line.Kind.ToString(), line.Measure, line.Seconds))
                 .ToList();
-
-        public IReadOnlyList<(double Position, string Kind, int Measure, double Seconds)> LinesWithCulling(double length, double minPos, double maxPos) =>
-            EnumerateGridLines(length, minPos, maxPos)
-                .Select(line => (line.Position, line.Kind.ToString(), line.Measure, line.Seconds))
-                .ToList();
     }
 
     // 음원 없이 마디 기준으로 그릴 때. 마디 높이 × 마디 수 = 타임라인 길이.
@@ -140,36 +135,5 @@ public sealed class GridLineTests
         var lines = probe.Lines(20.0);
 
         Assert.All(lines, l => Assert.Equal("Measure", l.Kind));
-    }
-
-    [Fact]
-    public void 뷰포트_컬링_적용시_지정한_범위_안의_격자선만_반환한다()
-    {
-        var probe = MeasureModeProbe(measureCount: 10, beatSplit: 4);
-        // 전체 길이 100.0 (마디 10개 * 10)
-        var allLines = probe.Lines(100.0);
-        var culledLines = probe.LinesWithCulling(100.0, 20.0, 40.0);
-
-        Assert.True(culledLines.Count < allLines.Count);
-        Assert.All(culledLines, l => Assert.InRange(l.Position, 19.5, 40.5));
-    }
-
-    [Fact]
-    public void 음원_모드에서_뷰포트_컬링이_올바르게_동작한다()
-    {
-        var probe = new Probe
-        {
-            DurationSeconds = 10.0,
-            Bpm = 120,
-            BeatSplit = 4,
-            GridMeasure = 4,
-            IsHorizontalView = true,
-        };
-
-        var allLines = probe.Lines(1000.0);
-        var culledLines = probe.LinesWithCulling(1000.0, 200.0, 500.0);
-
-        Assert.True(culledLines.Count < allLines.Count);
-        Assert.All(culledLines, l => Assert.InRange(l.Position, 199.5, 500.5));
     }
 }

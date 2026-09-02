@@ -195,45 +195,8 @@ public abstract class TimelineControlBase : Control
 
     protected readonly record struct GridLine(double Position, GridLineKind Kind, int Measure, double Seconds);
 
-    protected bool TryGetVisibleTimelineRange(double timelineLength, out double minPos, out double maxPos)
-    {
-        var scrollViewer = this.FindAncestorOfType<ScrollViewer>();
-        if (scrollViewer is not null)
-        {
-            var origin = this.TranslatePoint(new Point(0, 0), scrollViewer);
-            if (origin.HasValue)
-            {
-                const double buffer = 800.0;
-                if (IsHorizontalView)
-                {
-                    var viewStart = -origin.Value.X;
-                    var viewEnd = viewStart + scrollViewer.Viewport.Width;
-                    minPos = Math.Max(0, viewStart - buffer);
-                    maxPos = Math.Min(timelineLength, viewEnd + buffer);
-                    return true;
-                }
-                else
-                {
-                    var viewStart = -origin.Value.Y;
-                    var viewEnd = viewStart + scrollViewer.Viewport.Height;
-                    minPos = Math.Max(0, viewStart - buffer);
-                    maxPos = Math.Min(timelineLength, viewEnd + buffer);
-                    return true;
-                }
-            }
-        }
-
-        minPos = 0;
-        maxPos = timelineLength;
-        return false;
-    }
-
     // 타임라인에 그릴 격자선을 순서대로 내놓는다.
-    // minPos / maxPos 가 주어지면 보이는 영역 밖의 격자선은 건너뛴다(뷰포트 컬링).
-    protected IEnumerable<GridLine> EnumerateGridLines(
-        double timelineLength,
-        double minPos = double.NegativeInfinity,
-        double maxPos = double.PositiveInfinity)
+    protected IEnumerable<GridLine> EnumerateGridLines(double timelineLength)
     {
         var split = Math.Max(1, BeatSplit);
 
@@ -251,7 +214,7 @@ public abstract class TimelineControlBase : Control
                     yield break;
 
                 var position = ToTimelinePosition(seconds / DurationSeconds, timelineLength);
-                if (position < minPos - 0.5 || position > maxPos + 0.5)
+                if (position < -0.5 || position > timelineLength + 0.5)
                     continue;
 
                 yield return new GridLine(
@@ -279,9 +242,6 @@ public abstract class TimelineControlBase : Control
 
                     // 곱셈 순서 차이로 끝 선이 반 픽셀쯤 넘칠 수 있어 여유를 둔다.
                     if (position < -0.5 || position > timelineLength + 0.5)
-                        continue;
-
-                    if (position < minPos - 0.5 || position > maxPos + 0.5)
                         continue;
 
                     yield return new GridLine(

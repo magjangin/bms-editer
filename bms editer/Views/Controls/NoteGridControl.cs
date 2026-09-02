@@ -202,9 +202,7 @@ public sealed class NoteGridControl : TimelineControlBase
                 thicknessOffset += laneThickness;
         }
 
-        TryGetVisibleTimelineRange(timelineLength, out var minPos, out var maxPos);
-
-        foreach (var line in EnumerateGridLines(timelineLength, minPos, maxPos))
+        foreach (var line in EnumerateGridLines(timelineLength))
         {
             var pen = line.Kind switch
             {
@@ -247,7 +245,7 @@ public sealed class NoteGridControl : TimelineControlBase
             }
         }
 
-        // 배치된 노트 그리기 (뷰포트 컬링 적용)
+        // 배치된 노트 그리기
         var notes = Notes;
         var selectedSet = SelectedNotes is null ? null : new HashSet<BmsNote>(SelectedNotes);
         if (notes is not null)
@@ -260,9 +258,6 @@ public sealed class NoteGridControl : TimelineControlBase
                 if (laneIndex == -1) continue;
 
                 var noteTPos = ComputeNoteTPos(note, timelineLength);
-                if (noteTPos < minPos - 20 || noteTPos > maxPos + 20)
-                    continue;
-
                 var noteBrush = GetNoteBrush(note.LaneId);
                 var laneOffset = laneIndex * laneThickness;
                 var blackPen = NoteOutlinePen;
