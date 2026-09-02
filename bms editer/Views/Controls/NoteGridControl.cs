@@ -41,9 +41,6 @@ public sealed class NoteGridControl : TimelineControlBase
     public static readonly StyledProperty<IReadOnlyList<BmsNote>?> SelectedNotesProperty =
         AvaloniaProperty.Register<NoteGridControl, IReadOnlyList<BmsNote>?>(nameof(SelectedNotes));
 
-    public static readonly StyledProperty<NoteSelectionSource> SelectionSourceProperty =
-        AvaloniaProperty.Register<NoteGridControl, NoteSelectionSource>(nameof(SelectionSource));
-
     public static readonly StyledProperty<System.Windows.Input.ICommand?> PlaceNoteCommandProperty =
         AvaloniaProperty.Register<NoteGridControl, System.Windows.Input.ICommand?>(nameof(PlaceNoteCommand));
 
@@ -87,13 +84,6 @@ public sealed class NoteGridControl : TimelineControlBase
     {
         get => GetValue(SelectedNotesProperty);
         set => SetValue(SelectedNotesProperty, value);
-    }
-
-    // 선택이 어디서 만들어졌는지. 강조 색만 여기서 갈린다.
-    public NoteSelectionSource SelectionSource
-    {
-        get => GetValue(SelectionSourceProperty);
-        set => SetValue(SelectionSourceProperty, value);
     }
 
     public System.Windows.Input.ICommand? PlaceNoteCommand
@@ -140,15 +130,13 @@ public sealed class NoteGridControl : TimelineControlBase
     private static readonly IPen DragOutlinePen = new Pen(Brushes.Yellow, 1);
     private static readonly Typeface LaneHeaderTypeface = new("Inter, Arial, sans-serif");
 
-    // 손으로 고른 선택은 노랑. 통계 창에서 "이 키음이 어디 있나" 훑어보려고 켠
-    // 선택은 빨강이라, 지금 보고 있는 게 어느 쪽인지 색만 보고 안다.
+    // 선택한 노트를 둘러 그리는 펜.
     private static readonly Pen SelectionPen = new(Brushes.Yellow, 2);
-    private static readonly Pen StatsSelectionPen = new(Brushes.Red, 2);
 
     static NoteGridControl()
     {
         AffectsRender<NoteGridControl>(LanesProperty, LaneWidthProperty, NotesProperty, IsCircleNoteShapeProperty,
-            SelectedNotesProperty, SelectionSourceProperty);
+            SelectedNotesProperty);
         AffectsMeasure<NoteGridControl>(LanesProperty, LaneWidthProperty);
     }
 
@@ -260,7 +248,6 @@ public sealed class NoteGridControl : TimelineControlBase
         // 배치된 노트 그리기
         var notes = Notes;
         var selectedSet = SelectedNotes is null ? null : new HashSet<BmsNote>(SelectedNotes);
-        var selectionPen = SelectionSource == NoteSelectionSource.Stats ? StatsSelectionPen : SelectionPen;
         if (notes is not null)
         {
             for (var index = 0; index < notes.Count; index++)
@@ -309,7 +296,7 @@ public sealed class NoteGridControl : TimelineControlBase
 
                 if (selectedSet is not null && selectedSet.Contains(note))
                 {
-                    var highlightPen = selectionPen;
+                    var highlightPen = SelectionPen;
                     var highlightRect = IsHorizontalView
                         ? new Rect(noteTPos - 7, laneOffset + 1, 14, laneThickness - 2)
                         : new Rect(laneOffset + 1, noteTPos - 7, laneThickness - 2, 14);

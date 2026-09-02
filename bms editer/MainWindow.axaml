@@ -123,7 +123,6 @@
                         IsEditMode="{Binding IsEditMode}"
                         SnapToGrid="{Binding SnapToGrid}"
                         SelectedNotes="{Binding SelectedNotes}"
-                        SelectionSource="{Binding SelectionSource}"
                         PlaceNoteCommand="{Binding PlaceNoteCommand}"
                         RemoveNoteCommand="{Binding RemoveNoteCommand}"
                         SelectNotesCommand="{Binding SelectNotesCommand}"

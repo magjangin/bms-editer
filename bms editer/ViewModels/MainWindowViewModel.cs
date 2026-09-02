@@ -718,9 +718,6 @@ public sealed partial class MainWindowViewModel : ObservableObject
     private readonly HashSet<BmsNote> _selectedNotes = new();
     public IReadOnlyList<BmsNote> SelectedNotes => _selectedNotes.ToArray();
 
-    // 지금 선택을 누가 만들었는지. 격자가 강조 색을 이 값으로 고른다.
-    [ObservableProperty] private NoteSelectionSource _selectionSource = NoteSelectionSource.Grid;
-
     [RelayCommand]
     private void SelectNotes(NoteSelectionArgs args)
     {
@@ -737,7 +734,6 @@ public sealed partial class MainWindowViewModel : ObservableObject
                 _selectedNotes.Remove(note);
         }
 
-        SelectionSource = NoteSelectionSource.Grid;
         OnPropertyChanged(nameof(SelectedNotes));
     }
 
@@ -750,7 +746,6 @@ public sealed partial class MainWindowViewModel : ObservableObject
         {
             _selectedNotes.Add(note);
         }
-        SelectionSource = source;
         OnPropertyChanged(nameof(SelectedNotes));
 
         // 격자 밖에서 고른 선택은 화면 밖에 있기 쉽다. 거기로 스크롤해 준다.

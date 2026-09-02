@@ -34,14 +34,15 @@ public readonly record struct NoteCopyResult(int Copied, int Blocked, int OutOfR
 // Ctrl/Shift 를 누른 채 드래그하면 떨어져 있는 구간을 함께 고를 수 있다.
 public record NoteSelectionArgs(IReadOnlyList<BmsNote> Notes, bool Additive = false);
 
-// 지금 선택이 어디서 만들어졌는지. 격자가 강조 색을 이걸로 고른다.
-// 통계 창에서 고른 것은 "이 키음이 어디에 찍혀 있나"를 훑어보는 용도라,
-// 손으로 고른 선택(노랑)과 한눈에 구별되도록 다른 색으로 그린다.
+// 지금 선택을 누가 만들었는지.
+//
+// Grid 는 격자에서 손으로 끌어 고른 것이고, Search 는 검색 창처럼 격자 밖에서
+// 고른 것이다. 격자 밖에서 고른 선택은 화면 밖에 있기 쉬워서, 그때만 격자를
+// 그 자리로 스크롤한다. (MainWindowViewModel.SetNoteSelection 참고)
 public enum NoteSelectionSource
 {
     Grid,
     Search,
-    Stats,
 }
 
 public enum NoteMoveDirection
