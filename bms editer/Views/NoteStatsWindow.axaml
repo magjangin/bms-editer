@@ -68,6 +68,9 @@
             <Separator Margin="0,4" />
 
             <TextBlock Text="{Binding TotalCount, StringFormat='전체 노트: {0}개'}" FontWeight="Bold" />
+
+            <!-- 고른 노트가 화면 밖에 있으면 격자만 봐서는 눌렀는지도 알 수 없다. 여기에 결과를 적는다. -->
+            <TextBlock Text="{Binding StatusMessage}" TextWrapping="Wrap" Opacity="0.8" Margin="0,4,0,0" />
         </StackPanel>
     </ScrollViewer>
 </Window>

@@ -79,15 +79,32 @@ public sealed partial class NoteStatsViewModel : OwnerObservingViewModel
     //
     // 출처를 Stats 로 넘겨서 격자가 빨강으로 그리게 한다. 훑어보려고 켠 선택이
     // 손으로 고른 선택(노랑)과 섞이면 어느 쪽을 편집하는 중인지 헷갈린다.
+    // 방금 무엇을 골랐는지. 고른 노트가 화면 밖에 있으면 격자만 봐서는 눌렀는지도 알 수 없다.
+    [ObservableProperty] private string _statusMessage = "키음 번호를 누르면 그 노트를 격자에서 선택합니다.";
+
     [RelayCommand]
     private void SelectByWavKey(string? key)
     {
         if (string.IsNullOrEmpty(key))
             return;
 
-        Owner.SetNoteSelection(
-            Owner.Chart.Notes.Where(note =>
-                string.Equals(note.WavKey, key, StringComparison.OrdinalIgnoreCase)),
-            NoteSelectionSource.Stats);
+        var matches = Owner.Chart.Notes
+            .Where(note => string.Equals(note.WavKey, key, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        Owner.SetNoteSelection(matches, NoteSelectionSource.Stats);
+
+        if (matches.Count == 0)
+        {
+            StatusMessage = $"#{key} 를 쓰는 노트가 없습니다.";
+            return;
+        }
+
+        var first = matches.MinBy(n => n.Measure + n.Position)!;
+        var last = matches.MaxBy(n => n.Measure + n.Position)!;
+
+        StatusMessage = first.Measure == last.Measure
+            ? $"#{key} 노트 {matches.Count}개를 빨갛게 선택했습니다. ({first.Measure}마디)"
+            : $"#{key} 노트 {matches.Count}개를 빨갛게 선택했습니다. ({first.Measure}~{last.Measure}마디)";
     }
 }

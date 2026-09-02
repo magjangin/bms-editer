@@ -752,6 +752,36 @@ public sealed partial class MainWindowViewModel : ObservableObject
         }
         SelectionSource = source;
         OnPropertyChanged(nameof(SelectedNotes));
+
+        // 격자 밖에서 고른 선택은 화면 밖에 있기 쉽다. 거기로 스크롤해 준다.
+        if (source != NoteSelectionSource.Grid)
+            RequestScrollToSelection();
+    }
+
+    // 선택한 자리로 격자를 스크롤해 달라고 뷰에 알린다. 0~1 비율로 넘긴다.
+    //
+    // 통계 창에서 키음 번호를 눌러도, 검색 창에서 조건 선택을 해도, 그 노트들이
+    // 지금 보이는 구간 밖에 있으면 **화면에서는 아무 일도 안 일어난 것처럼 보인다.**
+    // 선택은 됐는데 어디가 선택됐는지 알 길이 없어서 기능이 없는 줄 알게 된다.
+    public event Action<double>? ScrollToRatioRequested;
+
+    private void RequestScrollToSelection()
+    {
+        if (_selectedNotes.Count == 0)
+            return;
+
+        // 여러 개를 골랐으면 가장 앞선 노트를 기준으로 삼는다.
+        var first = _selectedNotes.MinBy(n => n.Measure + n.Position);
+        if (first is null)
+            return;
+
+        var measurePosition = first.Measure + first.Position;
+
+        var ratio = OggDurationSeconds > 0
+            ? Timeline.SecondsAt(measurePosition) / OggDurationSeconds
+            : measurePosition / Math.Max(1, MeasureCount);
+
+        ScrollToRatioRequested?.Invoke(Math.Clamp(ratio, 0, 1));
     }
 
     [RelayCommand]
