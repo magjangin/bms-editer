@@ -14,14 +14,16 @@
 
 ### 2. Services (비즈니스 로직 및 엔진)
 입출력, 오디오 재생 및 분석을 처리하는 백엔드 서비스 그룹입니다.
-* **[BmsParser.cs](file:///h:/source/repos/bms%20editer/bms%20editer/Services/BmsParser.cs)**: BMS 파일의 텍스트 줄을 파싱하여 차트 모델로 채웁니다. UTF-8과 CP949(한국어) 인코딩 자동 감지 및 중복/3자리 키음 채널의 분할 단위를 자동으로 결정합니다. 컴파일 타임 최적화를 위해 정규식을 `[GeneratedRegex]` 소스 생성기로 컴파일합니다.
-* **[BmsWriter.cs](file:///h:/source/repos/bms%20editer/bms%20editer/Services/BmsWriter.cs)**: 편집된 차트를 BMS 텍스트 포맷으로 변환해 저장합니다. 노트의 정확한 비율(0.0~1.0)을 유실 없이 직렬화하기 위해 마디 내 노트 위치들의 최소공배수(LCM)를 이용해 최적의 데이터 분할 길이를 자동으로 계산합니다.
+* **[BmsParser.cs](file:///h:/source/repos/bms%20editer/bms%20editer/Services/BmsParser.cs)**: BMS 파일의 텍스트 줄을 파싱하여 차트 모델로 채웁니다. UTF-8과 CP949(한국어) 인코딩 자동 감지 및 중복/3자리 키음 채널의 분할 단위를 자동으로 결정합니다. `#RANDOM`/`#IF` 등 조건 블록 분기 구조를 파싱하여 분기 맥락(`BranchId`)을 부여합니다.
+* **[BmsWriter.cs](file:///h:/source/repos/bms%20editer/bms%20editer/Services/BmsWriter.cs)**: 편집된 차트를 BMS 텍스트 포맷으로 변환해 저장합니다. 노트의 정확한 비율(0.0~1.0)을 유실 없이 직렬화하기 위해 마디 내 노트 위치들의 최소공배수(LCM)를 이용해 최적의 데이터 분할 길이를 자동으로 계산하며, 조건 블록 분기별 노트를 분리 출력합니다.
+* **[WavDecoder.cs](file:///h:/source/repos/bms%20editer/bms%20editer/Services/WavDecoder.cs)**: WAV (8/16/24/32bit PCM 및 IEEE Float) 및 OGG 오디오 파일을 44100Hz 16-bit Stereo PCM 샘플 배열로 정밀 변환 및 리샘플링합니다.
+* **[KeySoundPlayer.cs](file:///h:/source/repos/bms%20editer/bms%20editer/Services/KeySoundPlayer.cs)**: Win32 `waveOut` API 기반의 실시간 다중 채널(폴리포닉) 키음 스트리밍 믹서입니다. 사전 디코딩된 PCM 캐시를 바탕으로 화음 및 빠른 연속 타건을 무지연 합산 재생합니다.
 * **[OggAudioPlayer.cs](file:///h:/source/repos/bms%20editer/bms%20editer/Services/OggAudioPlayer.cs)**: 배경 음악(OGG)을 디코딩하고 Win32 `waveOut` API P/Invoke를 사용하여 지연 시간(Latency)을 최소화한 실시간 재생 및 탐색(Scrubbing)을 구현합니다. 성능 향상을 위해 소스 생성 P/Invoke인 `[LibraryImport]`를 사용합니다.
 * **[OggPeakLoader.cs](file:///h:/source/repos/bms%20editer/bms%20editer/Services/OggPeakLoader.cs)**: 오디오 파형 출력을 위해 OGG 데이터를 고속 다운샘플링하여 피크(Peak) 진폭 배열을 생성하며, 드럼 비트나Onset 타격점을 탐지(Onset detection)해 파형 위에 격자 씽크 가이드를 그릴 수 있도록 돕습니다.
 
 ### 3. ViewModels (MVVM 뷰모델)
 화면의 상태 및 사용자 인터랙션 흐름을 제어합니다.
-* **[MainWindowViewModel.cs](file:///h:/source/repos/bms%20editer/bms%20editer/ViewModels/MainWindowViewModel.cs)**: 메인 에디터 화면의 모든 상태(현재 차트, 재생 중 위치, 줌 배율, 가로/세로 뷰 옵션 등)를 관리하고 노트 배치, 삭제, 선택, 이동 명령(Command)들을 제공합니다. 오프라인 음원 믹서 역할을 수행하며, `PlaySound` API로 키음 재생을 비동기 수행합니다.
+* **[MainWindowViewModel.cs](file:///h:/source/repos/bms%20editer/bms%20editer/ViewModels/MainWindowViewModel.cs)**: 메인 에디터 화면의 모든 상태(현재 차트, 재생 중 위치, 줌 배율, 가로/세로 뷰 옵션 등)를 관리하고 노트 배치, 삭제, 선택, 이동 명령(Command)들을 제공합니다. `KeySoundPlayer`를 통한 다중 키음 믹싱 재생 및 OGG 오디오 재생을 통합 제어합니다.
 * **[NoteSearchViewModel.cs](file:///h:/source/repos/bms%20editer/bms%20editer/ViewModels/NoteSearchViewModel.cs)**: 검색/삭제/교체 창의 상태 모델입니다. 대상 노트(선택 여부·롱 여부·숨김 여부), 마디 범위, 키음 번호 범위(base-36 두 자리), 열(레인) 조건을 조합해 노트를 걸러내고 선택·삭제·키음 번호 일괄 변경을 수행합니다.
 * **[NoteStatsViewModel.cs](file:///h:/source/repos/bms%20editer/bms%20editer/ViewModels/NoteStatsViewModel.cs)**: 레인별 노트 개수와 키음별 사용 빈도를 집계합니다. 메인 뷰모델의 노트 변경 알림과 키음 목록 변경을 구독해 편집하는 즉시 다시 집계하며(창을 닫을 때 `Dispose`로 구독 해제), 개수가 0인 항목은 빼고 실제로 쓰인 레인·키음만 보여줍니다. 키음은 등록된 `#WAV` 테이블이 아니라 노트가 실제로 가리키는 번호를 기준으로 세므로, 쓰지 않는 번호가 목록을 채우지 않습니다. *(향후 **🎛️ 컨트롤 패널 / 🧮 스마트 집계기**로 확장되어 실시간 집계 + 인터랙티브 일괄 선택/조작 공구함으로 통합될 예정입니다.)*
 

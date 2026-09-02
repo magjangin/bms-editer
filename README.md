@@ -34,12 +34,10 @@ OGG 배경 오디오 파형(Waveform) 로딩, 온셋(Onset) 분석에 따른 그
    - `Ctrl+N` 새로 만들기 · `Ctrl+O` 열기 · `Ctrl+S` 저장 · `Ctrl+Shift+S` 다른 이름으로 저장
    - `Ctrl`/`Shift` + 드래그로 기존 선택에 더하기 (편집 모드에서도 됩니다)
 
-6. **키음 미리듣기 (한 번에 한 발)**
+6. **키음 다중 채널(폴리포닉) 믹싱 재생**
    - 재생 위치 탐색 시 이진 탐색(Binary Search)으로 "지금 울릴 노트"를 찾으므로, 수천 개가 넘는 고밀도 채보에서도 노트를 고르는 비용은 일정합니다.
-   - ⚠️ **다만 실제 소리는 한 번에 하나만 납니다.** Win32 `PlaySound` 를 쓰고 있어 새 소리가 앞 소리를 끊습니다.
-     같은 자리의 화음은 마지막 한 음만 들리고, 긴 키음은 다음 노트에서 잘립니다.
-     재생 중에 들리는 것은 곡이 아니라 "노트가 찍힌 자리"를 확인하는 용도로 보아야 합니다.
-   - 제대로 된 믹싱 재생은 아직 없습니다. [known_issues.md](docs/known_issues.md) 34번 참고.
+   - **사전 PCM 디코딩 & 실시간 믹싱**: WAV (8/16/24/32bit PCM, IEEE Float) 및 OGG 파일을 44100Hz Stereo PCM으로 백그라운드 사전 디코딩(`WavDecoder`)하여 메모리에 캐싱합니다.
+   - Win32 `waveOut` 기반 백그라운드 스트리밍 믹서(`KeySoundPlayer`)를 통해, 같은 자리의 화음이나 빠른 연속 타건 시에도 앞선 소리가 끊기지 않고 부드럽게 합산(Saturation Clamping Mix)되어 함께 울립니다.
 
 7. **BGA(배경 영상) 미리보기 연동**
    - `WebView2` 기반 `VideoPreviewControl`을 통해 MP4/WebM/MOV/AVI/MKV 등 배경 영상을 로드하고 미리보기.
@@ -58,8 +56,7 @@ OGG 배경 오디오 파형(Waveform) 로딩, 온셋(Onset) 분석에 따른 그
    - 마디·레인별 노트 위치를 최소공배수 분할로 계산해 원본과 동일하게 복원 가능한 데이터 라인 생성.
    - 최초 저장 시 저장 대화상자를 띄우고, 이후에는 같은 경로로 즉시 저장("저장") 또는 다른 이름으로 저장 지원.
    - **원자적 저장**: 같은 폴더 임시 파일에 끝까지 쓴 뒤에만 바꿔치기합니다. 쓰다 실패해도 원본은 온전하고, 직전 내용이 `.bak` 으로 남습니다.
-   - ⚠️ `#RANDOM` / `#IF` 조건 블록이 든 차트는 **저장을 거부합니다.** 아직 조건 블록을 해석하지 못해,
-     저장하면 갈래별 노트가 하나로 합쳐지기 때문입니다. 그런 차트는 읽기 전용으로 다뤄집니다.
+   - **조건 블록(`#RANDOM`/`#IF`/`#SWITCH`) 분기 보존**: 분기 식별자(`BranchId`)와 원본 줄 순서(`Order`)를 추적하여 각 갈래별 노트를 분리 저장하므로, 조건문이 든 차트도 패턴 합쳐짐이나 헤더 이동 없이 안전하게 편집/저장 가능합니다.
 
 11. **노트 검색/삭제/교체**
    - 툴바의 🧰 버튼으로 여는 조건 검색 창. 결과를 격자에서 바로 보도록 모드리스로 동작합니다.
@@ -118,8 +115,10 @@ dotnet publish "bms editer/bms editer.csproj" -p:PublishProfile=win-x64
   - `BmsWriter`: `Chart` 데이터를 `.bms` 텍스트 포맷으로 직렬화하는 저장 엔진.
   - `SafeFileWriter`: 임시 파일에 다 쓴 뒤에만 바꿔치기하는 원자적 저장.
   - `ChartTimeline`: 마디 위치 ↔ 시각 변환. BPM 변화와 마디 길이를 여기서만 다룹니다.
+  - `WavDecoder`: WAV/OGG 파일을 44100Hz 16-bit Stereo PCM으로 통일 디코딩.
+  - `KeySoundPlayer`: Win32 `waveOut` 기반 실시간 다중 채널(폴리포닉) 키음 믹서 플레이어.
   - `OggDecoder`: OGG를 PCM16으로 한 번만 푸는 곳. 재생과 파형이 그 결과를 나눠 씁니다.
-  - `OggAudioPlayer`: `winmm.dll` 기반의 로우 레벨 PCM 재생 제어 엔진.
+  - `OggAudioPlayer`: `winmm.dll` 기반의 로우 레벨 PCM 배경음 재생 엔진.
   - `OggPeakLoader`: 다운샘플링 피크 및 온셋 계산기.
 - **`Views/Controls`**:
   - `TimelineControlBase`: 공통 타임라인 조절 파라미터를 담당하는 베이스 클래스.
