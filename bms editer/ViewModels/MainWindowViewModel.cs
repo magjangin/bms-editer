@@ -177,16 +177,67 @@ public sealed partial class MainWindowViewModel : ObservableObject
         _gridSyncFlashTimer.Start();
     }
 
+    // 오디오 길이가 요구하는 마디 수. 음원이 없으면 0.
+    private int GetAudioMeasureCount()
+    {
+        if (OggDurationSeconds <= 0 || Bpm <= 0)
+            return 0;
+
+        var totalBeats = OggDurationSeconds * (Bpm / 60.0);
+        return Math.Max(1, (int)Math.Ceiling(totalBeats / 4.0));
+    }
+
+    // 차트 안의 노트와 보존줄이 요구하는 마디 수.
+    private int GetChartMeasureCount()
+    {
+        var maxMeasure = 0;
+
+        foreach (var note in Chart.Notes)
+            maxMeasure = Math.Max(maxMeasure, note.Measure);
+
+        foreach (var raw in Chart.PreservedLines)
+        {
+            if (raw.IsData)
+                maxMeasure = Math.Max(maxMeasure, raw.Measure);
+        }
+
+        return maxMeasure + 1;
+    }
+
+    // 이 문서가 가질 수 있는 가장 작은 마디 수. 오디오와 차트 중 큰 쪽을 따른다.
+    public int MinimumMeasureCount =>
+        Math.Max(MinimumMeasureFloor, Math.Max(GetAudioMeasureCount(), GetChartMeasureCount()));
+
+    private const int MinimumMeasureFloor = 32;
+
+    // 오디오가 요구하는 만큼은 반드시 확보하되, **줄이지는 않는다.**
+    //
+    // 예전에는 오디오 길이 기준으로 무조건 덮어썼다. 200마디 차트를 열고 그보다 짧은
+    // OGG를 얹으면 MeasureCount 가 75로 줄어, 75마디 이후 노트는 화면에는 보이는데
+    // 배치·이동·복사가 전부 거부됐다. BPM 을 만질 때마다 다시 계산돼서
+    // BPM 조율 중에도 튀어나왔다.
     private void UpdateMeasureCountFromAudio()
     {
-        if (OggDurationSeconds <= 0)
-            return;
+        var required = MinimumMeasureCount;
+        if (MeasureCount < required)
+            MeasureCount = required;
+        else
+            Chart.MeasureCount = MeasureCount;
 
-        // 곡 길이(BPM 기준 4/4 마디 수)에 맞춰 그리드를 늘려서
-        // BPM 변경이 즉시 파형/그리드 세로 길이에 반영되게 한다.
-        var totalBeats = OggDurationSeconds * (Bpm / 60.0);
-        MeasureCount = Math.Max(1, (int)Math.Ceiling(totalBeats / 4.0));
-        Chart.MeasureCount = MeasureCount;
+        OnPropertyChanged(nameof(MinimumMeasureCount));
+    }
+
+    // 사용자가 마디 수를 직접 줄이더라도, 이미 노트가 있는 마디까지 잠기면 안 된다.
+    partial void OnMeasureCountChanged(int value)
+    {
+        var floor = MinimumMeasureCount;
+        if (value < floor)
+        {
+            MeasureCount = floor;
+            return;
+        }
+
+        Chart.MeasureCount = value;
     }
 
     // 드래그하는 동안에는 커서만 옮긴다.
@@ -356,7 +407,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
     }
 
     // 새로 만들기처럼 작업 내용을 버리는 동작 전에 사용자 확인을 받는 콜백. (View가 주입)
-    public Func<string, Task<bool>>? ConfirmDiscardAsync { get; set; }
+    public Func<string, Task<bool>>? ConfirmAsync { get; set; }
 
     // 마지막 저장(또는 열기) 이후에 고친 것이 있는지.
     //
@@ -402,7 +453,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
     // 고친 것이 없거나 콜백이 없으면 그냥 진행한다.
     public async Task<bool> ConfirmDiscardIfNeededAsync(string message)
     {
-        if (!IsDirty || ConfirmDiscardAsync is not { } confirm)
+        if (!IsDirty || ConfirmAsync is not { } confirm)
             return true;
 
         return await confirm(message);
@@ -769,15 +820,16 @@ public sealed partial class MainWindowViewModel : ObservableObject
     {
         if (_selectedNotes.Count == 0) return;
 
-        foreach (var note in _selectedNotes)
-        {
-            Chart.Notes.Remove(note);
-        }
-        _selectedNotes.Clear();
-        NotifyNotesChanged();
-        OnPropertyChanged(nameof(SelectedNotes));
+        // 바로 옆에 있는 DeleteNotes 가 같은 일을 한다. 루프를 두 벌 두면 한쪽만 고치게 된다.
+        DeleteNotes(SelectedNotes);
     }
 
+    // 선택한 노트를 통째로 옮긴다. **하나라도 못 가면 아무것도 옮기지 않는다.**
+    //
+    // 예전에는 노트마다 따로 판단해서, 앞이 막히면 막힌 것만 제자리에 남고 나머지는
+    // 움직였다. 선택의 상대 간격이 무너져서 패턴 모양이 깨졌다(6번). 게다가
+    // 자리 검사가 선택된 노트를 통째로 제외해서, 남은 노트 위로 겹쳐 올라갈 수도 있었다.
+    // 겹치면 저장할 때 BmsWriter 가 같은 슬롯을 덮어써 한쪽이 조용히 사라진다(5번).
     [RelayCommand]
     private void MoveSelectedNotes(NoteMoveDirection direction)
     {
@@ -786,43 +838,76 @@ public sealed partial class MainWindowViewModel : ObservableObject
         var split = Math.Max(1, BeatSplit);
         var lanes = Chart.Lanes;
 
+        // 1단계: 옮길 자리를 전부 미리 구한다. 하나라도 못 구하면 그만둔다.
+        var moves = new List<(BmsNote Note, int Measure, double Position, string LaneId)>(_selectedNotes.Count);
+
         foreach (var note in _selectedNotes)
         {
-            switch (direction)
+            var target = direction switch
             {
-                case NoteMoveDirection.TimeForward:
-                    MoveNoteInTime(note, 1, split);
-                    break;
-                case NoteMoveDirection.TimeBackward:
-                    MoveNoteInTime(note, -1, split);
-                    break;
-                case NoteMoveDirection.LanePrevious:
-                    MoveNoteInLane(note, -1, lanes);
-                    break;
-                case NoteMoveDirection.LaneNext:
-                    MoveNoteInLane(note, 1, lanes);
-                    break;
-            }
+                NoteMoveDirection.TimeForward => OffsetInTime(note, 1, split),
+                NoteMoveDirection.TimeBackward => OffsetInTime(note, -1, split),
+                NoteMoveDirection.LanePrevious => OffsetInLane(note, -1, lanes),
+                NoteMoveDirection.LaneNext => OffsetInLane(note, 1, lanes),
+                _ => null,
+            };
+
+            if (target is not { } t)
+                return;
+
+            moves.Add((note, t.Measure, t.Position, t.LaneId));
+        }
+
+        // 2단계: 선택 밖의 노트와 부딪히는지, 옮긴 것끼리 겹치는지 확인한다.
+        var occupied = new HashSet<(string, int, long)>();
+        foreach (var note in Chart.Notes)
+        {
+            if (!_selectedNotes.Contains(note))
+                occupied.Add(ToSlotKey(note.LaneId, note.Measure, note.Position));
+        }
+
+        foreach (var move in moves)
+        {
+            if (!occupied.Add(ToSlotKey(move.LaneId, move.Measure, move.Position)))
+                return;
+        }
+
+        // 3단계: 다 통과했으니 한꺼번에 적용한다.
+        foreach (var move in moves)
+        {
+            move.Note.Measure = move.Measure;
+            move.Note.Position = move.Position;
+            move.Note.LaneId = move.LaneId;
         }
 
         NotifyNotesChanged();
     }
 
-    private void MoveNoteInTime(BmsNote note, int steps, int split)
+    // 노트를 시간축으로 격자 한 칸만큼 **옮긴다.** 격자에 붙이지 않는다.
+    //
+    // 예전에는 Math.Round((Measure + Position) * split) 으로 위치를 다시 계산해서,
+    // 현재 격자로 표현할 수 없는 노트는 옮기는 순간 자리가 바뀌었다.
+    // 12분할로 찍은 3잇단음을 16분할 상태에서 건드리면 잇단음이 뭉개졌다.
+    private (int Measure, double Position, string LaneId)? OffsetInTime(BmsNote note, int steps, int split)
     {
-        var totalStepIndex = (int)Math.Round((note.Measure + note.Position) * split) + steps;
-        if (totalStepIndex < 0) return;
+        var total = note.Measure + note.Position + ((double)steps / split);
+        if (total < 0)
+            return null;
 
-        var newMeasure = totalStepIndex / split;
-        var newPosition = (double)(totalStepIndex % split) / split;
-        if (newMeasure < 0 || newMeasure >= MeasureCount) return;
-        if (IsSlotOccupied(note.LaneId, newMeasure, newPosition, note)) return;
+        // 부동소수 오차로 마디 경계에서 한 칸 밀리지 않도록 여유를 두고 자른다.
+        var measure = (int)Math.Floor(total + PositionEpsilon);
+        var position = total - measure;
+        if (position < PositionEpsilon)
+            position = 0.0;
 
-        note.Measure = newMeasure;
-        note.Position = newPosition;
+        if (measure < 0 || measure >= MeasureCount)
+            return null;
+
+        return (measure, position, note.LaneId);
     }
 
-    private void MoveNoteInLane(BmsNote note, int steps, IReadOnlyList<LaneDefinition> lanes)
+    private static (int Measure, double Position, string LaneId)? OffsetInLane(
+        BmsNote note, int steps, IReadOnlyList<LaneDefinition> lanes)
     {
         var currentIndex = -1;
         for (var i = 0; i < lanes.Count; i++)
@@ -833,26 +918,19 @@ public sealed partial class MainWindowViewModel : ObservableObject
                 break;
             }
         }
-        if (currentIndex == -1) return;
+
+        if (currentIndex == -1)
+            return null;
 
         var newIndex = currentIndex + steps;
-        if (newIndex < 0 || newIndex >= lanes.Count) return;
+        if (newIndex < 0 || newIndex >= lanes.Count)
+            return null;
 
-        var newLaneId = lanes[newIndex].Id;
-        if (IsSlotOccupied(newLaneId, note.Measure, note.Position, note)) return;
-
-        note.LaneId = newLaneId;
+        return (note.Measure, note.Position, lanes[newIndex].Id);
     }
 
-    private bool IsSlotOccupied(string laneId, int measure, double position, BmsNote excluding)
-    {
-        return Chart.Notes.Any(n =>
-            n != excluding &&
-            !_selectedNotes.Contains(n) &&
-            n.LaneId == laneId &&
-            n.Measure == measure &&
-            Math.Abs(n.Position - position) < 0.0001);
-    }
+    // 마디 내 위치를 같은 자리로 볼 허용오차. ToSlotKey 의 1/10000 눈금과 짝이다.
+    private const double PositionEpsilon = 0.0001;
 
     public void PlayWavSound(string key)
     {
@@ -911,9 +989,15 @@ public sealed partial class MainWindowViewModel : ObservableObject
         return new string(chars);
     }
 
-    public void AddWav(string filePath)
+    // 실패하면 false. 예전에는 예외를 삼켜서 [키음 추가]가 조용히 아무 일도 안 했다.
+    public bool AddWav(string filePath)
     {
-        if (!System.IO.File.Exists(filePath)) return;
+        if (!System.IO.File.Exists(filePath))
+        {
+            LastErrorMessage = "파일을 찾을 수 없습니다.";
+            return false;
+        }
+
         try
         {
             var key = GetNextWavKey();
@@ -921,20 +1005,51 @@ public sealed partial class MainWindowViewModel : ObservableObject
             var item = new BmsWavItem { Key = key, FilePath = filePath };
             WavList.Add(item);
             SelectedWavItem = item;
+            LastErrorMessage = null;
+            return true;
         }
         catch (Exception ex)
         {
+            LastErrorMessage = ex.Message;
             System.Diagnostics.Debug.WriteLine($"WAV 추가 실패: {ex.Message}");
+            return false;
         }
     }
 
+    // 이 번호를 쓰는 노트 개수.
+    public int CountNotesUsingWavKey(string key) =>
+        Chart.Notes.Count(n => string.Equals(n.WavKey, key, StringComparison.OrdinalIgnoreCase));
+
+    // 키음을 지운다. 그 번호를 쓰는 노트가 있으면 먼저 확인을 받는다.
+    //
+    // 예전에는 테이블에서만 지우고 노트는 그대로 뒀다. 남은 노트는 소리가 나지 않는
+    // 유령 노트가 되고, 저장하면 #WAV 정의가 없는 번호를 가리키는 파일이 나온다.
+    // 게다가 새 키음을 추가하면 비어 있는 그 번호가 다시 쓰여서,
+    // 유령 노트들이 갑자기 엉뚱한 소리를 내기 시작한다.
     [RelayCommand]
-    private void RemoveWav()
+    private async Task RemoveWavAsync()
     {
         if (SelectedWavItem is null) return;
+
         var key = SelectedWavItem.Key;
+        var usedBy = CountNotesUsingWavKey(key);
+
+        if (usedBy > 0)
+        {
+            if (ConfirmAsync is not { } confirm)
+                return;
+
+            var proceed = await confirm(
+                $"#WAV{key} 를 쓰는 노트가 {usedBy}개 있습니다.\n\n" +
+                "지우면 그 노트들은 소리가 나지 않는 유령 노트가 됩니다.\n" +
+                "나중에 키음을 추가하면 이 번호가 다시 쓰여서, 그 노트들이 엉뚱한 소리를 내게 됩니다.\n\n" +
+                "그래도 지울까요?");
+
+            if (!proceed)
+                return;
+        }
+
         Chart.WavTable.Remove(key);
-        
         WavList.Remove(SelectedWavItem);
         SelectedWavItem = null;
     }

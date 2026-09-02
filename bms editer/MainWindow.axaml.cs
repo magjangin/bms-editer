@@ -32,7 +32,7 @@ public partial class MainWindow : Window
             InitializeComponent();
             var vm = new MainWindowViewModel();
             DataContext = vm;
-            vm.ConfirmDiscardAsync = message => ConfirmWindow.ShowAsync(this, message, "확인");
+            vm.ConfirmAsync = message => ConfirmWindow.ShowAsync(this, message, "확인");
             vm.PropertyChanged += OnViewModelPropertyChanged;
             Waveform.ScrubRequested += OnWaveformScrubRequested;
             Closing += OnWindowClosing;
@@ -318,7 +318,9 @@ public partial class MainWindow : Window
             if (path is null)
                 return;
 
-            vm.AddWav(path);
+            // 예전에는 실패해도 아무 표시가 없어서, 키음이 한도를 넘으면 조용히 아무 일도 안 났다.
+            if (!vm.AddWav(path))
+                await ConfirmWindow.ShowMessageAsync(this, $"키음을 추가하지 못했습니다.\n\n{vm.LastErrorMessage}", "키음 추가 실패");
         }
 
         private void OnNoteGridKeyDown(object? sender, KeyEventArgs e) => HandleEditorKey(e);

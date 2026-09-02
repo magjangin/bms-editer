@@ -374,32 +374,28 @@ public sealed class NoteGridControl : TimelineControlBase
         int measure = 0;
         double position = 0.0;
 
+        var ratio = Math.Clamp(IsHorizontalView ? (tPos / timelineLength) : (1.0 - (tPos / timelineLength)), 0.0, 1.0);
+
+        int totalStepIndex;
         if (DurationSeconds > 0)
         {
-            var ratio = IsHorizontalView ? (tPos / timelineLength) : (1.0 - (tPos / timelineLength));
-            ratio = Math.Clamp(ratio, 0.0, 1.0);
-
-            var seconds = ratio * DurationSeconds;
-            var secondsPerMeasure = 240.0 / Bpm;
-            var secondsPerStep = secondsPerMeasure / split;
-
-            var totalStepIndex = (int)Math.Round(seconds / secondsPerStep);
-            measure = totalStepIndex / split;
-            position = (double)(totalStepIndex % split) / split;
+            var secondsPerStep = 240.0 / Bpm / split;
+            totalStepIndex = (int)Math.Round(ratio * DurationSeconds / secondsPerStep);
         }
         else
         {
-            var ratio = IsHorizontalView ? (tPos / timelineLength) : (1.0 - (tPos / timelineLength));
-            ratio = Math.Clamp(ratio, 0.0, 1.0);
-
-            var totalSteps = MeasureCount * split;
-            var totalStepIndex = (int)Math.Round(ratio * totalSteps);
-
-            measure = totalStepIndex / split;
-            position = (double)(totalStepIndex % split) / split;
+            totalStepIndex = (int)Math.Round(ratio * MeasureCount * split);
         }
 
-        if (measure < 0 || measure >= MeasureCount || position < 0 || position >= 1.0)
+        // 맨 끝을 클릭하면 반올림이 마디 경계를 딱 넘어서 measure == MeasureCount 가 된다.
+        // 예전에는 그대로 거부해서 **곡 마지막 격자 칸에는 노트를 찍을 수 없었다.**
+        // 거부하는 대신 마지막 칸으로 당겨준다.
+        totalStepIndex = Math.Clamp(totalStepIndex, 0, (MeasureCount * split) - 1);
+
+        measure = totalStepIndex / split;
+        position = (double)(totalStepIndex % split) / split;
+
+        if (measure < 0 || measure >= MeasureCount)
             return;
 
         var args = new NotePlacementArgs(clickedLaneId, measure, position);

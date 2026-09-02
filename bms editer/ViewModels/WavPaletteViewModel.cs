@@ -113,10 +113,11 @@ public sealed partial class WavPaletteViewModel : OwnerObservingViewModel
     protected override void OnWavListChanged() => Refresh();
 
     // 새로 넣은 키음이 검색어에 걸려 안 보이면 추가한 걸 못 찾으므로 검색어를 지운다.
-    public void AddWav(string filePath)
+    // 실패하면 false. 여러 개를 담을 때 어디서 멈췄는지 부르는 쪽이 알아야 한다.
+    public bool AddWav(string filePath)
     {
         Filter = string.Empty;
-        Owner.AddWav(filePath);
+        return Owner.AddWav(filePath);
     }
 
     [RelayCommand]
