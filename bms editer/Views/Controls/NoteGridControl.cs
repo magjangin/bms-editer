@@ -311,7 +311,8 @@ public sealed class NoteGridControl : TimelineControlBase
     {
         if (DurationSeconds > 0 && Bpm > 0)
         {
-            var seconds = (note.Measure + note.Position) * (240.0 / Bpm);
+            // 노트의 시각도 격자와 같은 곳에서 구해야 둘이 어긋나지 않는다.
+            var seconds = EffectiveTimeline.SecondsAt(note.Measure + note.Position);
             return ToTimelinePosition(seconds / DurationSeconds, timelineLength);
         }
 
@@ -379,8 +380,9 @@ public sealed class NoteGridControl : TimelineControlBase
         int totalStepIndex;
         if (DurationSeconds > 0)
         {
-            var secondsPerStep = 240.0 / Bpm / split;
-            totalStepIndex = (int)Math.Round(ratio * DurationSeconds / secondsPerStep);
+            // 클릭한 초를 마디 위치로 되돌린 뒤 격자에 맞춘다. 그리는 쪽과 같은 시간축을 쓴다.
+            var measurePosition = EffectiveTimeline.MeasurePositionAt(ratio * DurationSeconds);
+            totalStepIndex = (int)Math.Round(measurePosition * split);
         }
         else
         {

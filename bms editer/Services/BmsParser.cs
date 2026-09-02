@@ -34,6 +34,12 @@ public static partial class BmsParser
     [GeneratedRegex(@"^#BPM\s+([0-9\.]+)", RegexOptions.IgnoreCase)]
     private static partial Regex BpmRegex();
 
+    // #BPMxx 확장 BPM 표. "#BPM " 과 달리 번호가 붙으므로 위 정규식과 겹치지 않는다.
+    // 이 줄은 원문 보존 대상으로도 남는다(IsConsumedHeader 에 넣지 않는다).
+    // 읽어두는 이유는 저장이 아니라 채널 08 의 BPM 변화를 풀어내기 위해서다.
+    [GeneratedRegex(@"^#BPM([0-9a-zA-Z]{2})\s+([0-9\.]+)", RegexOptions.IgnoreCase)]
+    private static partial Regex ExtendedBpmRegex();
+
     [GeneratedRegex(@"^#GENRE\s+(.*)", RegexOptions.IgnoreCase)]
     private static partial Regex GenreRegex();
 
@@ -114,6 +120,17 @@ public static partial class BmsParser
                 if (double.TryParse(bpmMatch.Groups[1].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var tempBpm))
                 {
                     parsedBpm = tempBpm;
+                }
+                continue;
+            }
+
+            var extendedBpmMatch = ExtendedBpmRegex().Match(line);
+            if (extendedBpmMatch.Success)
+            {
+                if (double.TryParse(extendedBpmMatch.Groups[2].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var tableBpm)
+                    && tableBpm > 0)
+                {
+                    chart.BpmTable[extendedBpmMatch.Groups[1].Value.ToUpper()] = tableBpm;
                 }
                 continue;
             }
@@ -210,6 +227,10 @@ public static partial class BmsParser
 
                 // 건반이 없는 뒷마디까지 그리드가 이어지도록 마디 수에도 반영한다.
                 maxMeasure = Math.Max(maxMeasure, measureNum);
+
+                // 편집 대상은 아니지만 격자·재생 시각을 맞추려면 읽어는 둬야 하는 채널들.
+                // 원문 보존은 위에서 이미 했으므로 저장에는 영향이 없다.
+                ReadTimingChannel(chart, measureNum, channel, dataStr);
                 continue;
             }
 
@@ -264,6 +285,60 @@ public static partial class BmsParser
         || RankRegex().IsMatch(line)
         || PlayLevelRegex().IsMatch(line)
         || WavRegex().IsMatch(line);
+
+    // 시간축을 바꾸는 채널을 읽어 차트에 담는다.
+    //
+    // 이 줄들은 예전에도 원문 그대로 보존돼서 저장하면 되돌아왔다. 문제는 **읽는 쪽**이었다.
+    // 아무도 해석하지 않아서 격자·노트 위치·키음 타이밍이 전부 단일 BPM 과 4/4 를 가정했고,
+    // 박자나 BPM 이 바뀌는 차트는 그 지점 이후로 화면과 소리가 어긋났다.
+    private static void ReadTimingChannel(BmsChart chart, int measure, string channel, string data)
+    {
+        // 02: 마디 길이 배율. 슬롯이 아니라 실수 하나가 통째로 온다. (#00002:0.75)
+        if (string.Equals(channel, "02", StringComparison.OrdinalIgnoreCase))
+        {
+            if (double.TryParse(data, NumberStyles.Float, CultureInfo.InvariantCulture, out var length) && length > 0)
+                chart.MeasureLengths[measure] = length;
+            return;
+        }
+
+        // 03: 16진수 두 자리를 그대로 BPM 으로 쓴다. 정수만 되고 255가 한계다.
+        if (string.Equals(channel, "03", StringComparison.OrdinalIgnoreCase))
+        {
+            foreach (var (position, code) in EnumerateSlots(data))
+            {
+                if (int.TryParse(code, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var bpm) && bpm > 0)
+                    chart.BpmChanges.Add(new BpmChange(measure, position, bpm));
+            }
+            return;
+        }
+
+        // 08: base-36 번호로 #BPMxx 표를 가리킨다. 소수점도 되고 255도 넘는다.
+        if (string.Equals(channel, "08", StringComparison.OrdinalIgnoreCase))
+        {
+            foreach (var (position, code) in EnumerateSlots(data))
+            {
+                if (chart.BpmTable.TryGetValue(code, out var bpm) && bpm > 0)
+                    chart.BpmChanges.Add(new BpmChange(measure, position, bpm));
+            }
+        }
+    }
+
+    // 데이터 줄을 두 자리씩 끊어 "마디 안 위치 + 코드"로 내놓는다. 빈 칸("00")은 건너뛴다.
+    private static IEnumerable<(double Position, string Code)> EnumerateSlots(string data)
+    {
+        var count = data.Length / 2;
+        if (count == 0)
+            yield break;
+
+        for (var i = 0; i < count; i++)
+        {
+            var code = data.Substring(i * 2, 2).ToUpperInvariant();
+            if (code == "00")
+                continue;
+
+            yield return ((double)i / count, code);
+        }
+    }
 
     private static int DetermineChunkSize(string dataStr, bool has3DigitWav, Dictionary<string, string> wavTable)
     {

@@ -11,6 +11,12 @@ public sealed class BmsChart
     // 마디 인덱스 -> 박자 배율 (#xxx02, 기본값 1.0 = 4/4)
     public Dictionary<int, double> MeasureLengths { get; } = new();
 
+    // #BPMxx 확장 BPM 표. 채널 08 이 이 번호를 가리킨다.
+    public Dictionary<string, double> BpmTable { get; } = new();
+
+    // 곡 도중의 BPM 변화 (#xxx03 · #xxx08). 파일에 있던 순서와 무관하게 시각 순으로 쓴다.
+    public List<BpmChange> BpmChanges { get; } = new();
+
     public List<BmsNote> Notes { get; } = new();
 
     // 편집 대상이 아닌 원본 줄(BGM·BPM 변화·BGA·2P 채널·확장 헤더 등).
@@ -52,9 +58,13 @@ public sealed class BmsChart
         PreservedLines.Clear();
         PreservedLines.AddRange(source.PreservedLines);
 
+        BpmChanges.Clear();
+        BpmChanges.AddRange(source.BpmChanges);
+
         CopyInto(source.MeasureLengths, MeasureLengths);
         CopyInto(source.WavTable, WavTable);
         CopyInto(source.BmpTable, BmpTable);
+        CopyInto(source.BpmTable, BpmTable);
     }
 
     // 새로 만들기처럼 문서를 비울 때. ReplaceContentWith 와 같은 자리에 두어

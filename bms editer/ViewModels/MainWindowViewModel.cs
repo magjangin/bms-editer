@@ -163,6 +163,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
     partial void OnBpmChanged(double value)
     {
         MarkDirty();
+        InvalidateTimeline();
         UpdateMeasureCountFromAudio();
         FlashGridSync();
     }
@@ -175,6 +176,20 @@ public sealed partial class MainWindowViewModel : ObservableObject
         IsGridSyncFlashVisible = true;
         _gridSyncFlashTimer.Stop();
         _gridSyncFlashTimer.Start();
+    }
+
+    // 마디 위치 <-> 시각 변환. 격자·노트·재생이 모두 이걸 통해 계산한다.
+    //
+    // BPM 변화(#xxx03/#xxx08)와 마디 길이(#xxx02)를 여기서만 다룬다.
+    // 예전에는 세 곳이 각자 240/BPM 을 써서, 그런 차트는 화면과 소리가 어긋났다.
+    private ChartTimeline? _timeline;
+
+    public ChartTimeline Timeline => _timeline ??= ChartTimeline.FromChart(Chart, Bpm);
+
+    private void InvalidateTimeline()
+    {
+        _timeline = null;
+        OnPropertyChanged(nameof(Timeline));
     }
 
     // 오디오 길이가 요구하는 마디 수. 음원이 없으면 0.
@@ -353,9 +368,11 @@ public sealed partial class MainWindowViewModel : ObservableObject
     {
         if (Bpm <= 0 || _playbackNotes.Length == 0) return;
 
-        var secondsPerMeasure = 240.0 / Bpm;
+        // 시각 계산은 Timeline 이 맡는다. 예전에는 여기서 240/BPM 을 직접 써서,
+        // BPM 이 바뀌거나 4/4가 아닌 마디가 있는 차트는 키음이 엉뚱한 때에 울렸다.
+        var timeline = Timeline;
 
-        // Binary search to find the first note that is >= start
+        // 시작 지점 이상인 첫 노트를 이진 탐색으로 찾는다.
         var low = 0;
         var high = _playbackNotes.Length - 1;
         var startIndex = _playbackNotes.Length;
@@ -363,7 +380,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         while (low <= high)
         {
             var mid = low + (high - low) / 2;
-            var noteSec = (_playbackNotes[mid].Measure + _playbackNotes[mid].Position) * secondsPerMeasure;
+            var noteSec = timeline.SecondsAt(_playbackNotes[mid].Measure + _playbackNotes[mid].Position);
 
             if (noteSec >= start)
             {
@@ -379,9 +396,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         for (var i = startIndex; i < _playbackNotes.Length; i++)
         {
             var note = _playbackNotes[i];
-            var noteSec = (note.Measure + note.Position) * secondsPerMeasure;
-
-            if (noteSec >= end)
+            if (timeline.SecondsAt(note.Measure + note.Position) >= end)
                 break;
 
             PlayWavSound(note.WavKey);
@@ -492,6 +507,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         _selectedNotes.Clear();
 
         PullHeaderFromChart();
+        InvalidateTimeline();
         MeasureCount = Chart.MeasureCount;
         CurrentFilePath = null;
         DocumentEncoding = new UTF8Encoding(false);
@@ -552,9 +568,10 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
         ResetDocumentState();
 
-        // 노트·보존줄·마디길이·키음표 등 차트 안의 모든 컬렉션이 여기서 한꺼번에 옮겨진다.
+        // 노트·보존줄·마디길이·BPM 변화·키음표 등 차트 안의 모든 컬렉션이 여기서 한꺼번에 옮겨진다.
         Chart.ReplaceContentWith(parsed.Chart);
         PullHeaderFromChart();
+        InvalidateTimeline();
         MeasureCount = Chart.MeasureCount;
 
         // 읽어낸 인코딩을 기억해 두었다가 저장할 때 그대로 되돌려 쓴다.

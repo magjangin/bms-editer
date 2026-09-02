@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
+using bms_editer.Services;
 
 namespace bms_editer.Views.Controls;
 
@@ -43,6 +44,38 @@ public abstract class TimelineControlBase : Control
 
     public static readonly StyledProperty<bool> IsHorizontalViewProperty =
         AvaloniaProperty.Register<TimelineControlBase, bool>(nameof(IsHorizontalView));
+
+    public static readonly StyledProperty<ChartTimeline?> TimelineProperty =
+        AvaloniaProperty.Register<TimelineControlBase, ChartTimeline?>(nameof(Timeline));
+
+    // 마디 위치 <-> 시각 변환. 뷰모델이 넣어준다.
+    // 비어 있으면 Bpm 하나만 쓰는 균일 시간축으로 대신한다(디자이너 미리보기 등).
+    public ChartTimeline? Timeline
+    {
+        get => GetValue(TimelineProperty);
+        set => SetValue(TimelineProperty, value);
+    }
+
+    // 실제로 쓸 시간축. BPM 이 바뀌면 균일 시간축도 따라 바뀌어야 해서 캐시해 둔다.
+    private ChartTimeline? _fallbackTimeline;
+    private double _fallbackTimelineBpm;
+
+    protected ChartTimeline EffectiveTimeline
+    {
+        get
+        {
+            if (Timeline is { } timeline)
+                return timeline;
+
+            if (_fallbackTimeline is null || _fallbackTimelineBpm != Bpm)
+            {
+                _fallbackTimeline = ChartTimeline.Uniform(Bpm);
+                _fallbackTimelineBpm = Bpm;
+            }
+
+            return _fallbackTimeline;
+        }
+    }
 
     public double RowHeight
     {
@@ -122,10 +155,12 @@ public abstract class TimelineControlBase : Control
             RowHeightProperty, VerticalZoomProperty, HorizontalZoomProperty, MeasureCountProperty,
             BeatSplitProperty, GridMeasureProperty, BpmProperty, DurationSecondsProperty,
             PlaybackPositionSecondsProperty, IsPlaybackCursorVisibleProperty, IsGridSyncFlashVisibleProperty,
-            IsHorizontalViewProperty);
+            IsHorizontalViewProperty, TimelineProperty);
 
+        // HorizontalZoom 이 여기 빠져 있어서, 가로 줌을 바꾸면 다시 그려지기만 하고
+        // 컨트롤 크기는 그대로였다. 레인이 잘리거나 오른쪽에 빈 자리가 남았다.
         AffectsMeasure<TimelineControlBase>(
-            RowHeightProperty, VerticalZoomProperty, MeasureCountProperty,
+            RowHeightProperty, VerticalZoomProperty, HorizontalZoomProperty, MeasureCountProperty,
             BeatSplitProperty, GridMeasureProperty, DurationSecondsProperty, IsHorizontalViewProperty);
     }
 
@@ -173,10 +208,13 @@ public abstract class TimelineControlBase : Control
         // 배경 음원이 있으면 화면 전체가 곡 길이를 뜻하므로 초 단위로 훑는다.
         if (DurationSeconds > 0 && Bpm > 0)
         {
-            var secondsPerStep = 240.0 / (Bpm * split);
+            // 격자 칸의 시각은 Timeline 이 정한다. 예전에는 여기서 240/(BPM*split) 을
+            // 직접 써서, BPM 이 바뀌거나 4/4가 아닌 마디가 있으면 그 뒤로 전부 어긋났다.
+            var timeline = EffectiveTimeline;
+
             for (var index = 0; ; index++)
             {
-                var seconds = index * secondsPerStep;
+                var seconds = timeline.SecondsAt((double)index / split);
                 if (seconds > DurationSeconds)
                     yield break;
 
@@ -190,7 +228,7 @@ public abstract class TimelineControlBase : Control
 
         // 음원이 없으면 마디 높이가 곧 화면 높이다.
         var rowHeight = RowHeight * VerticalZoom * GetGridSpacingScale();
-        var secondsPerMeasure = Bpm > 0 ? 240.0 / Bpm : 0.0;
+        var measureTimeline = EffectiveTimeline;
 
         // 마지막 마디의 닫는 선까지 그리려고 MeasureCount 까지 돈다.
         // 범위를 벗어나는 보조선은 아래 검사에서 걸러진다.
@@ -210,7 +248,7 @@ public abstract class TimelineControlBase : Control
                     position,
                     ClassifyGridLine(beat, split),
                     measure,
-                    measurePosition * secondsPerMeasure);
+                    measureTimeline.SecondsAt(measurePosition));
             }
         }
     }
