@@ -61,11 +61,15 @@
                 <ToggleButton Grid.Row="0" Grid.Column="1" Classes="filter" Content="일반"
                               IsChecked="{Binding IncludeNormal}" />
                 <ToggleButton Grid.Row="0" Grid.Column="2" Classes="filter" Content="숨기기"
-                              IsChecked="{Binding IncludeHidden}" />
+                              IsChecked="{Binding IncludeHidden}"
+                              IsEnabled="{Binding AreNoteTypeFiltersUsable}"
+                              ToolTip.Tip="{Binding NoteTypeFilterHint}" />
                 <ToggleButton Grid.Row="1" Grid.Column="0" Classes="filter" Content="미선택"
                               IsChecked="{Binding IncludeUnselected}" />
                 <ToggleButton Grid.Row="1" Grid.Column="1" Classes="filter" Content="롱"
-                              IsChecked="{Binding IncludeLong}" />
+                              IsChecked="{Binding IncludeLong}"
+                              IsEnabled="{Binding AreNoteTypeFiltersUsable}"
+                              ToolTip.Tip="{Binding NoteTypeFilterHint}" />
                 <ToggleButton Grid.Row="1" Grid.Column="2" Classes="filter" Content="보이기"
                               IsChecked="{Binding IncludeVisible}" />
             </Grid>

@@ -26,6 +26,18 @@ public sealed class NoteGridControl : TimelineControlBase
     public static readonly StyledProperty<bool> IsEditModeProperty =
         AvaloniaProperty.Register<NoteGridControl, bool>(nameof(IsEditMode));
 
+    public static readonly StyledProperty<bool> SnapToGridProperty =
+        AvaloniaProperty.Register<NoteGridControl, bool>(nameof(SnapToGrid), true);
+
+    // 끄면 클릭한 자리에 그대로 찍는다. 잇단음처럼 격자로 표현할 수 없는 자리를
+    // 손으로 잡을 때 쓴다. 예전에는 이 값이 바인딩만 되어 있고 아무도 읽지 않아서,
+    // 체크를 꺼도 언제나 격자에 반올림됐다.
+    public bool SnapToGrid
+    {
+        get => GetValue(SnapToGridProperty);
+        set => SetValue(SnapToGridProperty, value);
+    }
+
     public static readonly StyledProperty<IReadOnlyList<BmsNote>?> SelectedNotesProperty =
         AvaloniaProperty.Register<NoteGridControl, IReadOnlyList<BmsNote>?>(nameof(SelectedNotes));
 
@@ -377,25 +389,29 @@ public sealed class NoteGridControl : TimelineControlBase
 
         var ratio = Math.Clamp(IsHorizontalView ? (tPos / timelineLength) : (1.0 - (tPos / timelineLength)), 0.0, 1.0);
 
-        int totalStepIndex;
-        if (DurationSeconds > 0)
+        // 클릭한 자리를 마디 위치로 되돌린다. 그리는 쪽과 같은 시간축을 쓴다.
+        var clickedMeasurePosition = DurationSeconds > 0
+            ? EffectiveTimeline.MeasurePositionAt(ratio * DurationSeconds)
+            : ratio * MeasureCount;
+
+        if (SnapToGrid)
         {
-            // 클릭한 초를 마디 위치로 되돌린 뒤 격자에 맞춘다. 그리는 쪽과 같은 시간축을 쓴다.
-            var measurePosition = EffectiveTimeline.MeasurePositionAt(ratio * DurationSeconds);
-            totalStepIndex = (int)Math.Round(measurePosition * split);
+            var totalStepIndex = (int)Math.Round(clickedMeasurePosition * split);
+
+            // 맨 끝을 클릭하면 반올림이 마디 경계를 딱 넘어서 measure == MeasureCount 가 된다.
+            // 예전에는 그대로 거부해서 **곡 마지막 격자 칸에는 노트를 찍을 수 없었다.**
+            // 거부하는 대신 마지막 칸으로 당겨준다.
+            totalStepIndex = Math.Clamp(totalStepIndex, 0, (MeasureCount * split) - 1);
+
+            measure = totalStepIndex / split;
+            position = (double)(totalStepIndex % split) / split;
         }
         else
         {
-            totalStepIndex = (int)Math.Round(ratio * MeasureCount * split);
+            var clamped = Math.Clamp(clickedMeasurePosition, 0, MeasureCount - (1.0 / split));
+            measure = (int)Math.Floor(clamped);
+            position = clamped - measure;
         }
-
-        // 맨 끝을 클릭하면 반올림이 마디 경계를 딱 넘어서 measure == MeasureCount 가 된다.
-        // 예전에는 그대로 거부해서 **곡 마지막 격자 칸에는 노트를 찍을 수 없었다.**
-        // 거부하는 대신 마지막 칸으로 당겨준다.
-        totalStepIndex = Math.Clamp(totalStepIndex, 0, (MeasureCount * split) - 1);
-
-        measure = totalStepIndex / split;
-        position = (double)(totalStepIndex % split) / split;
 
         if (measure < 0 || measure >= MeasureCount)
             return;

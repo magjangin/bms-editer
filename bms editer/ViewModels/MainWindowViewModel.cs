@@ -855,6 +855,11 @@ public sealed partial class MainWindowViewModel : ObservableObject
         var split = Math.Max(1, BeatSplit);
         var lanes = Chart.Lanes;
 
+        // "수직위치 고정"이 켜져 있으면 시간 위치는 건드리지 않는다. 레인만 옮긴다.
+        // (세로 뷰에서 세로축이 곧 시간축이라 체크박스 이름이 이렇게 붙어 있다)
+        if (LockVerticalPosition && direction is NoteMoveDirection.TimeForward or NoteMoveDirection.TimeBackward)
+            return;
+
         // 1단계: 옮길 자리를 전부 미리 구한다. 하나라도 못 구하면 그만둔다.
         var moves = new List<(BmsNote Note, int Measure, double Position, string LaneId)>(_selectedNotes.Count);
 
@@ -1113,18 +1118,40 @@ public sealed partial class MainWindowViewModel : ObservableObject
         NotifyNotesChanged();
     }
 
+    // 우클릭한 자리에서 가장 가까운 노트 하나를 지운다.
+    //
+    // 예전에는 허용오차가 0.005 로 고정이었다. 배치 허용오차(0.0001)의 50배라
+    // 192분할처럼 촘촘하게 찍어두면 엉뚱한 옆 노트가 지워졌다. 게다가 Find 는
+    // "가장 가까운"이 아니라 "처음 찾은" 것을 골라서 어느 게 지워질지 예측할 수 없었다.
     [RelayCommand]
     private void RemoveNote(NotePlacementArgs args)
     {
-        var existing = Chart.Notes.Find(n => 
-            n.Measure == args.Measure && 
-            n.LaneId == args.LaneId && 
-            Math.Abs(n.Position - args.Position) < 0.005);
+        // 격자 한 칸의 절반. 격자로 표현 못 하는 자리(잇단음)의 노트도 집을 수 있으면서,
+        // 옆 칸까지 넘어가지는 않는 폭이다.
+        var tolerance = Math.Max(PositionEpsilon, 0.5 / Math.Max(1, BeatSplit));
 
-        if (existing is not null)
+        BmsNote? nearest = null;
+        var nearestDistance = double.MaxValue;
+
+        foreach (var note in Chart.Notes)
         {
-            Chart.Notes.Remove(existing);
-            NotifyNotesChanged();
+            if (note.Measure != args.Measure || note.LaneId != args.LaneId)
+                continue;
+
+            var distance = Math.Abs(note.Position - args.Position);
+            if (distance > tolerance || distance >= nearestDistance)
+                continue;
+
+            nearest = note;
+            nearestDistance = distance;
         }
+
+        if (nearest is null)
+            return;
+
+        Chart.Notes.Remove(nearest);
+        _selectedNotes.Remove(nearest);
+        NotifyNotesChanged();
+        OnPropertyChanged(nameof(SelectedNotes));
     }
 }

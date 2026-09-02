@@ -106,6 +106,7 @@
                         Notes="{Binding Notes}"
                         IsCircleNoteShape="{Binding IsCircleNoteShape}"
                         IsEditMode="{Binding IsEditMode}"
+                        SnapToGrid="{Binding SnapToGrid}"
                         SelectedNotes="{Binding SelectedNotes}"
                         SelectionSource="{Binding SelectionSource}"
                         PlaceNoteCommand="{Binding PlaceNoteCommand}"
@@ -195,8 +196,10 @@
                             <TextBlock Text="{Binding WaveformHorizontalZoom, StringFormat={}{0:0.00}}" VerticalAlignment="Center" />
                         </StackPanel>
                         <CheckBox Content="재생바 따라가기" IsChecked="{Binding FollowPlaybackCursor}" />
-                        <CheckBox Content="격자에 맞추기(G)" IsChecked="{Binding SnapToGrid}" />
-                        <CheckBox Content="수직위치 고정(D)" IsChecked="{Binding LockVerticalPosition}" />
+                        <CheckBox Content="격자에 맞추기(G)" IsChecked="{Binding SnapToGrid}"
+                                  ToolTip.Tip="끄면 클릭한 자리에 그대로 찍습니다 (잇단음 등)" />
+                        <CheckBox Content="수직위치 고정(D)" IsChecked="{Binding LockVerticalPosition}"
+                                  ToolTip.Tip="켜면 방향키로 시간 위치를 바꾸지 않습니다. 레인만 옮깁니다" />
                         <CheckBox Content="가로 뷰로 돌리기" IsChecked="{Binding IsHorizontalView}" />
                         <CheckBox Content="네모를 동그라미로 바꾸기" IsChecked="{Binding IsCircleNoteShape}" />
                     </StackPanel>

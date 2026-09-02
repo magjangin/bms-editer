@@ -34,8 +34,16 @@ public sealed partial class NoteSearchViewModel : ObservableObject
 
     // BmsParser가 2자리/3자리 키음 배치를 모두 지원하므로,
     // 이 차트가 실제로 쓰는 자릿수에 맞춰 번호 범위의 기본값과 최댓값을 정한다.
-    private readonly int _keyWidth;
-    private readonly int _maxKeyValue;
+    //
+    // **매번 다시 본다.** 예전에는 창을 만들 때 한 번 정하고 굳혀서, 창을 띄워둔 채
+    // 3자리 차트를 열면 번호 범위가 2자리에 머물러 3자리 키음을 아예 찾을 수 없었다.
+    private int KeyWidth =>
+        _owner.Chart.WavTable.Keys.Any(key => key.Length == 3)
+        || _owner.Chart.Notes.Any(note => note.WavKey.Length == 3)
+            ? 3
+            : 2;
+
+    private int MaxKeyValue => KeyWidth == 3 ? (36 * 36 * 36) - 1 : (36 * 36) - 1;
 
     public NoteSearchViewModel(MainWindowViewModel owner)
     {
@@ -45,19 +53,25 @@ public sealed partial class NoteSearchViewModel : ObservableObject
             Lanes.Add(new LaneFilterItem(lane));
         }
 
-        _keyWidth = UsesThreeDigitKeys(owner) ? 3 : 2;
-        _maxKeyValue = _keyWidth == 3 ? (36 * 36 * 36) - 1 : (36 * 36) - 1;
-
         _wavKeyFrom = ToBase36(1);
-        _wavKeyTo = new string('Z', _keyWidth);
+        _wavKeyTo = new string('Z', KeyWidth);
         _replacementWavKey = ToBase36(1);
     }
 
-    private static bool UsesThreeDigitKeys(MainWindowViewModel owner) =>
-        owner.Chart.WavTable.Keys.Any(key => key.Length == 3)
-        || owner.Chart.Notes.Any(note => note.WavKey.Length == 3);
-
     public ObservableCollection<LaneFilterItem> Lanes { get; } = new();
+
+    // "롱"·"숨기기" 필터를 쓸 수 있는지.
+    //
+    // BmsParser 는 편집 대상인 건반 채널(11~18)만 노트로 만들고 전부 Normal 로 둔다.
+    // 롱노트(51~59)·숨김(31~39) 채널은 원문 보존으로 빠지므로, 이 두 필터는
+    // 어떤 노트에도 해당되지 않는다. 눌러도 아무 일이 없는 버튼을 켜 두면
+    // "조건을 잘못 넣었나" 하고 사용자만 헤매므로, 해당되는 노트가 생기기 전까지는 잠근다.
+    public bool AreNoteTypeFiltersUsable =>
+        _owner.Chart.Notes.Any(n => n.Type != NoteType.Normal);
+
+    public string NoteTypeFilterHint => AreNoteTypeFiltersUsable
+        ? "노트 종류로 거릅니다"
+        : "이 에디터는 아직 롱노트·숨김 노트를 편집 대상으로 읽지 않습니다. 해당되는 노트가 없어 잠겨 있습니다";
 
     // 대상 노트 - 선택 상태
     [ObservableProperty] private bool _includeSelected = true;
@@ -100,7 +114,7 @@ public sealed partial class NoteSearchViewModel : ObservableObject
 
         // 번호 범위는 base-36 값으로 비교한다. 입력이 잘못돼 있으면 그쪽 끝을 열어 둔다.
         var keyLow = TryParseBase36(WavKeyFrom, out var parsedLow) ? parsedLow : 0;
-        var keyHigh = TryParseBase36(WavKeyTo, out var parsedHigh) ? parsedHigh : _maxKeyValue;
+        var keyHigh = TryParseBase36(WavKeyTo, out var parsedHigh) ? parsedHigh : MaxKeyValue;
         if (keyLow > keyHigh)
             (keyLow, keyHigh) = (keyHigh, keyLow);
 
@@ -201,9 +215,9 @@ public sealed partial class NoteSearchViewModel : ObservableObject
     [RelayCommand]
     private void ReplaceWavKey()
     {
-        if (!TryParseBase36(ReplacementWavKey, out var parsed) || parsed == 0 || parsed > _maxKeyValue)
+        if (!TryParseBase36(ReplacementWavKey, out var parsed) || parsed == 0 || parsed > MaxKeyValue)
         {
-            StatusMessage = $"바꿀 번호는 {ToBase36(1)} ~ {new string('Z', _keyWidth)} 사이여야 합니다.";
+            StatusMessage = $"바꿀 번호는 {ToBase36(1)} ~ {new string('Z', KeyWidth)} 사이여야 합니다.";
             return;
         }
 
@@ -289,8 +303,8 @@ public sealed partial class NoteSearchViewModel : ObservableObject
     {
         const string Digits = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
-        var chars = new char[_keyWidth];
-        for (var i = _keyWidth - 1; i >= 0; i--)
+        var chars = new char[KeyWidth];
+        for (var i = KeyWidth - 1; i >= 0; i--)
         {
             chars[i] = Digits[value % 36];
             value /= 36;

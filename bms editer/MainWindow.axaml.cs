@@ -237,7 +237,7 @@ public partial class MainWindow : Window
             {
                 Title = "BMS 파일로 저장",
                 DefaultExtension = "bms",
-                SuggestedFileName = string.IsNullOrWhiteSpace(vm.Title) ? "chart" : vm.Title,
+                SuggestedFileName = ToSafeFileName(vm.Title),
                 FileTypeChoices = new[]
                 {
                     new FilePickerFileType("BMS 차트 파일") { Patterns = new[] { "*.bms", "*.bme", "*.bml" } },
@@ -245,6 +245,21 @@ public partial class MainWindow : Window
             });
 
             return file?.TryGetLocalPath();
+        }
+
+        // 곡 제목을 파일명으로 쓸 수 있게 다듬는다.
+        //
+        // 예전에는 제목을 그대로 넘겨서, `:` `?` `/` 같은 글자가 든 제목이면
+        // 저장 대화상자가 걸렸다. 곡 제목에는 흔한 글자들이다.
+        private static string ToSafeFileName(string? title)
+        {
+            if (string.IsNullOrWhiteSpace(title))
+                return "chart";
+
+            var safe = new string(title.Select(c => Path.GetInvalidFileNameChars().Contains(c) ? '_' : c).ToArray()).Trim();
+
+            // 전부 걸러졌거나 점만 남은 경우.
+            return safe.Trim('.').Length == 0 ? "chart" : safe;
         }
 
         private async Task LoadFolderMediaAsync(MainWindowViewModel vm, string folderPath)

@@ -53,7 +53,10 @@ public static partial class BmsParser
     [GeneratedRegex(@"^#PLAYLEVEL\s+(.*)", RegexOptions.IgnoreCase)]
     private static partial Regex PlayLevelRegex();
 
-    [GeneratedRegex(@"^#([0-9]{3})([0-9a-zA-Z]{2}):(.*)", RegexOptions.IgnoreCase)]
+    // 마디는 보통 세 자리지만, 규격을 넘겨 네 자리를 쓰는 차트가 실제로 있다.
+    // 세 자리로만 받으면 해석에 실패해서 "에디터가 모르는 줄"이 되고,
+    // 저장할 때 데이터 줄이 아니라 파일 맨 위 헤더 블록으로 끌려 올라갔다.
+    [GeneratedRegex(@"^#([0-9]{3,})([0-9a-zA-Z]{2}):(.*)", RegexOptions.IgnoreCase)]
     private static partial Regex DataRegex();
 
     // 갈래를 나누는 제어 줄. 이 에디터는 아직 해석하지 못한다. (BmsChart.HasConditionalBlocks 참고)
@@ -194,7 +197,16 @@ public static partial class BmsParser
         foreach (var rawLine in rawLines)
         {
             var line = rawLine.Trim();
-            if (string.IsNullOrEmpty(line) || !line.StartsWith("#")) continue;
+            if (string.IsNullOrEmpty(line))
+                continue;
+
+            // '#' 로 시작하지 않는 줄은 주석이다(`*----` 같은 구분선이 흔하다).
+            // 예전에는 원문 보존 대상에서 빠져 저장할 때 통째로 사라졌다.
+            if (!line.StartsWith("#"))
+            {
+                chart.PreservedLines.Add(new BmsRawLine { Text = line });
+                continue;
+            }
 
             var dataMatch = DataRegex().Match(line);
             if (!dataMatch.Success)

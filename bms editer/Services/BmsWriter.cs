@@ -26,13 +26,19 @@ public static class BmsWriter
     {
         var sb = new StringBuilder();
 
-        sb.Append("#TITLE ").AppendLine(title);
-        sb.Append("#ARTIST ").AppendLine(artist);
-        sb.Append("#GENRE ").AppendLine(genre);
+        // 값이 빈 헤더는 아예 쓰지 않는다.
+        // 예전에는 무조건 다 써서, 세 줄짜리 차트를 열었다 저장하면 원본에 없던
+        // `#TITLE `·`#GENRE `·`#PLAYLEVEL ` 같은 빈 줄이 붙어 열한 줄이 됐다.
+        AppendIfPresent(sb, "#TITLE", title);
+        AppendIfPresent(sb, "#ARTIST", artist);
+        AppendIfPresent(sb, "#GENRE", genre);
+
+        // BPM·PLAYER·RANK 는 재생에 반드시 필요한 값이라 비어 있을 수 없다. 늘 쓴다.
         sb.Append("#BPM ").AppendLine(bpm.ToString("0.######", CultureInfo.InvariantCulture));
         sb.Append("#PLAYER ").AppendLine((player + 1).ToString(CultureInfo.InvariantCulture));
         sb.Append("#RANK ").AppendLine(rank.ToString(CultureInfo.InvariantCulture));
-        sb.Append("#PLAYLEVEL ").AppendLine(level);
+
+        AppendIfPresent(sb, "#PLAYLEVEL", level);
 
         // 에디터가 다루지 않는 헤더(#TOTAL, #STAGEFILE, #BPMxx, #STOPxx, #BMPxx 등)를
         // 읽어들인 원문 그대로 되돌려 놓는다. 없으면 저장할 때마다 사라진다.
@@ -48,7 +54,17 @@ public static class BmsWriter
         var emptySlot = new string('0', keyWidth);
         var outputDirectory = Path.GetDirectoryName(Path.GetFullPath(outputFilePath)) ?? "";
 
-        foreach (var wav in wavItems.OrderBy(w => w.Key, StringComparer.OrdinalIgnoreCase))
+        // 같은 번호가 두 번 정의돼 있으면 마지막 것만 쓴다.
+        //
+        // WavTable(재생에 쓰는 표)은 원래부터 마지막 것만 남기는데 WavItems 에는 둘 다
+        // 들어 있어서, 저장하면 #WAV01 이 두 줄로 늘어났다. 저장할 때마다 늘어나고,
+        // 재생과 파일이 서로 다른 파일을 가리키게 된다.
+        var uniqueWavItems = wavItems
+            .GroupBy(w => w.Key, StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.Last())
+            .OrderBy(w => w.Key, StringComparer.OrdinalIgnoreCase);
+
+        foreach (var wav in uniqueWavItems)
         {
             var key = wav.Key.PadLeft(keyWidth, '0');
             sb.Append("#WAV").Append(key).Append(' ').AppendLine(ResolveOutputPath(wav, outputDirectory));
@@ -101,6 +117,14 @@ public static class BmsWriter
             sb.AppendLine(line.Text);
 
         return sb.ToString();
+    }
+
+    private static void AppendIfPresent(StringBuilder sb, string tag, string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return;
+
+        sb.Append(tag).Append(' ').AppendLine(value);
     }
 
     // 키 자릿수는 #WAV 테이블과 노트 키 **양쪽**의 최대 길이로 잡는다.
