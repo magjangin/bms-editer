@@ -16,13 +16,13 @@ public sealed partial class OggAudioPlayer : IDisposable
     private WaveHeader _header;
     private bool _prepared;
 
-    public OggAudioPlayer(string filePath)
+    // 디코딩은 OggDecoder 가 한 번만 한다. 파형 계산도 같은 결과를 나눠 쓴다.
+    public OggAudioPlayer(OggAudioData data)
     {
-        using var reader = new VorbisReader(filePath);
-        _sampleRate = reader.SampleRate;
-        _channels = (short)reader.Channels;
-        DurationSeconds = reader.TotalTime.TotalSeconds;
-        _pcmBytes = DecodePcm16(reader);
+        _sampleRate = data.SampleRate;
+        _channels = (short)data.Channels;
+        DurationSeconds = data.DurationSeconds;
+        _pcmBytes = data.Pcm16;
     }
 
     public double DurationSeconds { get; }
@@ -119,27 +119,6 @@ public sealed partial class OggAudioPlayer : IDisposable
         var clampedSeconds = Math.Clamp(seconds, 0, DurationSeconds);
         var byteOffset = (int)(clampedSeconds * _sampleRate * blockAlign);
         return Math.Clamp(byteOffset - (byteOffset % blockAlign), 0, _pcmBytes.Length);
-    }
-
-    private static byte[] DecodePcm16(VorbisReader reader)
-    {
-        var totalSamples = checked((int)(reader.TotalSamples * reader.Channels));
-        var bytes = new byte[totalSamples * sizeof(short)];
-        var floatBuffer = new float[4096 * reader.Channels];
-        var byteOffset = 0;
-
-        int samplesRead;
-        while ((samplesRead = reader.ReadSamples(floatBuffer, 0, floatBuffer.Length)) > 0)
-        {
-            for (var i = 0; i < samplesRead; i++)
-            {
-                var sample = (short)(Math.Clamp(floatBuffer[i], -1f, 1f) * short.MaxValue);
-                bytes[byteOffset++] = (byte)(sample & 0xff);
-                bytes[byteOffset++] = (byte)((sample >> 8) & 0xff);
-            }
-        }
-
-        return bytes;
     }
 
     private static void ThrowIfFailed(int result)

@@ -111,7 +111,7 @@ public partial class MainWindow : Window
                 return;
 
             // 실패해도 이미 물려 있던 음원은 그대로 남는다. 사유만 알려준다.
-            if (!vm.LoadOgg(path))
+            if (!await vm.LoadOggAsync(path))
                 await ConfirmWindow.ShowMessageAsync(this, $"OGG를 불러오지 못했습니다.\n\n{vm.LastErrorMessage}", "OGG 로드 실패");
         }
 
@@ -288,7 +288,7 @@ public partial class MainWindow : Window
             }
 
             var oggPath = FindBestFile(folderPath, OggExtensions);
-            if (oggPath is not null && !vm.LoadOgg(oggPath))
+            if (oggPath is not null && !await vm.LoadOggAsync(oggPath))
                 await ConfirmWindow.ShowMessageAsync(this, $"OGG를 불러오지 못했습니다.\n\n{vm.LastErrorMessage}", "OGG 로드 실패");
 
             var videoPath = FindBestFile(folderPath, VideoExtensions);

@@ -111,26 +111,37 @@ public sealed partial class MainWindowViewModel : ObservableObject
         OnPropertyChanged(nameof(GridDisplay));
     }
 
+    // 지금 음원을 읽는 중인지. 화면에 로딩 표시를 띄우는 데 쓴다.
+    [ObservableProperty] private bool _isLoadingOgg;
+
     // 실패하면 false. 실패해도 이미 물려 있던 음원은 그대로 둔다.
     //
     // 예전에는 catch 가 _audioPlayer(= 기존 플레이어)를 Dispose 하고 파형·길이를 0/null 로
     // 밀어버렸다. 새로 고른 파일이 깨졌을 뿐인데 멀쩡하던 파형과 재생이 같이 사라졌다.
-    public bool LoadOgg(string filePath)
+    public async Task<bool> LoadOggAsync(string filePath)
     {
         OggWaveform waveform;
         OggAudioPlayer audioPlayer;
 
+        IsLoadingOgg = true;
         try
         {
+            // 디코딩은 5분짜리 곡이면 수 초가 걸린다. UI 스레드에서 하면 그동안 창이 얼어붙는다.
             // 새 음원을 끝까지 다 읽고 나서야 기존 것을 건드린다.
-            waveform = OggPeakLoader.Load(filePath);
-            audioPlayer = new OggAudioPlayer(filePath);
+            var decoded = await Task.Run(() => OggDecoder.Decode(filePath));
+
+            waveform = OggPeakLoader.Load(decoded);
+            audioPlayer = new OggAudioPlayer(decoded);
         }
         catch (Exception ex)
         {
             LastErrorMessage = ex.Message;
             System.Diagnostics.Debug.WriteLine($"OGG 로드 실패: {ex.Message}");
             return false;
+        }
+        finally
+        {
+            IsLoadingOgg = false;
         }
 
         StopPlayback(resetCursor: true);
@@ -577,10 +588,9 @@ public sealed partial class MainWindowViewModel : ObservableObject
         // 읽어낸 인코딩을 기억해 두었다가 저장할 때 그대로 되돌려 쓴다.
         DocumentEncoding = parsed.Encoding;
 
-        foreach (var wavItem in parsed.WavItems)
-        {
-            WavList.Add(wavItem);
-        }
+        // 한 번에 갈아끼운다. 하나씩 Add 하면 항목마다 알림이 나가고,
+        // 통계·팔레트 창이 그때마다 전체 재집계를 돈다. (BulkObservableCollection 주석 참고)
+        WavList.ReplaceAll(parsed.WavItems);
 
         if (WavList.Count > 0)
         {
@@ -700,7 +710,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     private readonly KeySoundPlayer _keySoundPlayer = new();
 
-    public ObservableCollection<BmsWavItem> WavList { get; } = new();
+    public BulkObservableCollection<BmsWavItem> WavList { get; } = new();
     [ObservableProperty] private BmsWavItem? _selectedWavItem;
 
     public IReadOnlyList<BmsNote> Notes => Chart.Notes.ToArray();

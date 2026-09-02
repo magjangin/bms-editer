@@ -24,22 +24,23 @@ public static class OggPeakLoader
 
     // peaksPerSecond: 초당 샘플 개수. 곡 길이에 비례해서 정하므로
     // 짧은 곡/긴 곡 모두 화면에서 비슷한 밀도로 보인다(고정 총 개수 대비 개선).
-    public static OggWaveform Load(string filePath, double peaksPerSecond = 80.0)
+    // 이미 풀어놓은 PCM 에서 피크를 뽑는다.
+    //
+    // 예전에는 여기서도 VorbisReader 를 따로 열어 곡 전체를 다시 디코딩했다.
+    // OggAudioPlayer 가 하는 일과 똑같은 일을 한 번 더 한 셈이라 로딩이 두 배 걸렸다.
+    public static OggWaveform Load(OggAudioData data, double peaksPerSecond = 80.0)
     {
-        using var reader = new VorbisReader(filePath);
-        var durationSeconds = reader.TotalTime.TotalSeconds;
+        var durationSeconds = data.DurationSeconds;
         var peakCount = Math.Clamp((int)(durationSeconds * peaksPerSecond), 32, 20000);
 
-        var channels = reader.Channels;
-        var totalFrames = reader.TotalSamples;
+        var channels = data.Channels;
+        var totalFrames = data.FrameCount;
 
         var peaks = new float[peakCount];
         var energies = new float[peakCount];
 
         if (totalFrames <= 0 || channels <= 0)
             return new OggWaveform(peaks, BuildOnsets(energies), durationSeconds);
-
-        var buffer = new float[4096 * channels];
 
         // 버킷 크기를 정수 프레임 수로 고정하면(예: 44100/80 = 551.25 → 551) 피크 배열이
         // 곡 전체를 덮지 못한 채 타임라인 전체 폭에 늘어나 그려져서, 재생 시간에 비례하는
@@ -65,29 +66,33 @@ public static class OggPeakLoader
             maxInBucket = 0f;
         }
 
-        int samplesRead;
-        while ((samplesRead = reader.ReadSamples(buffer, 0, buffer.Length)) > 0)
+        var pcm = data.Pcm16;
+        var bytesPerFrame = channels * sizeof(short);
+
+        for (; frameIndex < totalFrames; frameIndex++)
         {
-            var frames = samplesRead / channels;
-            for (var i = 0; i < frames; i++)
+            var bucket = (int)Math.Min(peakCount - 1, frameIndex * peakCount / totalFrames);
+            if (bucket != bucketIndex)
             {
-                // 디코더가 TotalSamples보다 조금 더 내보내도 마지막 버킷에 흡수시킨다.
-                var bucket = (int)Math.Min(peakCount - 1, frameIndex * peakCount / totalFrames);
-                if (bucket != bucketIndex)
-                {
-                    FlushBucket();
-                    bucketIndex = bucket;
-                }
-
-                var value = 0f;
-                for (var c = 0; c < channels; c++)
-                    value = Math.Max(value, Math.Abs(buffer[i * channels + c]));
-
-                sumSquares += (double)value * value;
-                maxInBucket = Math.Max(maxInBucket, value);
-                frameInBucket++;
-                frameIndex++;
+                FlushBucket();
+                bucketIndex = bucket;
             }
+
+            var frameStart = frameIndex * bytesPerFrame;
+            var value = 0f;
+
+            for (var c = 0; c < channels; c++)
+            {
+                var offset = (int)frameStart + (c * sizeof(short));
+                var sample = (short)(pcm[offset] | (pcm[offset + 1] << 8));
+
+                // short.MinValue 의 절댓값은 short 범위를 넘으므로 float 로 올려 나눈다.
+                value = Math.Max(value, Math.Abs(sample / 32768f));
+            }
+
+            sumSquares += (double)value * value;
+            maxInBucket = Math.Max(maxInBucket, value);
+            frameInBucket++;
         }
 
         FlushBucket();
