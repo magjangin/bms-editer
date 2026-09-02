@@ -15,7 +15,22 @@ namespace bms_editer.ViewModels;
 public sealed partial class MainWindowViewModel : ObservableObject
 {
     public BmsChart Chart { get; } = new();
-    public string? CurrentFilePath { get; private set; }
+
+    public string? CurrentFilePath
+    {
+        get => _currentFilePath;
+        private set
+        {
+            if (_currentFilePath == value)
+                return;
+
+            _currentFilePath = value;
+            OnPropertyChanged(nameof(CurrentFilePath));
+            OnPropertyChanged(nameof(WindowTitle));
+        }
+    }
+
+    private string? _currentFilePath;
     private readonly DispatcherTimer _playbackTimer;
     private readonly DispatcherTimer _gridSyncFlashTimer;
     private OggAudioPlayer? _audioPlayer;
@@ -79,6 +94,9 @@ public sealed partial class MainWindowViewModel : ObservableObject
             _gridSyncFlashTimer.Stop();
             IsGridSyncFlashVisible = false;
         };
+
+        // 키음을 넣거나 뺀 것도 저장해야 할 변경이다.
+        WavList.CollectionChanged += (_, _) => MarkDirty();
     }
 
     public string GridDisplay => $"{BeatSplit}/{Math.Max(1, GridMeasure)}";
@@ -144,6 +162,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     partial void OnBpmChanged(double value)
     {
+        MarkDirty();
         UpdateMeasureCountFromAudio();
         FlashGridSync();
     }
@@ -208,8 +227,18 @@ public sealed partial class MainWindowViewModel : ObservableObject
     private void NotifyNotesChanged()
     {
         _sortedNotesCache = null;
+        MarkDirty();
         OnPropertyChanged(nameof(Notes));
     }
+
+    // 화면에 묶인 헤더 값이 바뀌면 문서를 고친 것이다.
+    // 불러오기·새로 만들기는 이 뒤에 MarkClean 을 부르므로 깨끗한 상태로 돌아간다.
+    partial void OnTitleChanged(string value) => MarkDirty();
+    partial void OnArtistChanged(string value) => MarkDirty();
+    partial void OnGenreChanged(string value) => MarkDirty();
+    partial void OnLevelChanged(string value) => MarkDirty();
+    partial void OnPlayerChanged(int value) => MarkDirty();
+    partial void OnRankChanged(int value) => MarkDirty();
 
     // 재생을 시작한다. 오디오 장치를 열 수 없으면(장치 없음·다른 앱이 독점) false.
     //
@@ -329,19 +358,51 @@ public sealed partial class MainWindowViewModel : ObservableObject
     // 새로 만들기처럼 작업 내용을 버리는 동작 전에 사용자 확인을 받는 콜백. (View가 주입)
     public Func<string, Task<bool>>? ConfirmDiscardAsync { get; set; }
 
-    // 되돌릴 수 없게 사라질 편집 내용이 남아 있는지 여부.
-    private bool HasDocumentContent =>
-        Chart.Notes.Count > 0
-        || WavList.Count > 0
-        || CurrentFilePath is not null
-        || !string.IsNullOrWhiteSpace(Title)
-        || !string.IsNullOrWhiteSpace(Artist);
+    // 마지막 저장(또는 열기) 이후에 고친 것이 있는지.
+    //
+    // 예전에는 "내용이 있는지"(HasDocumentContent)로만 판단해서, 열어놓고 아무것도
+    // 안 고쳤는데도 확인창이 떴다. 그러면 사용자가 확인창을 습관적으로 넘기게 되고,
+    // 정작 진짜로 잃을 게 있을 때도 그냥 넘겨 버린다.
+    public bool IsDirty
+    {
+        get => _isDirty;
+        private set
+        {
+            if (_isDirty == value)
+                return;
+
+            _isDirty = value;
+            OnPropertyChanged(nameof(IsDirty));
+            OnPropertyChanged(nameof(WindowTitle));
+        }
+    }
+
+    private bool _isDirty;
+
+    // 제목 표시줄. 어떤 파일을 열었고 저장했는지가 여기 말고는 드러나는 곳이 없다.
+    public string WindowTitle
+    {
+        get
+        {
+            var name = CurrentFilePath is { } path ? System.IO.Path.GetFileName(path) : "제목 없음";
+            return $"{(IsDirty ? "*" : "")}{name} - bms editer";
+        }
+    }
+
+    // 문서를 고쳤다고 표시한다. 노트·헤더·키음이 바뀌는 모든 자리에서 부른다.
+    public void MarkDirty() => IsDirty = true;
+
+    private void MarkClean()
+    {
+        IsDirty = false;
+        OnPropertyChanged(nameof(WindowTitle));
+    }
 
     // 작업 내용을 버리는 동작(새로 만들기·열기) 앞에서 확인을 받는다.
-    // 버릴 내용이 없거나 콜백이 없으면 그냥 진행한다.
+    // 고친 것이 없거나 콜백이 없으면 그냥 진행한다.
     public async Task<bool> ConfirmDiscardIfNeededAsync(string message)
     {
-        if (!HasDocumentContent || ConfirmDiscardAsync is not { } confirm)
+        if (!IsDirty || ConfirmDiscardAsync is not { } confirm)
             return true;
 
         return await confirm(message);
@@ -386,6 +447,9 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
         NotifyNotesChanged();
         OnPropertyChanged(nameof(SelectedNotes));
+
+        // 방금 비운 직후는 "고친 것 없음"이다. 위 알림들이 세운 표시를 여기서 내린다.
+        MarkClean();
     }
 
     // Chart.Header 의 값을 화면에 묶인 프로퍼티로 옮긴다.
@@ -460,6 +524,9 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
         // UI 렌더링 강제 업데이트 유도
         NotifyNotesChanged();
+
+        // 방금 읽어온 그대로다. 아직 고친 것이 없다.
+        MarkClean();
         return true;
     }
 
@@ -530,6 +597,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
             DocumentEncoding = encoding;
             CurrentFilePath = filePath;
             LastErrorMessage = null;
+            MarkClean();
             return true;
         }
         catch (Exception ex)
