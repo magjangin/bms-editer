@@ -117,6 +117,29 @@ public sealed class NoteGridControl : TimelineControlBase
     // 노트 한 개마다 새로 만들면 프레임당 수천 개가 할당된다. 색이 고정이라 나눠 쓴다.
     private static readonly Pen NoteOutlinePen = new(Brushes.Black, 1);
 
+    private static readonly IBrush ScratchNoteBrush = new SolidColorBrush(Color.FromRgb(230, 40, 40));
+    private static readonly IBrush BlackKeyNoteBrush = new SolidColorBrush(Color.FromRgb(40, 140, 230));
+    private static readonly IBrush WhiteKeyNoteBrush = new SolidColorBrush(Color.FromRgb(240, 240, 240));
+
+    // 노트 채움색도 세 가지뿐이라 나눠 쓴다. 예전에는 노트마다 새로 만들었다.
+    private static IBrush GetNoteBrush(string laneId) => laneId switch
+    {
+        "16" => ScratchNoteBrush,                          // 스크래치는 빨강
+        "12" or "14" or "18" => BlackKeyNoteBrush,         // 흑건은 파랑
+        _ => WhiteKeyNoteBrush,                            // 백건은 백색
+    };
+
+    // 격자 펜과 배경도 매 프레임 새로 만들 이유가 없다.
+    private static readonly IBrush GridBackgroundBrush = new SolidColorBrush(Color.FromArgb(40, 30, 60, 120));
+    private static readonly IPen LanePen = new Pen(Brushes.DimGray, 1);
+    private static readonly IPen SubBeatPen = new Pen(new SolidColorBrush(Color.FromArgb(55, 150, 160, 170)), 1);
+    private static readonly IPen BeatPen = new Pen(new SolidColorBrush(Color.FromArgb(120, 190, 200, 210)), 1);
+    private static readonly IPen MeasurePen = new Pen(Brushes.White, 1.5);
+    private static readonly IBrush LaneHeaderBrush = new SolidColorBrush(Color.FromArgb(140, 200, 200, 200));
+    private static readonly IBrush DragFillBrush = new SolidColorBrush(Color.FromArgb(60, 255, 220, 60));
+    private static readonly IPen DragOutlinePen = new Pen(Brushes.Yellow, 1);
+    private static readonly Typeface LaneHeaderTypeface = new("Inter, Arial, sans-serif");
+
     // 손으로 고른 선택은 노랑. 통계 창에서 "이 키음이 어디 있나" 훑어보려고 켠
     // 선택은 빨강이라, 지금 보고 있는 게 어느 쪽인지 색만 보고 안다.
     private static readonly Pen SelectionPen = new(Brushes.Yellow, 2);
@@ -172,23 +195,19 @@ public sealed class NoteGridControl : TimelineControlBase
         var totalHeight = IsHorizontalView ? totalLanesThickness : timelineLength;
 
         context.FillRectangle(Brushes.Black, new Rect(0, 0, totalWidth, totalHeight));
-        context.FillRectangle(new SolidColorBrush(Color.FromArgb(40, 30, 60, 120)), new Rect(0, 0, totalWidth, totalHeight));
+        context.FillRectangle(GridBackgroundBrush, new Rect(0, 0, totalWidth, totalHeight));
 
-        var lanePen = new Pen(Brushes.DimGray, 1);
-        var subBeatPen = new Pen(new SolidColorBrush(Color.FromArgb(55, 150, 160, 170)), 1);
-        var beatPen = new Pen(new SolidColorBrush(Color.FromArgb(120, 190, 200, 210)), 1);
-        var measurePen = new Pen(Brushes.White, 1.5);
 
         var thicknessOffset = 0.0;
         for (var i = 0; i <= lanes.Count; i++)
         {
             if (IsHorizontalView)
             {
-                context.DrawLine(lanePen, new Point(0, thicknessOffset), new Point(totalWidth, thicknessOffset));
+                context.DrawLine(LanePen, new Point(0, thicknessOffset), new Point(totalWidth, thicknessOffset));
             }
             else
             {
-                context.DrawLine(lanePen, new Point(thicknessOffset, 0), new Point(thicknessOffset, totalHeight));
+                context.DrawLine(LanePen, new Point(thicknessOffset, 0), new Point(thicknessOffset, totalHeight));
             }
 
             if (i < lanes.Count)
@@ -199,9 +218,9 @@ public sealed class NoteGridControl : TimelineControlBase
         {
             var pen = line.Kind switch
             {
-                GridLineKind.Measure => measurePen,
-                GridLineKind.Beat => beatPen,
-                _ => subBeatPen,
+                GridLineKind.Measure => MeasurePen,
+                GridLineKind.Beat => BeatPen,
+                _ => SubBeatPen,
             };
 
             if (IsHorizontalView)
@@ -222,9 +241,9 @@ public sealed class NoteGridControl : TimelineControlBase
                 lane.Header,
                 System.Globalization.CultureInfo.CurrentCulture,
                 FlowDirection.LeftToRight,
-                new Typeface("Inter, Arial, sans-serif"),
+                LaneHeaderTypeface,
                 12.0,
-                new SolidColorBrush(Color.FromArgb(140, 200, 200, 200)));
+                LaneHeaderBrush);
 
             if (IsHorizontalView)
             {
@@ -251,19 +270,7 @@ public sealed class NoteGridControl : TimelineControlBase
                 var laneIndex = FindLaneIndex(lanes, note.LaneId);
                 if (laneIndex == -1) continue;
 
-                IBrush noteBrush = Brushes.White;
-                if (note.LaneId == "16")
-                {
-                    noteBrush = new SolidColorBrush(Color.FromRgb(230, 40, 40)); // 스크래치는 빨강
-                }
-                else if (note.LaneId == "12" || note.LaneId == "14" || note.LaneId == "18")
-                {
-                    noteBrush = new SolidColorBrush(Color.FromRgb(40, 140, 230)); // 흑건은 파랑
-                }
-                else
-                {
-                    noteBrush = new SolidColorBrush(Color.FromRgb(240, 240, 240)); // 백건은 백색
-                }
+                var noteBrush = GetNoteBrush(note.LaneId);
 
                 var noteTPos = ComputeNoteTPos(note, timelineLength);
                 var laneOffset = laneIndex * laneThickness;
@@ -314,8 +321,8 @@ public sealed class NoteGridControl : TimelineControlBase
         if (_dragStartPoint is { } dragStart && _dragCurrentPoint is { } dragEnd)
         {
             var selectionRect = NormalizedRect(dragStart, dragEnd);
-            context.FillRectangle(new SolidColorBrush(Color.FromArgb(60, 255, 220, 60)), selectionRect);
-            context.DrawRectangle(null, new Pen(Brushes.Yellow, 1), selectionRect);
+            context.FillRectangle(DragFillBrush, selectionRect);
+            context.DrawRectangle(null, DragOutlinePen, selectionRect);
         }
 
         DrawGridSyncFlash(context, totalWidth, totalHeight);
