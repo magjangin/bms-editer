@@ -51,9 +51,10 @@
             <ItemsControl ItemsSource="{Binding WavStats}">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:WavNoteStat">
+                        <!-- 명령을 조상 바인딩($parent[ItemsControl])으로 끌어오면 컴파일된 바인딩에서
+                             조용히 실패해 클릭이 아무 일도 안 한다. 코드 비하인드에서 직접 받는다. -->
                         <Button Classes="statRow"
-                                Command="{Binding $parent[ItemsControl].((vm:NoteStatsViewModel)DataContext).SelectByWavKeyCommand}"
-                                CommandParameter="{Binding Key}"
+                                Click="OnWavStatRowClick"
                                 ToolTip.Tip="누르면 이 번호를 쓰는 노트를 격자에서 모두 선택합니다">
                             <Grid ColumnDefinitions="Auto,*,Auto">
                                 <TextBlock Grid.Column="0" Text="{Binding Key, StringFormat='#{0}'}" Width="44" />
