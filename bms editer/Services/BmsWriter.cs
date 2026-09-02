@@ -74,19 +74,24 @@ public static class BmsWriter
         var laneOrder = BuildLaneOrder(chart.Lanes);
 
         // 편집한 건반 줄과 보존한 원문 줄을 마디 순서로 합쳐서 내보낸다.
-        // 같은 마디 안에서는 원문 줄(BGM·마디 길이·BPM 변화 등)을 앞에 두어
-        // 보통의 BMS 파일과 같은 배치가 되게 한다. 원문끼리는 파일에 있던 순서를 지킨다.
+        // 같은 마디 안에서는 원문 줄(BGM·마디 길이·BPM 변화 등)과 조건 블록을 원래 순서대로 배치한다.
         var dataLines = new List<(int Measure, int Order, string Text)>();
 
         foreach (var raw in chart.PreservedLines)
         {
             if (raw.IsData)
-                dataLines.Add((raw.Measure, 0, raw.Text));
+            {
+                var order = raw.IsControlFlow || raw.BranchId > 0
+                    ? 10000 + (raw.Order >= 0 ? raw.Order : 0)
+                    : 0;
+                dataLines.Add((raw.Measure, order, raw.Text));
+            }
         }
 
         var groups = chart.Notes
-            .GroupBy(n => (n.Measure, n.LaneId))
+            .GroupBy(n => (n.Measure, n.BranchId, n.LaneId))
             .OrderBy(g => g.Key.Measure)
+            .ThenBy(g => g.Key.BranchId)
             .ThenBy(g => laneOrder.TryGetValue(g.Key.LaneId, out var order) ? order : int.MaxValue);
 
         foreach (var group in groups)
@@ -105,7 +110,19 @@ public static class BmsWriter
             }
 
             var measureTag = group.Key.Measure.ToString("000", CultureInfo.InvariantCulture);
-            var order = laneOrder.TryGetValue(group.Key.LaneId, out var laneIndex) ? laneIndex + 1 : int.MaxValue;
+            var lIndex = laneOrder.TryGetValue(group.Key.LaneId, out var o) ? o + 1 : 100;
+
+            int order;
+            if (group.Key.BranchId > 0)
+            {
+                var sourceOrder = notes.Where(n => n.SourceLineOrder > 0).Select(n => n.SourceLineOrder).DefaultIfEmpty(0).Min();
+                order = 10000 + (sourceOrder > 0 ? sourceOrder : (1000 + lIndex));
+            }
+            else
+            {
+                order = lIndex;
+            }
+
             dataLines.Add((
                 group.Key.Measure,
                 order,

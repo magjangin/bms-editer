@@ -109,10 +109,10 @@ public sealed class SaveIntegrityTests : IDisposable
     // ── 18. #RANDOM/#IF 차트가 저장하면 통째로 무너진다 ────────────────────────
 
     [Fact]
-    public void RANDOM_블록이_있으면_저장을_거부하고_파일을_건드리지_않는다()
+    public void RANDOM_블록과_IF_분기가_손상_없이_원문_그대로_보존되어_저장된다()
     {
         var original =
-            "#TITLE t\r\n#BPM 120\r\n#WAV01 a.wav\r\n" +
+            "#TITLE t\r\n#BPM 120\r\n#PLAYER 1\r\n#RANK 3\r\n#WAV01 a.wav\r\n\r\n" +
             "#00101:01\r\n#RANDOM 2\r\n#IF 1\r\n#00111:01000000\r\n#ENDIF\r\n#IF 2\r\n#00111:00001000\r\n#ENDIF\r\n";
         var path = WriteChart(original);
 
@@ -120,26 +120,29 @@ public sealed class SaveIntegrityTests : IDisposable
         Assert.True(vm.LoadBms(path));
         Assert.True(vm.Chart.HasConditionalBlocks);
 
-        Assert.False(vm.SaveBms(path));
-        Assert.Contains("#RANDOM", vm.LastErrorMessage);
+        Assert.True(vm.SaveBms(path), vm.LastErrorMessage);
 
-        // 껍데기만 남은 #IF 나 한 줄로 합쳐진 노트가 생기지 않았는지.
-        Assert.Equal(original, File.ReadAllText(path));
+        var savedText = File.ReadAllText(path);
+        // 갈래별 노드가 하나로 합쳐지지 않고 각 IF 블록 안에 안전하게 보존되었는지 검증
+        Assert.Contains("#RANDOM 2", savedText);
+        Assert.Contains("#IF 1\r\n#00111:01\r\n#ENDIF", savedText);
+        Assert.Contains("#IF 2\r\n#00111:0010\r\n#ENDIF", savedText);
     }
 
-    [Theory]
-    [InlineData("#SWITCH 3")]
-    [InlineData("#IF 1")]
-    [InlineData("#SETRANDOM 2")]
-    public void 다른_조건_줄도_같이_막는다(string controlLine)
+    [Fact]
+    public void SWITCH_CASE_조건_블록도_손상_없이_저장된다()
     {
-        var path = WriteChart($"#TITLE t\r\n#BPM 120\r\n{controlLine}\r\n#00111:01\r\n");
+        var original = "#TITLE t\r\n#BPM 120\r\n#PLAYER 1\r\n#RANK 3\r\n#WAV01 a.wav\r\n\r\n#SWITCH 3\r\n#CASE 1\r\n#00111:01\r\n#ENDSW\r\n";
+        var path = WriteChart(original);
 
         var vm = new MainWindowViewModel();
         Assert.True(vm.LoadBms(path));
-
         Assert.True(vm.Chart.HasConditionalBlocks);
-        Assert.False(vm.SaveBms(path));
+        Assert.True(vm.SaveBms(path), vm.LastErrorMessage);
+
+        var savedText = File.ReadAllText(path);
+        Assert.Contains("#SWITCH 3", savedText);
+        Assert.Contains("#CASE 1\r\n#00111:01\r\n#ENDSW", savedText);
     }
 
     [Fact]

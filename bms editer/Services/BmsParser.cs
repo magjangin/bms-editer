@@ -193,9 +193,15 @@ public static partial class BmsParser
             }
         }
 
-        // 2단계: 채보 데이터(노트) 파싱
-        foreach (var rawLine in rawLines)
+        // 2단계: 채보 데이터(노트) 및 제어문 파싱
+        var currentMeasure = 0;
+        var currentBranchId = 0;
+        var nextBranchId = 1;
+        var branchStack = new Stack<int>();
+
+        for (var lineIndex = 0; lineIndex < rawLines.Length; lineIndex++)
         {
+            var rawLine = rawLines[lineIndex];
             var line = rawLine.Trim();
             if (string.IsNullOrEmpty(line))
                 continue;
@@ -204,27 +210,71 @@ public static partial class BmsParser
             // 예전에는 원문 보존 대상에서 빠져 저장할 때 통째로 사라졌다.
             if (!line.StartsWith("#"))
             {
-                chart.PreservedLines.Add(new BmsRawLine { Text = line });
+                chart.PreservedLines.Add(new BmsRawLine
+                {
+                    Text = line,
+                    Measure = -1,
+                    Order = lineIndex,
+                    BranchId = currentBranchId,
+                });
                 continue;
             }
 
             var dataMatch = DataRegex().Match(line);
             if (!dataMatch.Success)
             {
-                // 갈래를 나누는 줄이 하나라도 있으면 표시해 둔다. 저장을 막는 근거가 된다.
+                // 갈래를 나누는 제어 줄
                 if (ControlFlowRegex().IsMatch(line))
+                {
                     chart.HasConditionalBlocks = true;
+
+                    if (Regex.IsMatch(line, @"^#(?:IF|CASE|DEF)\b", RegexOptions.IgnoreCase))
+                    {
+                        currentBranchId = nextBranchId++;
+                        branchStack.Push(currentBranchId);
+                    }
+                    else if (Regex.IsMatch(line, @"^#(?:ELSEIF|ELSE)\b", RegexOptions.IgnoreCase))
+                    {
+                        if (branchStack.Count > 0) branchStack.Pop();
+                        currentBranchId = nextBranchId++;
+                        branchStack.Push(currentBranchId);
+                    }
+                    else if (Regex.IsMatch(line, @"^#(?:ENDIF|ENDSW)\b", RegexOptions.IgnoreCase))
+                    {
+                        if (branchStack.Count > 0) branchStack.Pop();
+                        currentBranchId = branchStack.Count > 0 ? branchStack.Peek() : 0;
+                    }
+
+                    chart.PreservedLines.Add(new BmsRawLine
+                    {
+                        Text = line,
+                        Measure = currentMeasure,
+                        Order = lineIndex,
+                        BranchId = currentBranchId,
+                        IsControlFlow = true,
+                    });
+                    continue;
+                }
 
                 // 데이터 줄도 아니고 1단계에서 읽어간 헤더도 아니면 에디터가 모르는 줄이다.
                 // 저장할 때 그대로 되돌려 놓으려고 원문을 보관한다.
                 if (!IsConsumedHeader(line))
-                    chart.PreservedLines.Add(new BmsRawLine { Text = line });
+                {
+                    chart.PreservedLines.Add(new BmsRawLine
+                    {
+                        Text = line,
+                        Measure = -1,
+                        Order = lineIndex,
+                        BranchId = 0,
+                    });
+                }
                 continue;
             }
 
             var measureNum = int.Parse(dataMatch.Groups[1].Value);
             var channel = dataMatch.Groups[2].Value; // 예: "11", "12" ...
             var dataStr = dataMatch.Groups[3].Value.Trim();
+            currentMeasure = measureNum;
 
             // 편집 대상은 1P 건반 채널(16-11-12-13-14-15-18)뿐이다.
             // 나머지(BGM·마디 길이·BPM 변화·STOP·BGA·롱노트·2P 등)는 원문 그대로 보관한다.
@@ -234,6 +284,8 @@ public static partial class BmsParser
                 {
                     Text = line,
                     Measure = measureNum,
+                    Order = lineIndex,
+                    BranchId = currentBranchId,
                 });
 
                 // 건반이 없는 뒷마디까지 그리드가 이어지도록 마디 수에도 반영한다.
@@ -274,7 +326,9 @@ public static partial class BmsParser
                     LaneId = channel,
                     Position = position,
                     WavKey = code,
-                    Type = NoteType.Normal
+                    Type = NoteType.Normal,
+                    BranchId = currentBranchId,
+                    SourceLineOrder = lineIndex,
                 });
             }
         }

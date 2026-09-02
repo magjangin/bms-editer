@@ -23,6 +23,8 @@ public sealed class BmsNote
     public string WavKey { get; set; } = string.Empty;
 
     public NoteType Type { get; set; } = NoteType.Normal;
+    public int BranchId { get; set; } = 0;
+    public int SourceLineOrder { get; set; } = 0;
 }
 
 public record NotePlacementArgs(string LaneId, int Measure, double Position);

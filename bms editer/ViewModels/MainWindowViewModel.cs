@@ -660,13 +660,6 @@ public sealed partial class MainWindowViewModel : ObservableObject
     // 실패하면 false. 호출한 쪽에서 LastErrorMessage 를 사용자에게 보여준다.
     public bool SaveBms(string filePath)
     {
-        // 되돌릴 수 없는 손상이라 아예 쓰지 않는다. 저장을 막는 것만으로 피해가 0이 된다.
-        if (Chart.HasConditionalBlocks)
-        {
-            LastErrorMessage = ConditionalBlockSaveBlockedMessage;
-            return false;
-        }
-
         try
         {
             var content = BmsWriter.Write(Chart, Title, Artist, Genre, Bpm, Player, Rank, Level, WavList, filePath);
