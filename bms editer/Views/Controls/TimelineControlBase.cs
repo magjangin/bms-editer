@@ -203,10 +203,10 @@ public abstract class TimelineControlBase : Control
             var origin = this.TranslatePoint(new Point(0, 0), scrollViewer);
             if (origin.HasValue)
             {
-                const double buffer = 150.0;
+                const double buffer = 800.0;
                 if (IsHorizontalView)
                 {
-                    var viewStart = scrollViewer.Offset.X - origin.Value.X;
+                    var viewStart = -origin.Value.X;
                     var viewEnd = viewStart + scrollViewer.Viewport.Width;
                     minPos = Math.Max(0, viewStart - buffer);
                     maxPos = Math.Min(timelineLength, viewEnd + buffer);
@@ -214,7 +214,7 @@ public abstract class TimelineControlBase : Control
                 }
                 else
                 {
-                    var viewStart = scrollViewer.Offset.Y - origin.Value.Y;
+                    var viewStart = -origin.Value.Y;
                     var viewEnd = viewStart + scrollViewer.Viewport.Height;
                     minPos = Math.Max(0, viewStart - buffer);
                     maxPos = Math.Min(timelineLength, viewEnd + buffer);
