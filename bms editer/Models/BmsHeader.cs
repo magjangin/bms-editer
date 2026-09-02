@@ -12,8 +12,9 @@ public sealed class BmsHeader
     public int Rank { get; set; } = 2;
     public string Level { get; set; } = string.Empty;
 
-    // #<필드명> 형태의 비표준/확장 헤더 필드를 그대로 보관
-    public Dictionary<string, string> ExtendedFields { get; } = new();
+    // 확장 헤더(#TOTAL, #STAGEFILE, #BPMxx 등)는 여기 담지 않는다.
+    // BmsChart.PreservedLines 가 원문 그대로 들고 있다가 저장할 때 되돌려 놓는다.
+    // 예전에는 ExtendedFields 사전이 있었는데, 채우는 곳도 읽는 곳도 없는 빈 껍데기였다.
 
     public void CopyFrom(BmsHeader source)
     {
@@ -24,11 +25,5 @@ public sealed class BmsHeader
         Player = source.Player;
         Rank = source.Rank;
         Level = source.Level;
-
-        ExtendedFields.Clear();
-        foreach (var (key, value) in source.ExtendedFields)
-            ExtendedFields[key] = value;
     }
-
-    public void Reset() => CopyFrom(new BmsHeader());
 }

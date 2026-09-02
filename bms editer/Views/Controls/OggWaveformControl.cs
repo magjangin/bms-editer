@@ -66,7 +66,10 @@ public sealed class OggWaveformControl : TimelineControlBase
         var width = Bounds.Width > 0 ? Bounds.Width : 220;
         var height = Bounds.Height > 0 ? Bounds.Height : 220;
 
-        var timelineLength = IsHorizontalView ? width : height;
+        // 시간축 길이는 공식에서 구한다. Bounds 에서 읽으면 부모가 늘려 잡았을 때
+        // **그린 파형과 스크럽 좌표가 서로 다른 축을 보게 된다.**
+        // (RequestScrub 은 원래부터 GetTimelineHeight() 를 쓰고 있었다)
+        var timelineLength = GetTimelineHeight();
         var waveformThickness = IsHorizontalView ? height : width;
 
         context.FillRectangle(new SolidColorBrush(Color.FromRgb(18, 18, 22)), new Rect(0, 0, width, height));
@@ -117,7 +120,12 @@ public sealed class OggWaveformControl : TimelineControlBase
 
         DrawBeatGrid(context, waveformThickness, timelineLength, IsHorizontalView);
         DrawGridSyncFlash(context, width, height);
-        DrawPlaybackCursor(context, width, height);
+
+        // 재생 커서도 같은 시간축 위에 있어야 파형과 맞는다.
+        DrawPlaybackCursor(
+            context,
+            IsHorizontalView ? timelineLength : width,
+            IsHorizontalView ? height : timelineLength);
     }
 
     private bool _isScrubbing;

@@ -234,7 +234,6 @@ public static partial class BmsParser
                 {
                     Text = line,
                     Measure = measureNum,
-                    Channel = channel,
                 });
 
                 // 건반이 없는 뒷마디까지 그리드가 이어지도록 마디 수에도 반영한다.

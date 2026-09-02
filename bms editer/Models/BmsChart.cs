@@ -24,7 +24,6 @@ public sealed class BmsChart
     public List<BmsRawLine> PreservedLines { get; } = new();
 
     public Dictionary<string, string> WavTable { get; } = new();
-    public Dictionary<string, string> BmpTable { get; } = new();
 
     public int MeasureCount { get; set; } = 32;
 
@@ -44,7 +43,7 @@ public sealed class BmsChart
     //
     // Chart 는 뷰에 바인딩돼 있어 통째로 갈아끼울 수 없고, 그렇다고 부르는 쪽에서
     // 컬렉션을 하나씩 옮기면 새 컬렉션이 생길 때마다 빠뜨리기 쉽다. 실제로
-    // MeasureLengths 와 BmpTable 이 그렇게 빠져 있었다. 옮기는 자리를 여기 하나로 모은다.
+    // MeasureLengths 가 그렇게 빠져 있었다. 옮기는 자리를 여기 하나로 모은다.
     public void ReplaceContentWith(BmsChart source)
     {
         Header.CopyFrom(source.Header);
@@ -63,7 +62,6 @@ public sealed class BmsChart
 
         CopyInto(source.MeasureLengths, MeasureLengths);
         CopyInto(source.WavTable, WavTable);
-        CopyInto(source.BmpTable, BmpTable);
         CopyInto(source.BpmTable, BpmTable);
     }
 

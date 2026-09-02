@@ -11,11 +11,8 @@ public sealed class BmsRawLine
     // 파일에 있던 줄 그대로(앞뒤 공백만 제거).
     public string Text { get; set; } = string.Empty;
 
-    // 데이터 줄(#mmmCC:...)이면 마디 번호, 헤더 줄이면 -1.
+    // 데이터 줄(#mmmCC:...)이면 마디 번호, 헤더 줄·주석이면 -1.
     public int Measure { get; set; } = -1;
-
-    // 데이터 줄이면 채널 번호, 헤더 줄이면 빈 문자열.
-    public string Channel { get; set; } = string.Empty;
 
     public bool IsData => Measure >= 0;
 }

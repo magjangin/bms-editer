@@ -132,6 +132,9 @@ public sealed class NoteGridControl : TimelineControlBase
     private Point? _dragStartPoint;
     private Point? _dragCurrentPoint;
 
+    // 이번 드래그가 기존 선택에 더하는 것인지(Ctrl/Shift), 갈아끼우는 것인지.
+    private bool _isAdditiveDrag;
+
     public NoteGridControl()
     {
         PointerPressed += OnPointerPressed;
@@ -359,12 +362,20 @@ public sealed class NoteGridControl : TimelineControlBase
         if (lanes is null || lanes.Count == 0 || Bpm <= 0)
             return;
 
-        if (!IsEditMode)
+        // Ctrl/Shift 를 누른 채 끌면 **편집 모드에서도** 범위 선택이 된다.
+        //
+        // 예전에는 모드로만 갈려서, 찍고 -> 고르고 -> 방향키로 옮기려면 매번 ✏️ 토글을
+        // 왕복해야 했다. 게다가 토글을 누르는 순간 포커스가 격자를 떠나 방향키도 안 먹었다.
+        var additive = e.KeyModifiers.HasFlag(Avalonia.Input.KeyModifiers.Control)
+            || e.KeyModifiers.HasFlag(Avalonia.Input.KeyModifiers.Shift);
+
+        if (!IsEditMode || additive)
         {
             if (point.Properties.IsLeftButtonPressed)
             {
                 _dragStartPoint = point.Position;
                 _dragCurrentPoint = point.Position;
+                _isAdditiveDrag = additive;
                 e.Pointer.Capture(this);
                 InvalidateVisual();
             }
@@ -481,7 +492,9 @@ public sealed class NoteGridControl : TimelineControlBase
                 selected.Add(note);
         }
 
-        var args = new NoteSelectionArgs(selected);
+        var args = new NoteSelectionArgs(selected, _isAdditiveDrag);
+        _isAdditiveDrag = false;
+
         if (SelectNotesCommand?.CanExecute(args) == true)
         {
             SelectNotesCommand.Execute(args);

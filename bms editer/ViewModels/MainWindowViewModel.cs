@@ -722,7 +722,24 @@ public sealed partial class MainWindowViewModel : ObservableObject
     [ObservableProperty] private NoteSelectionSource _selectionSource = NoteSelectionSource.Grid;
 
     [RelayCommand]
-    private void SelectNotes(NoteSelectionArgs args) => SetNoteSelection(args.Notes);
+    private void SelectNotes(NoteSelectionArgs args)
+    {
+        if (!args.Additive)
+        {
+            SetNoteSelection(args.Notes);
+            return;
+        }
+
+        // 이미 고른 것에 더한다. 이미 들어 있는 것을 다시 고르면 빼서, 잘못 잡은 것을 되돌릴 수 있다.
+        foreach (var note in args.Notes)
+        {
+            if (!_selectedNotes.Add(note))
+                _selectedNotes.Remove(note);
+        }
+
+        SelectionSource = NoteSelectionSource.Grid;
+        OnPropertyChanged(nameof(SelectedNotes));
+    }
 
     // 격자 밖(검색/삭제/교체 창, 통계 창 등)에서 선택 집합을 통째로 교체한다.
     // source 는 격자가 강조 색을 고르는 데만 쓴다. 선택 자체의 의미는 같다.
@@ -737,6 +754,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         OnPropertyChanged(nameof(SelectedNotes));
     }
 
+    [RelayCommand]
     public void ClearNoteSelection() => SetNoteSelection(Array.Empty<BmsNote>());
 
     // 선택 여부와 관계없이 지정한 노트들을 지우고, 실제로 지워진 개수를 돌려준다.

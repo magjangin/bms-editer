@@ -17,16 +17,31 @@
     <DockPanel>
         <Menu DockPanel.Dock="Top">
             <MenuItem Header="파일 (F)">
-                <MenuItem Header="새로 만들기" Command="{Binding NewFileCommand}" />
-                <MenuItem Header="열기..." Click="OnOpenFileClick" />
-                <MenuItem Header="저장" Click="OnSaveFileClick" />
-                <MenuItem Header="다른 이름으로 저장..." Click="OnSaveFileAsClick" />
+                <MenuItem Header="새로 만들기" Command="{Binding NewFileCommand}" InputGesture="Ctrl+N" />
+                <MenuItem Header="열기..." Click="OnOpenFileClick" InputGesture="Ctrl+O" />
+                <MenuItem Header="폴더 열기..." Click="OnOpenFolderClick" />
+                <Separator />
+                <MenuItem Header="저장" Click="OnSaveFileClick" InputGesture="Ctrl+S" />
+                <MenuItem Header="다른 이름으로 저장..." Click="OnSaveFileAsClick" InputGesture="Ctrl+Shift+S" />
             </MenuItem>
-            <MenuItem Header="편집 (E)" />
-            <MenuItem Header="View" />
-            <MenuItem Header="설정 (O)" />
-            <MenuItem Header="보기 (C)" />
-            <MenuItem Header="프리뷰 (P)" />
+            <MenuItem Header="편집 (E)">
+                <MenuItem Header="선택 해제" Command="{Binding ClearNoteSelectionCommand}" InputGesture="Esc" />
+                <MenuItem Header="선택 삭제" Command="{Binding DeleteSelectedNotesCommand}" InputGesture="Delete" />
+                <Separator />
+                <MenuItem Header="검색/삭제/교체..." Click="OnShowNoteSearchClick" />
+                <MenuItem Header="키음 팔레트..." Click="OnShowWavPaletteClick" />
+                <MenuItem Header="노트 통계..." Click="OnShowStatsClick" />
+            </MenuItem>
+            <MenuItem Header="재생 (P)">
+                <MenuItem Header="재생 / 정지" Command="{Binding TogglePlaybackCommand}" InputGesture="Space" />
+                <MenuItem Header="재생" Command="{Binding PlayCommand}" />
+                <MenuItem Header="정지" Command="{Binding StopCommand}" />
+            </MenuItem>
+            <MenuItem Header="미디어 (M)">
+                <MenuItem Header="OGG 열기..." Click="OnLoadOggClick" />
+                <MenuItem Header="비디오 열기..." Click="OnLoadVideoClick" />
+                <MenuItem Header="비디오 제거" Click="OnClearVideoClick" />
+            </MenuItem>
         </Menu>
 
         <Border DockPanel.Dock="Top" Padding="6,4" BorderThickness="0,0,0,1" BorderBrush="Gray">

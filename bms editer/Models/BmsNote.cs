@@ -30,7 +30,9 @@ public record NotePlacementArgs(string LaneId, int Measure, double Position);
 // 마디 단위 복제 결과. 건너뛴 이유를 나눠서 알려줘야 사용자가 왜 덜 복사됐는지 안다.
 public readonly record struct NoteCopyResult(int Copied, int Blocked, int OutOfRange);
 
-public record NoteSelectionArgs(IReadOnlyList<BmsNote> Notes);
+// Additive: 기존 선택에 더할지, 통째로 갈아끼울지.
+// Ctrl/Shift 를 누른 채 드래그하면 떨어져 있는 구간을 함께 고를 수 있다.
+public record NoteSelectionArgs(IReadOnlyList<BmsNote> Notes, bool Additive = false);
 
 // 지금 선택이 어디서 만들어졌는지. 격자가 강조 색을 이걸로 고른다.
 // 통계 창에서 고른 것은 "이 키음이 어디에 찍혀 있나"를 훑어보는 용도라,

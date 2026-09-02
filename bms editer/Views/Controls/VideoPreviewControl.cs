@@ -99,6 +99,7 @@ public sealed class VideoPreviewControl : Control, IDisposable
     public void PlayFrom(double seconds)
     {
         _isPlaying = true;
+        _lastSyncedSeconds = double.NegativeInfinity;
         _lastRequestedSeconds = Math.Max(0, seconds);
         ExecuteVideoScript(SetTimeScript(_lastRequestedSeconds, 0.12, play: true));
     }
@@ -106,21 +107,47 @@ public sealed class VideoPreviewControl : Control, IDisposable
     public void PauseAt(double seconds)
     {
         _isPlaying = false;
+        _lastSyncedSeconds = double.NegativeInfinity;
         _lastRequestedSeconds = Math.Max(0, seconds);
         ExecuteVideoScript(SetTimeScript(_lastRequestedSeconds, 0.06, play: false));
     }
 
+    // 마지막으로 WebView2 에 실제로 보낸 시각. 너무 자주 보내지 않으려고 기억해 둔다.
+    private double _lastSyncedSeconds = double.NegativeInfinity;
+
+    // 재생 중 커서 위치가 바뀔 때마다 불린다(33ms마다, 초당 30번).
+    //
+    // 예전에는 그때마다 ExecuteScriptAsync 를 보내서 초당 30번 IPC 왕복이 돌았다.
+    // 오차 검사는 어차피 JS 안에서 하므로 **보낼 필요 없는 호출까지 전부 나갔다.**
+    // 0.2초에 한 번이면 영상 동기화에 충분하다.
+    private const double VideoSyncIntervalSeconds = 0.2;
+
     public void SyncTo(double seconds)
     {
         _lastRequestedSeconds = Math.Max(0, seconds);
+
+        // 뒤로 감았거나(스크럽) 충분히 시간이 지났을 때만 보낸다.
+        if (Math.Abs(_lastRequestedSeconds - _lastSyncedSeconds) < VideoSyncIntervalSeconds)
+            return;
+
+        _lastSyncedSeconds = _lastRequestedSeconds;
+
         if (_isPlaying)
             ExecuteVideoScript(SetTimeScript(_lastRequestedSeconds, 0.25, play: true));
         else
             ExecuteVideoScript(SetTimeScript(_lastRequestedSeconds, 0.06, play: false));
     }
 
+    // 이미 떼어냈는지. 초기화가 끝나기 전에 떼어내면 이 표시를 보고 바로 정리한다.
+    //
+    // 예전에는 Dispose 가 먼저 돌고 뒤늦게 CreateCoreWebView2ControllerAsync 가 완료되면
+    // _controller 에 살아 있는 컨트롤러가 대입되고 아무도 Close() 하지 않았다.
+    // WebView2 프로세스가 그대로 남았다.
+    private bool _disposed;
+
     public void Dispose()
     {
+        _disposed = true;
         _webView = null;
         _controller?.Close();
         _controller = null;
@@ -128,7 +155,7 @@ public sealed class VideoPreviewControl : Control, IDisposable
 
     private async Task EnsureWebViewAsync()
     {
-        if (_controller is not null)
+        if (_disposed || _controller is not null)
             return;
 
         if (_initializationTask is not null)
@@ -161,7 +188,16 @@ public sealed class VideoPreviewControl : Control, IDisposable
                 "WebView2");
 
             var environment = await CoreWebView2Environment.CreateAsync(null, userDataFolder);
-            _controller = await environment.CreateCoreWebView2ControllerAsync(handle.Handle);
+            var controller = await environment.CreateCoreWebView2ControllerAsync(handle.Handle);
+
+            // 만드는 사이에 떼어냈으면 여기서 닫는다. 안 그러면 WebView2 프로세스가 남는다.
+            if (_disposed)
+            {
+                controller.Close();
+                return;
+            }
+
+            _controller = controller;
             _controller.DefaultBackgroundColor = DrawingColorTranslator.FromHtml("#0A0A0C");
             _controller.BoundsMode = CoreWebView2BoundsMode.UseRawPixels;
             _controller.IsVisible = IsEffectivelyVisible;
