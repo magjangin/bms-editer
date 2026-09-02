@@ -592,6 +592,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         // 한 번에 갈아끼운다. 하나씩 Add 하면 항목마다 알림이 나가고,
         // 통계·팔레트 창이 그때마다 전체 재집계를 돈다. (BulkObservableCollection 주석 참고)
         WavList.ReplaceAll(parsed.WavItems);
+        _keySoundPlayer.PreloadAsync(Chart.WavTable.Values);
 
         if (WavList.Count > 0)
         {
@@ -1086,6 +1087,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         {
             var key = GetNextWavKey();
             Chart.WavTable[key] = filePath;
+            _keySoundPlayer.Preload(filePath);
             var item = new BmsWavItem { Key = key, FilePath = filePath };
             WavList.Add(item);
             SelectedWavItem = item;
