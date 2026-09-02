@@ -160,10 +160,17 @@ public partial class MainWindow : Window
         }
 
         // 저장은 조용히 실패하면 안 된다. 실패하면 사유까지 보여준다.
+        // 저장은 됐지만 알려야 할 것(인코딩을 UTF-8로 물린 경우)도 여기서 보여준다.
         private async Task SaveAndReportAsync(MainWindowViewModel vm, string path)
         {
             if (!vm.SaveBms(path))
+            {
                 await ConfirmWindow.ShowMessageAsync(this, $"저장하지 못했습니다.\n\n{vm.LastErrorMessage}", "저장 실패");
+                return;
+            }
+
+            if (vm.LastWarningMessage is { } warning)
+                await ConfirmWindow.ShowMessageAsync(this, warning, "저장 완료");
         }
 
         private async Task<string?> PickSavePathAsync(MainWindowViewModel vm)

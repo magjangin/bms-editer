@@ -11,7 +11,10 @@ namespace bms_editer.Services;
 // 파일 하나를 읽어낸 결과. BPM 과 마디 수는 Chart 안에 들어 있다.
 // 키음 목록만 따로 나오는데, 정의된 순서를 그대로 지켜야 해서
 // 순서가 없는 Chart.WavTable 로는 대신할 수 없기 때문이다.
-public sealed record BmsParseResult(BmsChart Chart, IReadOnlyList<BmsWavItem> WavItems)
+//
+// Encoding 은 이 파일을 어떤 인코딩으로 읽어냈는지다. 저장할 때 같은 인코딩으로
+// 되돌려 써야 원본이 갈아치워지지 않는다.
+public sealed record BmsParseResult(BmsChart Chart, IReadOnlyList<BmsWavItem> WavItems, Encoding Encoding)
 {
     public double Bpm => Chart.Header.Bpm;
     public int MeasureCount => Chart.MeasureCount;
@@ -47,6 +50,12 @@ public static partial class BmsParser
     [GeneratedRegex(@"^#([0-9]{3})([0-9a-zA-Z]{2}):(.*)", RegexOptions.IgnoreCase)]
     private static partial Regex DataRegex();
 
+    // 갈래를 나누는 제어 줄. 이 에디터는 아직 해석하지 못한다. (BmsChart.HasConditionalBlocks 참고)
+    [GeneratedRegex(
+        @"^#(?:RANDOM|SETRANDOM|ENDRANDOM|RONDAM|IF|ELSEIF|ELSE|ENDIF|SWITCH|SETSWITCH|CASE|SKIP|DEF|ENDSW)(?:\s|$)",
+        RegexOptions.IgnoreCase)]
+    private static partial Regex ControlFlowRegex();
+
     private static readonly HashSet<string> SupportedChannels = new(StringComparer.OrdinalIgnoreCase)
     {
         "16", "11", "12", "13", "14", "15", "18"
@@ -66,32 +75,16 @@ public static partial class BmsParser
         {
             chart.Header.Bpm = parsedBpm;
             chart.MeasureCount = measureCount;
-            return new BmsParseResult(chart, wavItems);
-        }
-
-        // 다양한 인코딩 대응을 위해 C# Default (ANSI/UTF-8)을 우선하되 한국어 완성형(CP949) 디코딩 대비
-        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
-        var encoding = Encoding.GetEncoding("utf-8");
-        
-        // 텍스트 파일 읽은 후 인코딩 추정 혹은 기본 UTF-8 시도
-        var rawLines = File.ReadAllLines(filePath, encoding);
-        
-        // 첫 훑기로 UTF-8 깨짐 감지되면 CP949로 재시도
-        if (IsMalformedUtf8(rawLines))
-        {
-            try
-            {
-                var cp949 = Encoding.GetEncoding(949);
-                rawLines = File.ReadAllLines(filePath, cp949);
-            }
-            catch
-            {
-                // 실패 시 UTF-8 유지
-            }
+            return new BmsParseResult(chart, wavItems, DefaultEncoding);
         }
 
         var directory = Path.GetDirectoryName(filePath) ?? "";
         var mediaPathIndex = BuildFileNameIndex(directory);
+
+        // 파일을 바이트로 한 번만 읽고 인코딩을 가려낸다. 어느 인코딩으로 읽었는지는
+        // 결과에 실어 보내, 저장할 때 그대로 되돌려 쓴다.
+        var (rawLines, encoding) = ReadAllLines(filePath, directory, mediaPathIndex);
+
         var maxMeasure = 0;
         var has3DigitWav = false;
 
@@ -167,13 +160,15 @@ public static partial class BmsParser
                     has3DigitWav = true;
                 }
 
-                var absoluteWavPath = ResolveMediaPath(directory, wavFile, mediaPathIndex);
+                var absoluteWavPath = ResolveMediaPath(directory, wavFile, mediaPathIndex, out var pathGuessed);
                 chart.WavTable[key] = absoluteWavPath;
 
                 wavItems.Add(new BmsWavItem
                 {
                     Key = key,
-                    FilePath = absoluteWavPath
+                    FilePath = absoluteWavPath,
+                    SourceText = wavFile,
+                    IsPathGuessed = pathGuessed,
                 });
             }
         }
@@ -187,6 +182,10 @@ public static partial class BmsParser
             var dataMatch = DataRegex().Match(line);
             if (!dataMatch.Success)
             {
+                // 갈래를 나누는 줄이 하나라도 있으면 표시해 둔다. 저장을 막는 근거가 된다.
+                if (ControlFlowRegex().IsMatch(line))
+                    chart.HasConditionalBlocks = true;
+
                 // 데이터 줄도 아니고 1단계에서 읽어간 헤더도 아니면 에디터가 모르는 줄이다.
                 // 저장할 때 그대로 되돌려 놓으려고 원문을 보관한다.
                 if (!IsConsumedHeader(line))
@@ -251,7 +250,7 @@ public static partial class BmsParser
         measureCount = Math.Max(32, maxMeasure + 1);
         chart.Header.Bpm = parsedBpm;
         chart.MeasureCount = measureCount;
-        return new BmsParseResult(chart, wavItems);
+        return new BmsParseResult(chart, wavItems, encoding);
     }
 
     // 1단계에서 이미 읽어간(= 저장할 때 에디터가 새로 써주는) 헤더인지 판별한다.
@@ -318,8 +317,13 @@ public static partial class BmsParser
         return index;
     }
 
-    private static string ResolveMediaPath(string baseDirectory, string mediaPath, Dictionary<string, string> fileNameIndex)
+    // guessed: 적힌 자리에 파일이 없어서 같은 이름을 하위 폴더에서 찾아 붙였는지.
+    // 부르는 쪽이 이 결과를 저장 파일에 박지 않도록 구분해서 알려준다.
+    private static string ResolveMediaPath(
+        string baseDirectory, string mediaPath, Dictionary<string, string> fileNameIndex, out bool guessed)
     {
+        guessed = false;
+
         if (Path.IsPathRooted(mediaPath))
             return mediaPath;
 
@@ -329,22 +333,206 @@ public static partial class BmsParser
 
         var fileName = Path.GetFileName(mediaPath);
         if (fileNameIndex.TryGetValue(fileName, out var indexedPath))
+        {
+            guessed = true;
             return indexedPath;
+        }
 
         return directPath;
     }
 
-    private static bool IsMalformedUtf8(string[] lines)
+    // ── 인코딩 감지 ────────────────────────────────────────────────────────────
+    //
+    // 예전에는 "UTF-8 로 읽어보고 앞 100줄에 U+FFFD 가 있으면 CP949 로 다시 읽기" 였다.
+    // 구멍이 셋이었다.
+    //   * Shift_JIS(CP932) 갈래가 없어서 야생 차트 대부분이 엉뚱한 한글로 읽혔다.
+    //     제목뿐 아니라 #WAV 파일명까지 깨져서 키음이 하나도 안 붙었다.
+    //   * CP949 는 Shift_JIS 바이트를 오류 없이 삼켜서 U+FFFD 검사에 걸리지도 않았다.
+    //   * 앞 100줄만 봐서, 비ASCII 글자가 그 뒤에 처음 나오면 재시도가 아예 안 돌았다.
+    //     (#WAV 가 수백 줄이고 헤더는 영문인 차트가 여기에 딱 걸린다)
+    //
+    // 이제 바이트로 한 번만 읽고 BOM -> UTF-8(엄격) -> CP932/CP949 순으로 가른다.
+    // 줄 수 제한이 사라졌고, 고른 인코딩을 그대로 들고 나가 저장에 쓴다.
+
+    private static readonly Encoding DefaultEncoding = new UTF8Encoding(false);
+
+    // 한 바이트라도 어긋나면 예외를 던지는 UTF-8. 조용히 U+FFFD 로 때우면 감지가 안 된다.
+    private static readonly Encoding StrictUtf8 =
+        new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
+
+    // 인코딩을 가릴 때만 쓰는, #WAV/#BMP 줄의 파일명 추출용.
+    [GeneratedRegex(@"^#(?:WAV|BMP)[0-9a-zA-Z]{2,3}\s+(.+)$", RegexOptions.IgnoreCase)]
+    private static partial Regex MediaLineRegex();
+
+    private static (string[] Lines, Encoding Encoding) ReadAllLines(
+        string filePath, string directory, Dictionary<string, string> fileNameIndex)
     {
-        var limit = Math.Min(lines.Length, 100);
-        for (var i = 0; i < limit; i++)
+        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+
+        var bytes = File.ReadAllBytes(filePath);
+
+        if (TryReadByBom(bytes, out var bomText, out var bomEncoding))
+            return (SplitLines(bomText), bomEncoding);
+
+        // UTF-8 로 한 글자도 어긋나지 않고 읽히면 UTF-8 이다.
+        // CP932/CP949 로 쓴 한글·일본어가 우연히 올바른 UTF-8 이 되는 일은 사실상 없다.
+        if (TryDecodeStrict(bytes, StrictUtf8, out var utf8Text))
+            return (SplitLines(utf8Text), DefaultEncoding);
+
+        return DecodeLegacy(bytes, directory, fileNameIndex);
+    }
+
+    private static bool TryReadByBom(byte[] bytes, out string text, out Encoding encoding)
+    {
+        if (bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF)
         {
-            // UTF-8 디코딩 실패 시 나오는 대체 문자(\uFFFD) 검출
-            if (lines[i].Contains("\uFFFD"))
-            {
-                return true;
-            }
+            text = new UTF8Encoding(false).GetString(bytes, 3, bytes.Length - 3);
+            encoding = new UTF8Encoding(true);
+            return true;
         }
+
+        if (bytes.Length >= 2 && bytes[0] == 0xFF && bytes[1] == 0xFE)
+        {
+            text = Encoding.Unicode.GetString(bytes, 2, bytes.Length - 2);
+            encoding = Encoding.Unicode;
+            return true;
+        }
+
+        if (bytes.Length >= 2 && bytes[0] == 0xFE && bytes[1] == 0xFF)
+        {
+            text = Encoding.BigEndianUnicode.GetString(bytes, 2, bytes.Length - 2);
+            encoding = Encoding.BigEndianUnicode;
+            return true;
+        }
+
+        text = string.Empty;
+        encoding = DefaultEncoding;
         return false;
     }
+
+    private static bool TryDecodeStrict(byte[] bytes, Encoding encoding, out string text)
+    {
+        try
+        {
+            text = encoding.GetString(bytes);
+            return true;
+        }
+        catch (DecoderFallbackException)
+        {
+            text = string.Empty;
+            return false;
+        }
+    }
+
+    // CP932(일본어)와 CP949(한국어)는 서로의 바이트열을 대부분 오류 없이 삼킨다.
+    // 그래서 "디코딩에 실패했는가"로는 못 가른다. 대신 증거 두 가지를 쓴다.
+    //
+    //   1순위: #WAV/#BMP 파일명이 실제로 폴더에 있는가.
+    //          인코딩이 틀리면 파일명이 깨져서 하나도 안 맞는다. 이게 가장 확실한 증거다.
+    //   2순위: 읽어낸 글자가 말이 되는가. 한국어 바이트를 CP932 로 읽으면 반각 가타카나가
+    //          잔뜩 나오는데, 실제 일본어 제목·파일명에는 거의 안 쓰인다.
+    //
+    // 둘 다 못 가르면 CP932 로 둔다. 야생의 BMS 차트는 Shift_JIS 가 가장 많다.
+    private static (string[] Lines, Encoding Encoding) DecodeLegacy(
+        byte[] bytes, string directory, Dictionary<string, string> fileNameIndex)
+    {
+        Encoding? bestEncoding = null;
+        string? bestText = null;
+        var bestResolved = -1;
+        var bestScore = int.MinValue;
+
+        foreach (var codePage in new[] { 932, 949 })
+        {
+            Encoding candidate;
+            try
+            {
+                candidate = Encoding.GetEncoding(codePage);
+            }
+            catch (Exception ex) when (ex is ArgumentException or NotSupportedException)
+            {
+                continue;
+            }
+
+            var text = candidate.GetString(bytes);
+            var resolved = CountResolvableMedia(text, directory, fileNameIndex);
+            var score = ScoreLegacyText(text);
+
+            if (resolved > bestResolved || (resolved == bestResolved && score > bestScore))
+            {
+                bestEncoding = candidate;
+                bestText = text;
+                bestResolved = resolved;
+                bestScore = score;
+            }
+        }
+
+        if (bestEncoding is null || bestText is null)
+        {
+            // CodePages 공급자가 없는 환경. 손실을 감수하고라도 읽기는 해야 한다.
+            return (SplitLines(Encoding.UTF8.GetString(bytes)), DefaultEncoding);
+        }
+
+        return (SplitLines(bestText), bestEncoding);
+    }
+
+    private static int CountResolvableMedia(string text, string directory, Dictionary<string, string> fileNameIndex)
+    {
+        var found = 0;
+
+        foreach (var line in SplitLines(text))
+        {
+            var trimmed = line.Trim();
+            if (trimmed.Length == 0 || trimmed[0] != '#')
+                continue;
+
+            var match = MediaLineRegex().Match(trimmed);
+            if (!match.Success)
+                continue;
+
+            var mediaPath = match.Groups[1].Value.Trim();
+            if (mediaPath.Length == 0)
+                continue;
+
+            try
+            {
+                if (fileNameIndex.ContainsKey(Path.GetFileName(mediaPath)))
+                {
+                    found++;
+                    continue;
+                }
+
+                if (directory.Length > 0 && File.Exists(Path.Combine(directory, mediaPath)))
+                    found++;
+            }
+            catch (ArgumentException)
+            {
+                // 깨진 파일명에 경로로 못 쓰는 글자가 섞인 경우. 못 찾은 것으로 친다.
+            }
+        }
+
+        return found;
+    }
+
+    private static int ScoreLegacyText(string text)
+    {
+        var score = 0;
+
+        foreach (var c in text)
+        {
+            // 디코딩 실패 자리.
+            if (c == '�')
+                score -= 6;
+            // 반각 가타카나. 한국어 바이트를 CP932 로 읽으면 여기가 잔뜩 나온다.
+            else if (c is >= '｡' and <= 'ﾟ')
+                score -= 3;
+            // 텍스트 한가운데의 제어 문자는 어느 쪽이든 잘못 읽은 신호다.
+            else if (char.IsControl(c) && c is not ('\r' or '\n' or '\t'))
+                score -= 4;
+        }
+
+        return score;
+    }
+
+    private static string[] SplitLines(string text) =>
+        text.Split(new[] { "\r\n", "\n", "\r" }, StringSplitOptions.None);
 }

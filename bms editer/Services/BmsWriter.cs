@@ -44,15 +44,14 @@ public static class BmsWriter
 
         sb.AppendLine();
 
-        var keyWidth = wavItems.Any(w => w.Key.Length > 2) ? 3 : 2;
+        var keyWidth = ComputeKeyWidth(chart, wavItems);
         var emptySlot = new string('0', keyWidth);
         var outputDirectory = Path.GetDirectoryName(Path.GetFullPath(outputFilePath)) ?? "";
 
         foreach (var wav in wavItems.OrderBy(w => w.Key, StringComparer.OrdinalIgnoreCase))
         {
             var key = wav.Key.PadLeft(keyWidth, '0');
-            var relativePath = MakeRelativePath(outputDirectory, wav.FilePath);
-            sb.Append("#WAV").Append(key).Append(' ').AppendLine(relativePath);
+            sb.Append("#WAV").Append(key).Append(' ').AppendLine(ResolveOutputPath(wav, outputDirectory));
         }
         sb.AppendLine();
 
@@ -103,6 +102,33 @@ public static class BmsWriter
 
         return sb.ToString();
     }
+
+    // 키 자릿수는 #WAV 테이블과 노트 키 **양쪽**의 최대 길이로 잡는다.
+    //
+    // 테이블만 보면, 테이블에 정의되지 않은 3자리 키를 가리키는 노트가 있을 때 keyWidth 가 2 로
+    // 잡히고, 아래 슬롯 채우기의 Substring(0, keyWidth) 이 "0ZZ" 를 "0Z" 로 잘라 버린다.
+    // 노트가 전혀 다른 소리를 가리키게 되는데 아무 경고도 없다.
+    private static int ComputeKeyWidth(BmsChart chart, IReadOnlyList<BmsWavItem> wavItems)
+    {
+        var width = 2;
+
+        foreach (var wav in wavItems)
+            width = Math.Max(width, wav.Key.Length);
+
+        foreach (var note in chart.Notes)
+            width = Math.Max(width, note.WavKey.Length);
+
+        // BMS 규격상 키는 2자리 아니면 3자리다.
+        return Math.Clamp(width, 2, 3);
+    }
+
+    // 적힌 자리에 파일이 없어 하위 폴더에서 같은 이름을 찾아 붙인 경우에는
+    // 그 **추측 결과를 파일에 박지 않는다.** 재생에는 쓰되 저장은 원문을 지킨다.
+    // 오래된 백업 폴더가 남아 있으면 차트가 조용히 그쪽을 가리키게 되기 때문이다.
+    private static string ResolveOutputPath(BmsWavItem wav, string outputDirectory) =>
+        wav.IsPathGuessed && !string.IsNullOrEmpty(wav.SourceText)
+            ? wav.SourceText
+            : MakeRelativePath(outputDirectory, wav.FilePath);
 
     private static Dictionary<string, int> BuildLaneOrder(IReadOnlyList<LaneDefinition> lanes)
     {
