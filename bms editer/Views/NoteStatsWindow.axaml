@@ -13,18 +13,37 @@
         WindowStartupLocation="CenterOwner">
 
     <Window.Styles>
-        <!-- 목록 줄을 그대로 누를 수 있게 버튼으로 감싸되, 버튼처럼 보이지는 않게 한다. -->
+        <!-- 키음 줄은 눌러서 고르는 버튼이다.
+             예전에는 Background="Transparent" · BorderThickness="0" 이라 **누를 수 있다는 표시가
+             전혀 없었다.** 목록처럼 보이니 아무도 누를 생각을 못 한다.
+             테두리와 옅은 판을 줘서 "칸"으로 보이게 하고, 올려놨을 때·눌렀을 때·고른 뒤를 모두 구분한다. -->
         <Style Selector="Button.statRow">
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="Padding" Value="2,3" />
+            <Setter Property="Background" Value="#18FFFFFF" />
+            <Setter Property="BorderBrush" Value="#33FFFFFF" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="6,5" />
+            <Setter Property="Margin" Value="0,1" />
             <Setter Property="HorizontalAlignment" Value="Stretch" />
             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-            <Setter Property="CornerRadius" Value="3" />
+            <Setter Property="CornerRadius" Value="4" />
             <Setter Property="Cursor" Value="Hand" />
         </Style>
+
         <Style Selector="Button.statRow:pointerover /template/ ContentPresenter#PART_ContentPresenter">
             <Setter Property="Background" Value="#3B6FD4" />
+            <Setter Property="BorderBrush" Value="#7AA7F0" />
+            <Setter Property="Foreground" Value="White" />
+        </Style>
+
+        <Style Selector="Button.statRow:pressed /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#2A4E96" />
+            <Setter Property="Foreground" Value="White" />
+        </Style>
+
+        <!-- 지금 고른 줄. 격자에서 그 노트를 빨갛게 그리므로 여기도 빨강으로 맞춘다. -->
+        <Style Selector="Button.statRow.selected /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#8C2323" />
+            <Setter Property="BorderBrush" Value="#E04444" />
             <Setter Property="Foreground" Value="White" />
         </Style>
     </Window.Styles>
@@ -47,6 +66,13 @@
 
             <TextBlock Text="키음별 노트 개수" FontWeight="Bold" Margin="0,8,0,0" />
             <TextBlock Text="실제로 노트에 쓰인 번호만 표시합니다." Opacity="0.6" TextWrapping="Wrap" />
+
+            <!-- 누를 수 있다는 것과, 누르면 무슨 일이 일어나는지를 목록 바로 위에 적는다.
+                 창 맨 아래에만 적으면 목록이 길어서 눈에 안 들어온다. -->
+            <Border Background="#22FFFFFF" CornerRadius="4" Padding="8,6" IsVisible="{Binding HasWavStats}">
+                <TextBlock Text="{Binding StatusMessage}" TextWrapping="Wrap" />
+            </Border>
+
             <TextBlock Text="쓰인 키음이 없습니다." Opacity="0.6" IsVisible="{Binding !HasWavStats}" />
             <ItemsControl ItemsSource="{Binding WavStats}">
                 <ItemsControl.ItemTemplate>
@@ -54,13 +80,14 @@
                         <!-- 명령을 조상 바인딩($parent[ItemsControl])으로 끌어오면 컴파일된 바인딩에서
                              조용히 실패해 클릭이 아무 일도 안 한다. 코드 비하인드에서 직접 받는다. -->
                         <Button Classes="statRow"
+                                Classes.selected="{Binding IsSelected}"
                                 Click="OnWavStatRowClick"
-                                ToolTip.Tip="누르면 이 번호를 쓰는 노트를 격자에서 모두 선택합니다">
+                                ToolTip.Tip="누르면 이 번호를 쓰는 노트를 격자에서 빨갛게 선택합니다">
                             <Grid ColumnDefinitions="Auto,*,Auto">
-                                <TextBlock Grid.Column="0" Text="{Binding Key, StringFormat='#{0}'}" Width="44" />
+                                <TextBlock Grid.Column="0" Text="{Binding Key, StringFormat='#{0}'}" Width="44" FontWeight="SemiBold" />
                                 <TextBlock Grid.Column="1" Text="{Binding FileName}" TextTrimming="CharacterEllipsis"
                                            ToolTip.Tip="{Binding FileName}" Margin="0,0,8,0" />
-                                <TextBlock Grid.Column="2" Text="{Binding Count}" HorizontalAlignment="Right" />
+                                <TextBlock Grid.Column="2" Text="{Binding Count}" HorizontalAlignment="Right" MinWidth="28" />
                             </Grid>
                         </Button>
                     </DataTemplate>
@@ -69,9 +96,6 @@
             <Separator Margin="0,4" />
 
             <TextBlock Text="{Binding TotalCount, StringFormat='전체 노트: {0}개'}" FontWeight="Bold" />
-
-            <!-- 고른 노트가 화면 밖에 있으면 격자만 봐서는 눌렀는지도 알 수 없다. 여기에 결과를 적는다. -->
-            <TextBlock Text="{Binding StatusMessage}" TextWrapping="Wrap" Opacity="0.8" Margin="0,4,0,0" />
         </StackPanel>
     </ScrollViewer>
 </Window>

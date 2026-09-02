@@ -10,7 +10,24 @@ namespace bms_editer.ViewModels;
 
 public sealed record LaneNoteStat(string LaneId, int Count);
 
-public sealed record WavNoteStat(string Key, string FileName, int Count);
+// 키음 한 줄. 눌러서 고를 수 있으므로 "지금 고른 줄"인지도 함께 들고 있는다.
+//
+// 눌린 표시가 남지 않으면, 고른 노트가 화면 밖에 있을 때 눌렀는지조차 알 수 없다.
+public sealed partial class WavNoteStat : ObservableObject
+{
+    public WavNoteStat(string key, string fileName, int count)
+    {
+        Key = key;
+        FileName = fileName;
+        Count = count;
+    }
+
+    public string Key { get; }
+    public string FileName { get; }
+    public int Count { get; }
+
+    [ObservableProperty] private bool _isSelected;
+}
 
 // 노트 통계 창의 상태 모델.
 //
@@ -80,7 +97,7 @@ public sealed partial class NoteStatsViewModel : OwnerObservingViewModel
     // 출처를 Stats 로 넘겨서 격자가 빨강으로 그리게 한다. 훑어보려고 켠 선택이
     // 손으로 고른 선택(노랑)과 섞이면 어느 쪽을 편집하는 중인지 헷갈린다.
     // 방금 무엇을 골랐는지. 고른 노트가 화면 밖에 있으면 격자만 봐서는 눌렀는지도 알 수 없다.
-    [ObservableProperty] private string _statusMessage = "키음 번호를 누르면 그 노트를 격자에서 선택합니다.";
+    [ObservableProperty] private string _statusMessage = "👆 아래 줄을 누르면 그 키음의 노트가 격자에서 빨갛게 선택됩니다.";
 
     [RelayCommand]
     private void SelectByWavKey(string? key)
@@ -93,6 +110,10 @@ public sealed partial class NoteStatsViewModel : OwnerObservingViewModel
             .ToList();
 
         Owner.SetNoteSelection(matches, NoteSelectionSource.Stats);
+
+        // 누른 줄에 표시를 남긴다. 고른 노트가 화면 밖이어도 무엇을 눌렀는지는 보인다.
+        foreach (var stat in WavStats)
+            stat.IsSelected = string.Equals(stat.Key, key, StringComparison.OrdinalIgnoreCase);
 
         if (matches.Count == 0)
         {
