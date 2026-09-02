@@ -60,17 +60,25 @@ public sealed partial class NoteStatsViewModel : OwnerObservingViewModel
             fileNames[item.Key] = Path.GetFileName(item.FilePath);
         }
 
+        var laneCounts = new Dictionary<string, int>();
+        var wavCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var note in chart.Notes)
+        {
+            laneCounts[note.LaneId] = laneCounts.GetValueOrDefault(note.LaneId) + 1;
+            wavCounts[note.WavKey] = wavCounts.GetValueOrDefault(note.WavKey) + 1;
+        }
+
         Stats = chart.Lanes
-            .Select(lane => new LaneNoteStat(lane.Header, chart.Notes.Count(n => n.LaneId == lane.Id)))
+            .Select(lane => new LaneNoteStat(lane.Header, laneCounts.GetValueOrDefault(lane.Id)))
             .Where(stat => stat.Count > 0)
             .ToList();
 
-        WavStats = chart.Notes
-            .GroupBy(note => note.WavKey, StringComparer.OrdinalIgnoreCase)
-            .Select(group => new WavNoteStat(
-                group.Key,
-                fileNames.TryGetValue(group.Key, out var fileName) ? fileName : "(등록되지 않은 번호)",
-                group.Count()))
+        WavStats = wavCounts
+            .Select(kv => new WavNoteStat(
+                kv.Key,
+                fileNames.TryGetValue(kv.Key, out var fileName) ? fileName : "(등록되지 않은 번호)",
+                kv.Value))
             .OrderBy(stat => stat.Key, StringComparer.OrdinalIgnoreCase)
             .ToList();
 

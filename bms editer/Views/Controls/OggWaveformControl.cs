@@ -89,15 +89,20 @@ public sealed class OggWaveformControl : TimelineControlBase
         var maxAmplitude = (center - 8) * 0.58 * Math.Clamp(HorizontalZoom, 0.1, 4.0);
         var peaks = Peaks;
 
+        TryGetVisibleTimelineRange(timelineLength, out var minPos, out var maxPos);
+
         if (peaks is { Count: > 1 })
         {
-            DrawBlockWaveform(context, peaks, timelineLength, center, maxAmplitude, fillBrush, wavePen, IsHorizontalView);
-            DrawOnsetMarkers(context, waveformThickness, timelineLength, Onsets, IsHorizontalView);
+            DrawBlockWaveform(context, peaks, timelineLength, center, maxAmplitude, fillBrush, wavePen, IsHorizontalView, minPos, maxPos);
+            DrawOnsetMarkers(context, waveformThickness, timelineLength, Onsets, IsHorizontalView, minPos, maxPos);
         }
         else
         {
             var rowHeight = RowHeight * VerticalZoom * GetGridSpacingScale();
-            for (var tPos = 0.0; tPos < timelineLength; tPos += 2.0)
+            var startPos = Math.Max(0.0, Math.Floor(minPos / 2.0) * 2.0);
+            var endPos = Math.Min(timelineLength, Math.Ceiling(maxPos / 2.0) * 2.0);
+
+            for (var tPos = startPos; tPos <= endPos; tPos += 2.0)
             {
                 if (IsHorizontalView)
                 {
@@ -118,7 +123,7 @@ public sealed class OggWaveformControl : TimelineControlBase
             }
         }
 
-        DrawBeatGrid(context, waveformThickness, timelineLength, IsHorizontalView);
+        DrawBeatGrid(context, waveformThickness, timelineLength, IsHorizontalView, minPos, maxPos);
         DrawGridSyncFlash(context, width, height);
 
         // 재생 커서도 같은 시간축 위에 있어야 파형과 맞는다.
@@ -185,12 +190,17 @@ public sealed class OggWaveformControl : TimelineControlBase
         double maxAmplitude,
         IBrush fillBrush,
         IPen outlinePen,
-        bool isHorizontal)
+        bool isHorizontal,
+        double minPos,
+        double maxPos)
     {
         var blockLength = 2.0;
         var displayPointCount = Math.Max(2, (int)Math.Ceiling(timelineLength / blockLength));
 
-        for (var i = 0; i < displayPointCount; i++)
+        var minIndex = Math.Max(0, (int)Math.Floor(minPos / blockLength) - 1);
+        var maxIndex = Math.Min(displayPointCount, (int)Math.Ceiling(maxPos / blockLength) + 1);
+
+        for (var i = minIndex; i < maxIndex; i++)
         {
             var tPos = i * blockLength;
             var sourceIndex = isHorizontal ? i : (displayPointCount - 1 - i);
@@ -229,7 +239,14 @@ public sealed class OggWaveformControl : TimelineControlBase
 
     private static IPen GetOnsetPen(byte alpha) => OnsetPens[Math.Clamp((int)alpha, 25, 145)];
 
-    private static void DrawOnsetMarkers(DrawingContext context, double thickness, double timelineLength, IReadOnlyList<float>? onsets, bool isHorizontal)
+    private static void DrawOnsetMarkers(
+        DrawingContext context,
+        double thickness,
+        double timelineLength,
+        IReadOnlyList<float>? onsets,
+        bool isHorizontal,
+        double minPos,
+        double maxPos)
     {
         if (onsets is not { Count: > 1 })
             return;
@@ -247,6 +264,10 @@ public sealed class OggWaveformControl : TimelineControlBase
             // (곡 끝에서 12~15ms). 온셋 마커는 격자를 맞추라고 있는 기준선이라,
             // 이게 어긋나면 그걸 믿고 맞춘 씽크가 통째로 틀어진다.
             var ratio = OggPeakLoader.GetBucketRatio(i, count);
+            var pos = isHorizontal ? ratio * timelineLength : (1.0 - ratio) * timelineLength;
+            if (pos < minPos - 20 || pos > maxPos + 20)
+                continue;
+
             var alpha = (byte)Math.Clamp(25 + (strength * 120), 25, 145);
             var pen = GetOnsetPen(alpha);
             var half = (thickness * 0.10) + (strength * thickness * 0.18);
@@ -254,18 +275,43 @@ public sealed class OggWaveformControl : TimelineControlBase
 
             if (isHorizontal)
             {
-                var x = ratio * timelineLength;
-                context.DrawLine(pen, new Point(x, center - half), new Point(x, center + half));
+                context.DrawLine(pen, new Point(pos, center - half), new Point(pos, center + half));
             }
             else
             {
-                var y = (1.0 - ratio) * timelineLength;
-                context.DrawLine(pen, new Point(center - half, y), new Point(center + half, y));
+                context.DrawLine(pen, new Point(center - half, pos), new Point(center + half, pos));
             }
         }
     }
 
-    private void DrawBeatGrid(DrawingContext context, double thickness, double timelineLength, bool isHorizontal)
+    private static readonly Typeface MeasureLabelTypeface = new("Inter, Arial, sans-serif");
+    private readonly Dictionary<int, (string Text, FormattedText Formatted)> _measureLabelCache = new();
+
+    private FormattedText GetOrCreateMeasureLabel(int measure, double seconds)
+    {
+        var text = $"#{measure:D3} ({seconds:F4}s)";
+        if (_measureLabelCache.TryGetValue(measure, out var cached) && cached.Text == text)
+            return cached.Formatted;
+
+        var formatted = new FormattedText(
+            text,
+            System.Globalization.CultureInfo.CurrentCulture,
+            FlowDirection.LeftToRight,
+            MeasureLabelTypeface,
+            11.0,
+            Brushes.LightGray);
+
+        _measureLabelCache[measure] = (text, formatted);
+        return formatted;
+    }
+
+    private void DrawBeatGrid(
+        DrawingContext context,
+        double thickness,
+        double timelineLength,
+        bool isHorizontal,
+        double minPos,
+        double maxPos)
     {
         if (timelineLength <= 0 || Bpm <= 0)
             return;
@@ -274,7 +320,7 @@ public sealed class OggWaveformControl : TimelineControlBase
         var beatPen = new Pen(new SolidColorBrush(Color.FromArgb(120, 200, 210, 220)), 1);
         var measurePen = new Pen(new SolidColorBrush(Color.FromArgb(210, 255, 255, 255)), 1.5);
 
-        foreach (var line in EnumerateGridLines(timelineLength))
+        foreach (var line in EnumerateGridLines(timelineLength, minPos, maxPos))
         {
             var pen = line.Kind switch
             {
@@ -292,13 +338,7 @@ public sealed class OggWaveformControl : TimelineControlBase
                 continue;
 
             // 마디 번호와 그 지점의 초. BPM 을 맞출 때 소리와 대조하는 기준이 된다.
-            var label = new FormattedText(
-                $"#{line.Measure:D3} ({line.Seconds:F4}s)",
-                System.Globalization.CultureInfo.CurrentCulture,
-                FlowDirection.LeftToRight,
-                new Typeface("Inter, Arial, sans-serif"),
-                11.0,
-                Brushes.LightGray);
+            var label = GetOrCreateMeasureLabel(line.Measure, line.Seconds);
 
             if (isHorizontal)
                 context.DrawText(label, new Point(line.Position + 3, 8));

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
+using Avalonia.VisualTree;
 using bms_editer.Services;
 
 namespace bms_editer.Views.Controls;
@@ -194,14 +195,45 @@ public abstract class TimelineControlBase : Control
 
     protected readonly record struct GridLine(double Position, GridLineKind Kind, int Measure, double Seconds);
 
+    protected bool TryGetVisibleTimelineRange(double timelineLength, out double minPos, out double maxPos)
+    {
+        var scrollViewer = this.FindAncestorOfType<ScrollViewer>();
+        if (scrollViewer is not null)
+        {
+            var origin = this.TranslatePoint(new Point(0, 0), scrollViewer);
+            if (origin.HasValue)
+            {
+                const double buffer = 150.0;
+                if (IsHorizontalView)
+                {
+                    var viewStart = scrollViewer.Offset.X - origin.Value.X;
+                    var viewEnd = viewStart + scrollViewer.Viewport.Width;
+                    minPos = Math.Max(0, viewStart - buffer);
+                    maxPos = Math.Min(timelineLength, viewEnd + buffer);
+                    return true;
+                }
+                else
+                {
+                    var viewStart = scrollViewer.Offset.Y - origin.Value.Y;
+                    var viewEnd = viewStart + scrollViewer.Viewport.Height;
+                    minPos = Math.Max(0, viewStart - buffer);
+                    maxPos = Math.Min(timelineLength, viewEnd + buffer);
+                    return true;
+                }
+            }
+        }
+
+        minPos = 0;
+        maxPos = timelineLength;
+        return false;
+    }
+
     // 타임라인에 그릴 격자선을 순서대로 내놓는다.
-    //
-    // 예전에는 이 루프가 NoteGridControl 에 둘(오디오 있을 때 / 없을 때),
-    // OggWaveformControl 에 둘, 모두 네 벌 복사돼 있었다. 같은 공식을 네 군데서
-    // 따로 고쳐야 했고 실제로 조금씩 갈라져 있었다. 어디에 선을 긋는지는 여기서만 정한다.
-    //
-    // 부르는 쪽은 Kind 로 펜만 고르면 된다. 파형 칸은 Measure 일 때 마디 번호도 적는다.
-    protected IEnumerable<GridLine> EnumerateGridLines(double timelineLength)
+    // minPos / maxPos 가 주어지면 보이는 영역 밖의 격자선은 건너뛴다(뷰포트 컬링).
+    protected IEnumerable<GridLine> EnumerateGridLines(
+        double timelineLength,
+        double minPos = double.NegativeInfinity,
+        double maxPos = double.PositiveInfinity)
     {
         var split = Math.Max(1, BeatSplit);
 
@@ -218,37 +250,46 @@ public abstract class TimelineControlBase : Control
                 if (seconds > DurationSeconds)
                     yield break;
 
+                var position = ToTimelinePosition(seconds / DurationSeconds, timelineLength);
+                if (position < minPos - 0.5 || position > maxPos + 0.5)
+                    continue;
+
                 yield return new GridLine(
-                    ToTimelinePosition(seconds / DurationSeconds, timelineLength),
+                    position,
                     ClassifyGridLine(index, split),
                     index / split,
                     seconds);
             }
         }
-
-        // 음원이 없으면 마디 높이가 곧 화면 높이다.
-        var rowHeight = RowHeight * VerticalZoom * GetGridSpacingScale();
-        var measureTimeline = EffectiveTimeline;
-
-        // 마지막 마디의 닫는 선까지 그리려고 MeasureCount 까지 돈다.
-        // 범위를 벗어나는 보조선은 아래 검사에서 걸러진다.
-        for (var measure = 0; measure <= MeasureCount; measure++)
+        else
         {
-            for (var beat = 0; beat < split; beat++)
+            // 음원이 없으면 마디 높이가 곧 화면 높이다.
+            var rowHeight = RowHeight * VerticalZoom * GetGridSpacingScale();
+            var measureTimeline = EffectiveTimeline;
+
+            // 마지막 마디의 닫는 선까지 그리려고 MeasureCount 까지 돈다.
+            // 범위를 벗어나는 보조선은 아래 검사에서 걸러진다.
+            for (var measure = 0; measure <= MeasureCount; measure++)
             {
-                var measurePosition = measure + (beat / (double)split);
-                var offset = measurePosition * rowHeight;
-                var position = IsHorizontalView ? offset : timelineLength - offset;
+                for (var beat = 0; beat < split; beat++)
+                {
+                    var measurePosition = measure + (beat / (double)split);
+                    var offset = measurePosition * rowHeight;
+                    var position = IsHorizontalView ? offset : timelineLength - offset;
 
-                // 곱셈 순서 차이로 끝 선이 반 픽셀쯤 넘칠 수 있어 여유를 둔다.
-                if (position < -0.5 || position > timelineLength + 0.5)
-                    continue;
+                    // 곱셈 순서 차이로 끝 선이 반 픽셀쯤 넘칠 수 있어 여유를 둔다.
+                    if (position < -0.5 || position > timelineLength + 0.5)
+                        continue;
 
-                yield return new GridLine(
-                    position,
-                    ClassifyGridLine(beat, split),
-                    measure,
-                    measureTimeline.SecondsAt(measurePosition));
+                    if (position < minPos - 0.5 || position > maxPos + 0.5)
+                        continue;
+
+                    yield return new GridLine(
+                        position,
+                        ClassifyGridLine(beat, split),
+                        measure,
+                        measureTimeline.SecondsAt(measurePosition));
+                }
             }
         }
     }

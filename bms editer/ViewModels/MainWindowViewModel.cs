@@ -516,6 +516,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         WavList.Clear();
         SelectedWavItem = null;
         _selectedNotes.Clear();
+        NotifySelectionChanged();
 
         PullHeaderFromChart();
         InvalidateTimeline();
@@ -713,10 +714,17 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public BulkObservableCollection<BmsWavItem> WavList { get; } = new();
     [ObservableProperty] private BmsWavItem? _selectedWavItem;
 
-    public IReadOnlyList<BmsNote> Notes => Chart.Notes.ToArray();
+    public IReadOnlyList<BmsNote> Notes => Chart.Notes;
 
     private readonly HashSet<BmsNote> _selectedNotes = new();
-    public IReadOnlyList<BmsNote> SelectedNotes => _selectedNotes.ToArray();
+    private IReadOnlyList<BmsNote> _selectedNotesCache = Array.Empty<BmsNote>();
+    public IReadOnlyList<BmsNote> SelectedNotes => _selectedNotesCache;
+
+    private void NotifySelectionChanged()
+    {
+        _selectedNotesCache = _selectedNotes.ToArray();
+        OnPropertyChanged(nameof(SelectedNotes));
+    }
 
     [RelayCommand]
     private void SelectNotes(NoteSelectionArgs args)
@@ -734,7 +742,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
                 _selectedNotes.Remove(note);
         }
 
-        OnPropertyChanged(nameof(SelectedNotes));
+        NotifySelectionChanged();
     }
 
     // 격자 밖(검색/삭제/교체 창, 통계 창 등)에서 선택 집합을 통째로 교체한다.
@@ -746,7 +754,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         {
             _selectedNotes.Add(note);
         }
-        OnPropertyChanged(nameof(SelectedNotes));
+        NotifySelectionChanged();
 
         // 격자 밖에서 고른 선택은 화면 밖에 있기 쉽다. 거기로 스크롤해 준다.
         if (source != NoteSelectionSource.Grid)
@@ -787,8 +795,9 @@ public sealed partial class MainWindowViewModel : ObservableObject
     {
         if (notes.Count == 0) return 0;
 
+        var targetList = ReferenceEquals(notes, Chart.Notes) ? notes.ToArray() : notes;
         var removed = 0;
-        foreach (var note in notes)
+        foreach (var note in targetList)
         {
             if (!Chart.Notes.Remove(note)) continue;
 
@@ -799,7 +808,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         if (removed > 0)
         {
             NotifyNotesChanged();
-            OnPropertyChanged(nameof(SelectedNotes));
+            NotifySelectionChanged();
         }
 
         return removed;
@@ -1205,6 +1214,6 @@ public sealed partial class MainWindowViewModel : ObservableObject
         Chart.Notes.Remove(nearest);
         _selectedNotes.Remove(nearest);
         NotifyNotesChanged();
-        OnPropertyChanged(nameof(SelectedNotes));
+        NotifySelectionChanged();
     }
 }
