@@ -50,9 +50,6 @@
                 <Button Content="열기" Click="OnOpenFileClick" />
                 <Button Content="저장" Click="OnSaveFileClick" />
                 <Separator />
-                <Button Content="▶" Command="{Binding PlayCommand}" ToolTip.Tip="재생 (Space)" />
-                <Button Content="■" Command="{Binding StopCommand}" ToolTip.Tip="정지 (Space)" />
-                <Separator />
                 <Button Content="📊" Click="OnShowStatsClick" ToolTip.Tip="노트 통계" />
                 <ToggleButton Content="✏️" IsChecked="{Binding IsEditMode}" />
                 <Button Content="🧰" Click="OnShowNoteSearchClick" ToolTip.Tip="검색/삭제/교체" />
