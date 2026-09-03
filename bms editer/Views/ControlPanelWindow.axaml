@@ -53,7 +53,7 @@
         <!-- 🅿️ 이 열(레인) 칸은 모양을 다시 볼 자리다. 지금은 한 번에 하나만 고를 수 있어,
              여러 열을 묶어 고르는 일은 검색 창의 열 토글이 맡는다. 레인 구성 고정이 풀려
              5키·10키·14키·Double 이 들어오면 열 개수부터 달라지므로 그때 정한다.
-             (docs/known_issues.md 의 "🅿️ 나중에 고려: 패널 맨 위의 열(레인) 선택 칸" 참고) -->
+             (docs/issues/known_issues.md 의 "🅿️ 나중에 고려: 패널 맨 위의 열(레인) 선택 칸" 참고) -->
         <StackPanel Grid.Row="0" Spacing="4">
             <TextBlock Text="레인별 노트 개수" FontWeight="Bold" />
             <TextBlock Text="노트가 없습니다." Opacity="0.6" IsVisible="{Binding !HasLaneStats}" />

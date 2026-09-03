@@ -134,10 +134,13 @@ dotnet publish "bms editer/bms editer.csproj" -p:PublishProfile=win-x64
 
 ## 📖 문서 (Documents)
 
-| 문서 | 내용 |
-|------|------|
-| [known_issues.md](docs/known_issues.md) | **남은 일과 이미 고친 것.** 1~3차 점검에서 나온 37건 중 33건 해결. 실사용으로 확인할 항목도 여기 있습니다. |
-| [specification.md](docs/specification.md) | 마디 내부 그리드 분할 규칙과 기본 동작 사양. |
-| [code_explanation.md](docs/code_explanation.md) | 소스 파일별 역할과 설계 구조. |
-| [bpm_sync_principles.md](docs/bpm_sync_principles.md) | BPM 변경에 따른 격자·파형 동기화 원리. |
-| [video_ogg_principles.md](docs/video_ogg_principles.md) | 비디오·OGG 연동 원리. |
+전체 문서의 개요 및 목차는 **[docs/README.md](docs/README.md)** 에서 확인할 수 있습니다.
+
+| 분류 | 문서 | 내용 |
+|------|------|------|
+| **목차** | [README.md](docs/README.md) | 문서 전체 인덱스 및 디렉터리 가이드. |
+| **품질/이슈** | [known_issues.md](docs/issues/known_issues.md) | **남은 일과 이미 고친 것.** 1~3차 점검에서 나온 37건 중 33건 해결. 실사용으로 확인할 항목도 여기 있습니다. |
+| **사양** | [grid_specification.md](docs/specifications/grid_specification.md) | 마디 내부 그리드 분할 규칙과 기본 동작 사양. |
+| **아키텍처** | [code_explanation.md](docs/architecture/code_explanation.md) | 소스 파일별 역할과 설계 구조. |
+| **원리** | [bpm_sync_principles.md](docs/architecture/bpm_sync_principles.md) | BPM 변경에 따른 격자·파형 동기화 원리. |
+| **원리** | [video_ogg_principles.md](docs/architecture/video_ogg_principles.md) | 비디오·OGG 연동 원리. |
