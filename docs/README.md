@@ -1,4 +1,4 @@
-﻿# 📚 BMS Editer 문서 보관소 (Documentation Index)
+# 📚 BMS Editer 문서 보관소 (Documentation Index)
 
 BMS Editer 프로젝트의 설계 아키텍처, 기술적 구현 원리, 게임별 모딩 연동 가이드, 기능 사양서, 이슈 트래커를 정리한 공식 문서 허브입니다.
 
@@ -16,7 +16,8 @@ docs/
 ├── guides/                            # 🎮 게임별 모딩 및 차트 주입 연동 가이드
 │   ├── sixtar_gate_startrail.md       # 식스타 게이트: 스타트레일 (Mono) 커스텀 차트/키음 주입 가이드
 │   ├── sixtar_gate_stargazer.md       # 식스타 게이트: 스타게이저 (Il2Cpp) 메타데이터/차트 주입 가이드
-│   └── muse_dash.md                   # 뮤즈 대시 (Il2Cpp) 커스텀 채보 매핑 및 영구 보존 가이드
+│   ├── muse_dash.md                   # 뮤즈 대시 (Il2Cpp) 커스텀 채보 매핑 및 영구 보존 가이드
+│   └── gunvolt_records_cychronicle.md # 건볼트 레코즈 사이크로니클 (Mono) 6레인 채보 및 플릭/페어리 가이드
 ├── specifications/                    # 사양 및 규격 정의서
 │   └── grid_specification.md          # 마디 내부 그리드 분할 규칙 및 기본 동작 사양서
 └── issues/                            # 품질 관리 및 이슈 추적
@@ -33,9 +34,10 @@ docs/
 * **[video_ogg_principles.md](architecture/video_ogg_principles.md)**: Win32 `waveOut` 저지연 오디오 스트리밍, `NVorbis` 기반 백그라운드 디코딩, 에너지 변화율 기반 오디오 온셋(Onset) 탐지, `WebView2` 영상 타임라인 실시간 락(Lock) 알고리즘을 설명합니다.
 
 ### 2. 게임별 모딩 연동 가이드 (`guides/`)
-* **[sixtar_gate_startrail.md](guides/sixtar_gate_startrail.md)**: Unity Mono 기반의 *Sixtar Gate: STARTRAIL*에서 BMS Editer 레인을 Solar(4K)/Lunar(5K+Gate) 모드에 매핑하고, MelonLoader 및 `time = tick * 240 / bpm` 공식을 이용해 커스텀 차트와 키음을 주입하는 가이드입니다.
-* **[sixtar_gate_stargazer.md](guides/sixtar_gate_stargazer.md)**: Il2Cpp 기반의 *Sixtar Gate: STARGAZER*에서 `SignatureDumper` 정적 분석, 곡 제목 getter 훅, `INNER_TrackMetaData` 프로퍼티 조작을 통해 커스텀 BMS 채보를 주입하는 가이드입니다.
-* **[muse_dash.md](guides/muse_dash.md)**: Il2Cpp 기반의 *Muse Dash* 2레인(지상/공중) 구조에 맞춘 채보 매핑, MelonLoader 래퍼 캐스트/자체 래퍼 아키텍처, 그리고 Goldberg Emulator 기반 오프라인 영구 보존(Archive) 인프라 연동 가이드입니다.
+* **[sixtar_gate_startrail.md](guides/sixtar_gate_startrail.md)**: Unity Mono 기반의 *Sixtar Gate: STARTRAIL* (`sxtg2`)에서 BMS Editer 레인을 Solar(4K)/Lunar(5K+Gate) 모드에 매핑하고, 롱노트(`02`/`03`)와 게이트 개폐(`04`/`05`)를 주입하는 가이드입니다.
+* **[sixtar_gate_stargazer.md](guides/sixtar_gate_stargazer.md)**: Il2Cpp 기반의 *Sixtar Gate: STARGAZER*에서 4방향 회전형 레인(`16, 12, 13, 11`), `#WAV` 파일명 기반 롱노트 판별, 분수 무손실 `Area/BeatInfo` 주입 가이드입니다.
+* **[muse_dash.md](guides/muse_dash.md)**: Il2Cpp 기반의 *Muse Dash* 2레인(지상/공중) 구조에 맞춘 채보 매핑(`13, 14, 15, 18`), 6자리 UID 오브젝트 지정, 홀드/샌드백 자동 매칭 및 영구 보존(Archive) 가이드입니다.
+* **[gunvolt_records_cychronicle.md](guides/gunvolt_records_cychronicle.md)**: Unity Mono 기반의 *GUNVOLT RECORDS Cychronicle* (`GRC2`)에서 좌/우 6레인 매핑(`16, 11, 12` vs `14, 15, 18`), 8방향 플릭(`03~0A`) 및 페어리 아크(`11~18`, `1A/1B`) 주입 가이드입니다.
 
 ### 3. 규격 및 동작 사양 (`specifications/`)
 * **[grid_specification.md](specifications/grid_specification.md)**: 마디당 기본 16분할(16비트 스냅) 그리드 렌더링 규칙, 확대/축소 비율, 주요 박자선(Beat Line) 구분 로직의 명세를 정의합니다.

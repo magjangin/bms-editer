@@ -142,6 +142,7 @@ dotnet publish "bms editer/bms editer.csproj" -p:PublishProfile=win-x64
 | **모딩 가이드** | [sixtar_gate_startrail.md](docs/guides/sixtar_gate_startrail.md) | 식스타 게이트: 스타트레일 (Mono) 커스텀 차트/키음 주입 가이드. |
 | **모딩 가이드** | [sixtar_gate_stargazer.md](docs/guides/sixtar_gate_stargazer.md) | 식스타 게이트: 스타게이저 (Il2Cpp) 메타데이터 및 차트 주입 가이드. |
 | **모딩 가이드** | [muse_dash.md](docs/guides/muse_dash.md) | 뮤즈 대시 (Il2Cpp) 커스텀 채보 매핑 및 영구 보존(Archive) 가이드. |
+| **모딩 가이드** | [gunvolt_records_cychronicle.md](docs/guides/gunvolt_records_cychronicle.md) | 건볼트 레코즈 사이크로니클 (Mono) 6레인 채보 및 플릭/페어리 가이드. |
 | **코드 설명서** | [code_explanation.md](docs/architecture/code_explanation.md) | 소스 파일별 역할, 구조 및 컴포넌트 상세 설명서. |
 | **품질/이슈** | [known_issues.md](docs/issues/known_issues.md) | **남은 일과 이미 고친 것.** 1~3차 점검에서 나온 37건 중 33건 해결. 실사용으로 확인할 항목도 여기 있습니다. |
 | **사양** | [grid_specification.md](docs/specifications/grid_specification.md) | 마디 내부 그리드 분할 규칙과 기본 동작 사양. |
