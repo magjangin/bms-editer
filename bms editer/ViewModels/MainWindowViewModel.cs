@@ -41,7 +41,8 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
     // OGG 로딩 및 재생 상태
     [ObservableProperty] private string? _oggFileName;
     [ObservableProperty] private IReadOnlyList<float>? _oggPeaks;
-    [ObservableProperty] private IReadOnlyList<float>? _oggOnsets;
+    [ObservableProperty] private IReadOnlyList<float>? _oggRms;
+    [ObservableProperty] private IReadOnlyList<OnsetMarker>? _oggOnsets;
     [ObservableProperty] private double _oggDurationSeconds;
     [ObservableProperty] private double _playbackPositionSeconds;
     [ObservableProperty] private bool _isPlaybackCursorVisible;

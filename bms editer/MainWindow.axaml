@@ -96,6 +96,7 @@
                         Bpm="{Binding Bpm}"
                         Timeline="{Binding Timeline}"
                         Peaks="{Binding OggPeaks}"
+                        Rms="{Binding OggRms}"
                         Onsets="{Binding OggOnsets}"
                         DurationSeconds="{Binding OggDurationSeconds}"
                         PlaybackPositionSeconds="{Binding PlaybackPositionSeconds}"

@@ -60,6 +60,7 @@ public sealed partial class MainWindowViewModel
         _audioPlayer = audioPlayer;
         OggDurationSeconds = waveform.DurationSeconds;
         OggPeaks = waveform.Peaks;
+        OggRms = waveform.Rms;
         OggOnsets = waveform.Onsets;
         OggFileName = Path.GetFileName(filePath);
         UpdateMeasureCountFromAudio();
@@ -94,6 +95,7 @@ public sealed partial class MainWindowViewModel
         _audioPlayer = null;
         OggFileName = null;
         OggPeaks = null;
+        OggRms = null;
         OggOnsets = null;
         OggDurationSeconds = 0;
         ClearVideo();
