@@ -8,6 +8,7 @@
         x:Class="bms_editer.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         Title="bms editer"
+        Icon="/Assets/icon.ico"
         Width="1280" Height="720">
 
     <Design.DataContext>
