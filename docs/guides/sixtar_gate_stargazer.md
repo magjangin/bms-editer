@@ -1,52 +1,60 @@
-﻿# 식스타 게이트: 스타게이저 (Sixtar Gate: STARGAZER) 연동 가이드
+﻿# 식스타 게이트: 스타게이저 (STARGAZER) BMS 작성 및 연동 가이드
 
-이 문서는 **BMS Editer**에서 작업한 BMS 차트를 **식스타 게이트: 스타게이저(Il2Cpp 기반)** 환경에서 정적 시그니처 분석과 메타데이터 훅을 거쳐 주입하는 기술 가이드입니다.
-
----
-
-## 🔬 1. 개요 및 타겟 환경
-
-* **대상 게임**: *Sixtar Gate: STARGAZER*
-* **런타임 엔진**: Unity (Il2Cpp 기반)
-* **핵심 분석 도구**:
-  * **정적 시그니처 덤퍼**: `SignatureDumper` (독립 콘솔 도구, MelonLoader 생성 Il2Cpp 어셈블리를 `System.Reflection`으로 분석하여 `.cs` 스켈레톤 추출)
-  * **모드 로더**: `MelonLoader` (Il2Cpp 도메인 관리 및 언매니지드 포인터 핸들링)
+이 문서는 실제 모드 프로젝트 `H:\source\repos\STARGAZER custom chart`의 `src/Bms/BmsChart.cs`, `HookNoteProbes.BmsInject.cs`, 그리고 `docs/REFERENCE_BMS_CONVERSION.md` 명세를 바탕으로, **스타게이저에 주입할 BMS 차트 작성 규칙**을 안내합니다.
 
 ---
 
-## 🧩 2. 메타데이터 객체 수정 (`INNER_TrackMetaData`)
+## 🧭 1. 스타게이저 채널 ↔ 방향 매핑 (`BmsChannelLaneOrder`)
 
-Il2Cpp 환경에서는 C# 리플렉션을 직접 사용하는 대신 덤프된 타입 스켈레톤의 내부 프로퍼티 구조를 파악하고 필드 오프셋/접근자를 조작해야 합니다.
+스타게이저는 4방향(위/오른쪽/아래/왼쪽) 회전형 레인을 가집니다. `STARGAZER custom chart`는 BMS 채널을 **16번(위)부터 시계 방향**으로 매핑합니다.
 
-### 2.1 곡 정보 조작 및 Title Getter 훅
-* 스타게이저 내부의 곡 선택 및 차트 로딩 루틴에서 곡 제목을 반환하는 `getter` 메서드를 가로챕니다.
-* 커스텀 BMS의 메타데이터(`#TITLE`, `#ARTIST`, `#BPM`)를 런타임에 동적으로 주입합니다.
+| BMS Editer 레인 ID | BMS 채널 | 스타게이저 인게임 방향 | 비고 |
+|:---:|:---:|:---:|:---|
+| **16** | `#xxx16` | **위 (Top)** | 기준 시작점 |
+| **12** | `#xxx12` | **오른쪽 (Right)** | 시계 방향 90° |
+| **13** | `#xxx13` | **아래 (Bottom)** | 시계 방향 180° |
+| **11** | `#xxx11` | **왼쪽 (Left)** | 시계 방향 270° |
 
-### 2.2 `INNER_TrackMetaData` 프로퍼티 활용
-* 곡 객체의 내부 메타데이터를 관리하는 `INNER_TrackMetaData` 프로퍼티에 접근하여, 기본 수록곡 목록에 커스텀 곡/채보 엔트리를 안전하게 등록하거나 기존 엔트리의 채보 데이터 경로를 사용자 지정 BMS 파일로 스왑합니다.
+> [!IMPORTANT]
+> * 코드상 `BmsChannelLaneOrder = { 16, 12, 13, 11 }`로 정의되어 있습니다.
+> * 그 외 채널(`14, 15, 18` 등)에 배치된 노트는 파서에서 자동으로 건너뛰어지며(Skipped), 로그에 채널별 스킵 개수가 남습니다.
+> * 따라서 스타게이저용 차트를 작성할 때는 BMS Editer에서 **`16, 12, 13, 11` 4개 레인만 사용**해 주십시오.
 
 ---
 
-## 📊 3. BMS Editer 차트 데이터 변환 파이프라인
+## 🎯 2. 롱노트(Hold) 작성 규칙 — `#WAV` 파일명 기반
 
-BMS Editer로 작성된 데이터 모델(`BmsChart`, `BmsNote`)은 스타게이저의 Il2Cpp 내부 차트 구조체로 다음과 같이 매핑됩니다:
+스타게이저 모드는 사운드 ID 숫자가 아니라, **`#WAV`에 등록된 파일 이름의 키워드**로 롱노트 시작/끝을 판별합니다.
 
+| 파일 이름 조건 (대소문자 무관) | 판정 노트 종류 | Il2Cpp `NoteProperty.linked` |
+|:---|:---:|:---:|
+| `hold` + (`시작` 또는 `start`) | **HoldStart (홀드 시작)** | `StartPoint` |
+| `hold` + (`끝` 또는 `end`) | **HoldEnd (홀드 끝)** | `EndPoint` |
+| 그 외 일반 파일명 | **Normal (일반 단타)** | `None` |
+
+### 롱노트 작성 예시
+```bms
+#WAV01 normal.wav
+#WAV02 hold_start.wav      <-- 'hold' 와 'start' 포함 (홀드 시작)
+#WAV03 hold_end.wav        <-- 'hold' 와 'end' 포함 (홀드 끝)
+
+* 마디 005의 오른쪽(12번 채널)에 롱노트 배치:
+#00512:0200000003000000
 ```
-[BMS Editer]                                 [Sixtar Gate: STARGAZER]
-BmsHeader (BPM, Title, Artist)  ───────>    INNER_TrackMetaData / Title Getter
-BmsNote (Measure, Position, LaneId) ───>    Il2Cpp Note Event Buffer (Time, Lane)
-WavTable (Key, FilePath)        ───────>    Native Audio Buffer / Sound Bank
-```
-
-1. **시간 변환**:
-   $$\text{time (초)} = \text{Timeline.SecondsAt}(\text{measure} + \text{position})$$
-   BMS Editer의 `ChartTimeline`을 통해 마디 위치를 절대 초(Seconds) 단위로 변환합니다.
-2. **Il2Cpp 네이티브 배열 할당**:
-   변환된 노트 시퀀스를 Il2Cpp의 네이티브 포인터 메모리 블록에 할당하여 가비지 컬렉터의 간섭 없이 안정적으로 공급합니다.
+* 동일 레인에서 `HoldStart`와 `HoldEnd`가 반드시 쌍(Pair)을 이루어야 합니다.
+* 홀드가 마디를 넘어가는 경우(Cross-measure Hold)에도 시작과 끝이 서로 다른 `Area`에 분할되어 정상 주입됩니다.
 
 ---
 
-## 🛠️ 4. Il2Cpp 안정성 확보 팁
+## 📐 3. 위치 매핑 원리 — 분수(Fraction) 무손실 보존
 
-1. **독립 도구 분리 원칙**: `SignatureDumper`와 같은 메타데이터 분석 도구는 게임 런타임에 혼합하지 않고 사전에 `.cs` 스켈레톤을 추출하는 용도로만 독립 운용합니다.
-2. **언매니지드 메모리 정합성**: 노트를 연속 타건할 때 Il2Cpp 객체 래퍼가 소멸되지 않도록 참조를 유지하고, BMS Editer의 원자적 저장(`SafeFileWriter`) 기능을 활용해 차트 파싱 도중 파일 락(Lock) 충돌을 방지합니다.
+* 스타게이저의 엔진은 시간을 초(Seconds)로 계산하지 않고, 마디를 하나의 `Area`(4비트)로 삼아 **분수 상대 위치(`BeatIndex / BeatSplit`)**를 직접 사용합니다:
+  $$\text{beatIndex} = \frac{\text{슬롯 번호} \times \text{마디 비트 수}}{\text{GCD}}, \quad \text{beatSplit} = \frac{\text{슬롯 개수}}{\text{GCD}}$$
+* 부동소수점 오차가 전혀 발생하지 않으므로, BMS Editer에서 분할선(16분할, 24분할 등)에 정확히 스냅해 노트를 찍으면 인게임 궤도에 100% 정밀하게 배치됩니다.
+
+---
+
+## ⚠️ 4. 주의사항 및 제한 사양
+
+* **음원 파일**: BGM 채널(`#xxx01`)은 무시되며, 음원은 곡 폴더 내의 `music.ogg` 단일 파일을 사용합니다.
+* **템포 고정**: 현재 모드 엔진은 `#BPM nnn` 헤더 하나만 사용하며, 마디 도중의 BPM 변경(`#xxx03`, `#xxx08`)이나 마디 길이 변경(`#xxx02`), `#STOP`은 지원하지 않으므로 고정 4/4 박자 채보로 작성해 주세요.

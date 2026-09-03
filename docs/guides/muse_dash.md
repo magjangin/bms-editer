@@ -1,56 +1,79 @@
-﻿# 뮤즈 대시 (Muse Dash) 연동 및 보존 가이드
+﻿# 뮤즈 대시 (Muse Dash) BMS 작성 및 연동 가이드
 
-이 문서는 **BMS Editer**를 활용하여 **뮤즈 대시(Muse Dash, Il2Cpp 기반)**의 커스텀 채보를 제작하고, MelonLoader 래퍼 기반 주입 및 영구 보존(Offline Archive) 인프라와 연동하는 기술 가이드입니다.
-
----
-
-## 🎵 1. 개요 및 타겟 환경
-
-* **대상 게임**: *Muse Dash*
-* **런타임 엔진**: Unity (Il2Cpp 기반)
-* **주요 특징**: 지상(Ground) / 공중(Air) 2개 타겟 레인 기반의 횡스크롤 리듬 액션
-* **핵심 인프라 & 도구**:
-  * **모드 로더**: `MelonLoader` (Il2Cpp 모드)
-  * **래퍼 아키텍처**: MelonLoader 래퍼 캐스트 및 자체 안전 래퍼(Wrapper) 캡슐화
-  * **오프라인 보존 인프라**: Goldberg Emulator 기반 Steam DRM 우회 및 로컬 API 후킹
+이 문서는 실제 모드 프로젝트 `H:\source\repos\muse dash test`의 `muse dash test/Bms/BmsParser.cs`, `BmsNoteMatcher.cs`, `BmsWavParser.cs` 구현 사양을 바탕으로, **뮤즈 대시에 주입할 커스텀 BMS 채보 작성 규칙**을 안내합니다.
 
 ---
 
-## 🎛️ 2. BMS Editer ↔ 뮤즈 대시 채보 매핑 규칙
+## 🎵 1. 뮤즈 대시 채널 매핑 (`ChannelToLaneMap`)
 
-뮤즈 대시는 상/하 2트랙 중심이므로, BMS Editer의 7개 레인 중 특정 레인을 규칙적으로 할당하여 직관적으로 채보를 편집합니다.
+뮤즈 대시 모드 파서는 BMS 채널을 게임 내 2레인(지상/공중) 및 보스 이벤트 레인으로 분류합니다.
 
-| BMS Editer 레인 ID | BMS 채널 | 뮤즈 대시 판정/오브젝트 | 역할 및 비고 |
+| BMS Editer 레인 ID | BMS 채널 | `BmsLane` 열거형 | 역할 및 인게임 오브젝트 |
 |:---:|:---:|:---:|:---|
-| **11** | 1P Key 1 | **지상 (Ground)** | 아래쪽 일반 몬스터 / 타격 노트 |
-| **12** | 1P Key 2 | **공중 (Air)** | 위쪽 일반 몬스터 / 유령 / 부유 노트 |
-| **13** | 1P Key 3 | **더블 타격 (Dual Hit)** | 상/하 동시 입력 몬스터 |
-| **14** | 1P Key 4 | **롱 노트 / 톱니 (Hold/Saw)** | 연타 몬스터 또는 장애물 |
-| **16** | 스크래치 | **보스 공격 / 피버 (Boss/Fever)** | 특수 연출 및 게이지 트리거 |
-
-* **시간 계산 원칙**:
-  $$\text{time} = \frac{\text{tick} \times 240}{\text{BPM}}$$
-  BMS Editer의 틱 단위 정밀도를 기반으로 오디오 파형(`OggWaveformControl`)의 비트 및 타격음 온셋 마커를 보면서 지상/공중 몬스터 출현 타이밍을 정확히 조율할 수 있습니다.
+| **13** | `#xxx13` | **`BmsLane.Note`** | **지상 / 공중 일반 오브젝트 레인 (주 채널)** |
+| **14** | `#xxx14` | **`BmsLane.Note`** | **동시 타격(Dual) 또는 추가 오브젝트 레인** |
+| *(특수)* | `#xxx15` | **`BmsLane.BossInOut`** | **보스 등장 및 퇴장 이벤트** |
+| **18** | `#xxx18` | **`BmsLane.BossAction`** | **보스 공격 액션 / 패턴 발사체 레인** |
 
 ---
 
-## 💉 3. Il2Cpp 래퍼 캐스트 및 차트 주입 전략
+## 🏷️ 2. `#WAV` 파일명 6자리 UID로 오브젝트 종류 지정
 
-Il2Cpp 환경의 뮤즈 대시에서는 런타임 데이터 구조가 네이티브 포인터로 래핑되어 있습니다. 메모리 누수와 크래시를 방지하기 위해 **래퍼 캐스트 및 자체 래퍼 감싸기 패턴**을 사용합니다:
+뮤즈 대시는 타격할 몬스터나 장애물의 종류를 **`#WAV` 파일명의 맨 앞 6자리 숫자 UID**로 지정합니다.
 
-1. **MelonLoader 래퍼 캐스팅**:
-   * 게임 내부의 채보 로더 및 노트 제어 클래스를 MelonLoader의 타입 안전 래퍼로 캐스팅합니다.
-2. **자체 래퍼(Custom Safe Wrapper) 캡슐화**:
-   * 네이티브 포인터 직접 참조 시 발생할 수 있는 GC 수거 문제를 막기 위해, BMS Editer에서 파싱된 노트 정보(`BmsNote`)를 C# 안전 구조체로 감싸서 게임 루프에 전달합니다.
-3. **오디오/BGM 바인딩**:
-   * BMS의 배경 음악(OGG)을 게임 내 AudioManager에 스트리밍 주입하고, 키음 또는 타격 효과음을 실시간 트리거합니다.
+### 2.1 접두사(Prefix) 우선 매핑 (앞 4자리)
+* `0002xx`: **체력 회복 하트 (HP / Heart)** (효과음: `sfx_hp`)
+* `0003xx`: **음표 / 스코어 노트 (Score Note)** (효과음: `sfx_score`)
+* `0004xx`: **씬 전환 토글 (Scene Switch)**
+
+### 2.2 UID 2~3번째 자리 (`xx`) 오브젝트 타입 매핑
+* `xx02xx`: **롱노트 (Hold / Long Note)** (`NoteType = 3`)
+* `xx03xx` 또는 `xx09xx`: **장애물 / 톱니 (Boss Gear / Obstacle)** (`NoteType = 2`)
+* `xx04xx`: **샌드백 / 연타 몬스터 (Sandbag / Multi-hit)** (`NoteType = 8`)
+* `xx17xx`: **유령 몬스터 (Ghost)** (`NoteType = 4`)
+* 그 외: **일반 몬스터 (Normal Note)** (`NoteType = 1`)
+
+### 2.3 오프셋 델타 타임 (`_dt`) 옵션
+파일명 끝에 `_dt[초]`를 붙여 미세 오프셋을 줄 수 있습니다 (예: `051001_dt0.7.wav`).
 
 ---
 
-## 🏛️ 4. 영구 보존(Archive) 인프라 연동
+## 🥊 3. 롱노트(Hold) 및 샌드백(Sandbag) 작성 규칙 (`BmsNoteMatcher`)
 
-* **목표**: 서비스 종료 및 협업 콘텐츠 만료 후에도 로컬 환경에서 커스텀 콘텐츠를 영구적으로 소비할 수 있는 환경 구축.
-* **오프라인 전환 파이프라인**:
-  * **Goldberg Emulator** 적용으로 Steam 클라이언트 종속성 제거 및 완전 오프라인 구동.
-  * **Steamless** 및 로컬 Steam API 후킹(`BIsDlcInstalled` 등)을 통한 콜라보레이션 팩 무결성 보존.
-  * BMS Editer로 제작한 커스텀 BMS 파일을 로컬 전용 아카이브 로더에 직접 매핑하여 영구 보존 플레이 지원.
+* **홀수 번째 = 시작(Start), 짝수 번째 = 끝(End)**:
+  * 같은 채널에서 `NoteType = 3`(홀드) 또는 `NoteType = 8`(샌드백)으로 분류된 키음이 나타나면, 첫 번째 노트가 시작점이 되고 바로 다음 나타나는 노트가 종료점으로 자동 매칭됩니다.
+  * 매칭이 완료되면 두 노트 사이의 시간차(`Duration`)와 틱 길이(`LengthInTicks`)가 자동 계산되어 게임에 주입됩니다.
+
+---
+
+## ⏱️ 4. 시간 계산 공식 및 BPM 변경 규칙
+
+* **기본 틱 시간 수식**:
+  $$\text{time += (tick\_delta)} \times 4 \times \frac{60}{\text{BPM}} \quad \left(\text{즉 } \text{tick} \times \frac{240}{\text{BPM}}\right)$$
+* **BPM 변경 작성법**:
+  * [중요] **채널 03(직접 BPM 변경)은 지원하지 않습니다.** 채널 03을 쓰면 경고 로그가 남고 무시됩니다.
+  * 곡 도중 BPM을 변경하려면 반드시 **`#BPMxx [값]` 선언 후 `#xxx08:[코드]` 채널을 사용**하십시오.
+  * BMS Editer에서 BPM 변경을 설정하면 자동으로 `#BPMxx` 및 `08` 채널로 안전하게 저장되므로, 에디터의 표준 저장 기능을 그대로 쓰시면 됩니다.
+
+---
+
+## 📝 5. 뮤즈 대시 실제 BMS 텍스트 예시
+
+```bms
+#TITLE Muse Dash Custom Track
+#ARTIST Modder
+#BPM 135
+#BPM01 160
+
+* WAV 정의: 앞 6자리 UID로 몬스터 형태 지정
+#WAV01 010101_small_ground.wav    <-- 일반 지상 몬스터
+#WAV02 010201_hold_ground.wav     <-- 지상 롱노트 (2~3번째 자리가 02)
+#WAV03 010401_sandbag.wav         <-- 샌드백 (2~3번째 자리가 04)
+#WAV04 000201_hp_heart.wav        <-- 하트 (앞 4자리가 0002)
+
+* 마디 001: 지상 몬스터 단타 및 롱노트 (13번 채널)
+#00113:0100020000000200
+
+* 마디 002: 08 채널로 BPM 160 가속
+#00208:01000000
+```
