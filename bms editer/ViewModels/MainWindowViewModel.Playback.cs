@@ -39,7 +39,7 @@ public sealed partial class MainWindowViewModel
             return;
 
         StopPlayback(resetCursor: false);
-        PlaybackPositionSeconds = AudioSecondsAtRatio(ratio);
+        PlaybackPositionSeconds = Math.Clamp(ratio, 0, 1) * OggDurationSeconds;
         IsPlaybackCursorVisible = true;
     }
 
@@ -49,13 +49,8 @@ public sealed partial class MainWindowViewModel
         if (_audioPlayer is null || OggDurationSeconds <= 0)
             return;
 
-        PlayFrom(AudioSecondsAtRatio(ratio));
+        PlayFrom(Math.Clamp(ratio, 0, 1) * OggDurationSeconds);
     }
-
-    // 타임라인 비율(차트 시간축) → 음원 시각. 클릭한 자리에서 오프셋을 뺀다.
-    // 파형을 뒤로 밀었으면 같은 화면 자리는 음원의 더 앞쪽이다.
-    private double AudioSecondsAtRatio(double ratio) =>
-        Math.Clamp((Math.Clamp(ratio, 0, 1) * OggDurationSeconds) - AudioOffsetSeconds, 0, OggDurationSeconds);
 
     public void StopPlaybackAtCurrentPosition() => StopPlayback(resetCursor: false);
 
@@ -110,10 +105,7 @@ public sealed partial class MainWindowViewModel
 
         PlaybackPositionSeconds = currentSec;
 
-        // 노트 시각은 차트 시간축, 재생 위치는 음원 시간축이다. 오프셋을 태워 맞춘다.
-        PlayNotesInTimeRange(
-            _lastPlaybackPositionSeconds + AudioOffsetSeconds,
-            currentSec + AudioOffsetSeconds);
+        PlayNotesInTimeRange(_lastPlaybackPositionSeconds, currentSec);
         _lastPlaybackPositionSeconds = currentSec;
 
         if (PlaybackPositionSeconds >= OggDurationSeconds)

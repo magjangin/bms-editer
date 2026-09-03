@@ -25,27 +25,16 @@ public sealed class OggWaveformControl : TimelineControlBase
     public static readonly StyledProperty<IReadOnlyList<float>?> PeaksProperty =
         AvaloniaProperty.Register<OggWaveformControl, IReadOnlyList<float>?>(nameof(Peaks));
 
-    public static readonly StyledProperty<IReadOnlyList<float>?> RmsProperty =
-        AvaloniaProperty.Register<OggWaveformControl, IReadOnlyList<float>?>(nameof(Rms));
+    public static readonly StyledProperty<IReadOnlyList<float>?> OnsetsProperty =
+        AvaloniaProperty.Register<OggWaveformControl, IReadOnlyList<float>?>(nameof(Onsets));
 
-    public static readonly StyledProperty<IReadOnlyList<OnsetMarker>?> OnsetsProperty =
-        AvaloniaProperty.Register<OggWaveformControl, IReadOnlyList<OnsetMarker>?>(nameof(Onsets));
-
-    // 버킷별 최대 진폭. 어택이 어디서 튀었는지를 담는다.
     public IReadOnlyList<float>? Peaks
     {
         get => GetValue(PeaksProperty);
         set => SetValue(PeaksProperty, value);
     }
 
-    // 버킷별 RMS. 지속음의 몸통.
-    public IReadOnlyList<float>? Rms
-    {
-        get => GetValue(RmsProperty);
-        set => SetValue(RmsProperty, value);
-    }
-
-    public IReadOnlyList<OnsetMarker>? Onsets
+    public IReadOnlyList<float>? Onsets
     {
         get => GetValue(OnsetsProperty);
         set => SetValue(OnsetsProperty, value);
@@ -55,7 +44,7 @@ public sealed class OggWaveformControl : TimelineControlBase
 
     static OggWaveformControl()
     {
-        AffectsRender<OggWaveformControl>(PeaksProperty, RmsProperty, OnsetsProperty);
+        AffectsRender<OggWaveformControl>(PeaksProperty, OnsetsProperty);
     }
 
     public OggWaveformControl()
@@ -65,7 +54,6 @@ public sealed class OggWaveformControl : TimelineControlBase
         PointerReleased += OnPointerReleased;
     }
 
-    private static readonly IBrush BackgroundBrush = new SolidColorBrush(Color.FromRgb(15, 20, 20));
     private static readonly Pen CenterLinePen = new(Brushes.DimGray, 1);
     private static readonly Pen WavePen = new(new SolidColorBrush(Color.FromRgb(150, 170, 160)), 1);
     private static readonly IBrush WaveFillBrush = new SolidColorBrush(Color.FromArgb(125, 120, 150, 135));
@@ -82,7 +70,7 @@ public sealed class OggWaveformControl : TimelineControlBase
         var waveformThickness = IsHorizontalView ? height : width;
         var center = waveformThickness / 2.0;
 
-        context.FillRectangle(BackgroundBrush, new Rect(0, 0, width, height));
+        context.FillRectangle(new SolidColorBrush(Color.FromRgb(15, 20, 20)), new Rect(0, 0, width, height));
 
         if (IsHorizontalView)
         {
@@ -98,7 +86,7 @@ public sealed class OggWaveformControl : TimelineControlBase
 
         if (peaks is { Count: > 1 })
         {
-            DrawBlockWaveform(context, peaks, Rms, timelineLength, center, maxAmplitude, IsHorizontalView);
+            DrawBlockWaveform(context, peaks, timelineLength, center, maxAmplitude, WaveFillBrush, WavePen, IsHorizontalView);
             DrawOnsetMarkers(context, waveformThickness, timelineLength, Onsets, IsHorizontalView);
         }
         else
@@ -182,92 +170,42 @@ public sealed class OggWaveformControl : TimelineControlBase
         e.Handled = true;
     }
 
-    // 화면 블록 한 칸의 길이(px).
-    private const double BlockLength = 2.0;
-
-    private void DrawBlockWaveform(
+    private static void DrawBlockWaveform(
         DrawingContext context,
         IReadOnlyList<float> peaks,
-        IReadOnlyList<float>? rms,
         double timelineLength,
         double center,
         double maxAmplitude,
+        IBrush fillBrush,
+        IPen outlinePen,
         bool isHorizontal)
     {
-        var displayPointCount = Math.Max(2, (int)Math.Ceiling(timelineLength / BlockLength));
-        var bucketShift = GetBucketShift(peaks.Count);
+        var blockLength = 2.0;
+        var displayPointCount = Math.Max(2, (int)Math.Ceiling(timelineLength / blockLength));
 
         for (var i = 0; i < displayPointCount; i++)
         {
-            var tPos = i * BlockLength;
+            var tPos = i * blockLength;
             var sourceIndex = isHorizontal ? i : (displayPointCount - 1 - i);
-            var half = GetDisplayAmplitude(peaks, rms, sourceIndex, displayPointCount, bucketShift) * maxAmplitude;
+            var half = GetDisplayPeak(peaks, sourceIndex, displayPointCount) * maxAmplitude;
             if (half < 0.5)
                 continue;
 
             if (isHorizontal)
             {
-                var rect = new Rect(tPos, center - half, Math.Max(1, BlockLength - 0.35), half * 2);
-                context.FillRectangle(WaveFillBrush, rect);
+                var rect = new Rect(tPos, center - half, Math.Max(1, blockLength - 0.35), half * 2);
+                context.FillRectangle(fillBrush, rect);
                 if (i % 3 == 0)
-                    context.DrawLine(WavePen, new Point(tPos, center - half), new Point(tPos, center + half));
+                    context.DrawLine(outlinePen, new Point(tPos, center - half), new Point(tPos, center + half));
             }
             else
             {
-                var rect = new Rect(center - half, tPos, half * 2, Math.Max(1, BlockLength - 0.35));
-                context.FillRectangle(WaveFillBrush, rect);
+                var rect = new Rect(center - half, tPos, half * 2, Math.Max(1, blockLength - 0.35));
+                context.FillRectangle(fillBrush, rect);
                 if (i % 3 == 0)
-                    context.DrawLine(WavePen, new Point(center - half, tPos), new Point(center + half, tPos));
+                    context.DrawLine(outlinePen, new Point(center - half, tPos), new Point(center + half, tPos));
             }
         }
-    }
-
-    // 음원 오프셋을 버킷 수로 환산한다. 파형을 뒤로 밀면 같은 화면 자리에서
-    // 그만큼 **앞쪽** 버킷을 읽어야 한다.
-    private int GetBucketShift(int bucketCount)
-    {
-        var duration = DurationSeconds;
-        if (duration <= 0 || bucketCount <= 0 || AudioOffsetSeconds == 0)
-            return 0;
-
-        return (int)Math.Round(AudioOffsetSeconds / duration * bucketCount);
-    }
-
-    // 블록이 덮는 구간의 값. 한 칸만 찍어 읽으면 줌을 줄였을 때 어택이 사라진다.
-    //
-    // 표시값은 RMS(몸통)와 피크(어택)를 섞은 하나의 진폭이다. 둘을 따로 겹쳐 그려 봤는데
-    // 파형이 배경이 아니라 주인공이 되어 버려서, 정작 그 위에 겹치는 마디선과 마커가
-    // 묻혔다. 섞는 비율은 v0.1.0 과 같다.
-    private static double GetDisplayAmplitude(
-        IReadOnlyList<float> peaks,
-        IReadOnlyList<float>? rms,
-        int blockIndex,
-        int blockCount,
-        int bucketShift)
-    {
-        var (start, end) = OggPeakLoader.GetBlockSourceRange(blockIndex, blockCount, peaks.Count);
-
-        start -= bucketShift;
-        end -= bucketShift;
-
-        if (end <= 0 || start >= peaks.Count)
-            return 0;
-
-        start = Math.Max(0, start);
-        end = Math.Min(peaks.Count, end);
-
-        var peak = 0f;
-        for (var i = start; i < end; i++)
-            peak = MathF.Max(peak, peaks[i]);
-
-        var body = 0f;
-        if (rms is not null && rms.Count == peaks.Count)
-        {
-            for (var i = start; i < end; i++)
-                body = MathF.Max(body, rms[i]);
-        }
-
-        return Math.Min(1.0, (body * 0.75) + (peak * 0.30));
     }
 
     private static readonly IPen[] OnsetPens = CreateOnsetPens();
@@ -282,15 +220,14 @@ public sealed class OggWaveformControl : TimelineControlBase
 
     private static IPen GetOnsetPen(byte alpha) => OnsetPens[Math.Clamp((int)alpha, 25, 145)];
 
-    private void DrawOnsetMarkers(
+    private static void DrawOnsetMarkers(
         DrawingContext context,
         double thickness,
         double timelineLength,
-        IReadOnlyList<OnsetMarker>? onsets,
+        IReadOnlyList<float>? onsets,
         bool isHorizontal)
     {
-        var durationSeconds = DurationSeconds;
-        if (onsets is null || onsets.Count == 0 || timelineLength <= 0 || durationSeconds <= 0)
+        if (onsets is null || onsets.Count == 0 || timelineLength <= 0)
             return;
 
         var startOffset = isHorizontal ? 20.0 : 6.0;
@@ -299,20 +236,16 @@ public sealed class OggWaveformControl : TimelineControlBase
 
         for (var i = 0; i < onsets.Count; i++)
         {
-            var onset = onsets[i];
-            var strength = onset.Strength;
-            if (strength <= 0.01f)
-                continue;
+            var alphaVal = onsets[i];
+            if (alphaVal <= 0.01f) continue;
 
-            // 마커는 음원 시각으로 들어온다. 오프셋을 태워 격자와 같은 축에 올린다.
-            var ratio = AudioRatio(onset.Seconds);
-            if (ratio < 0 || ratio > 1)
-                continue;
+            var alpha = (byte)Math.Clamp((int)(alphaVal * 135f + 10f), 25, 145);
+            var pen = GetOnsetPen(alpha);
 
-            var pen = GetOnsetPen((byte)Math.Clamp((int)((strength * 135f) + 10f), 25, 145));
-            var tPos = ToTimelinePosition(ratio, timelineLength);
+            var ratio = OggPeakLoader.GetBucketRatio(i, onsets.Count);
+            var tPos = isHorizontal ? ratio * timelineLength : (1.0 - ratio) * timelineLength;
 
-            if (strength > 0.45f)
+            if (alphaVal > 0.45f)
             {
                 if (isHorizontal)
                     context.DrawLine(pen, new Point(tPos, startOffset), new Point(tPos, endOffset));
@@ -321,7 +254,7 @@ public sealed class OggWaveformControl : TimelineControlBase
             }
             else
             {
-                var halfLen = (thickness * 0.28) * (strength / 0.45f);
+                var halfLen = (thickness * 0.28) * (alphaVal / 0.45f);
                 if (isHorizontal)
                     context.DrawLine(pen, new Point(tPos, center - halfLen), new Point(tPos, center + halfLen));
                 else
@@ -389,5 +322,13 @@ public sealed class OggWaveformControl : TimelineControlBase
             else
                 context.DrawText(label, new Point(8, line.Position - label.Height - 2));
         }
+    }
+
+    private static double GetDisplayPeak(IReadOnlyList<float> peaks, int displayIndex, int displayPointCount)
+    {
+        if (peaks.Count == 0) return 0;
+        var ratio = displayPointCount <= 1 ? 0 : (double)displayIndex / (displayPointCount - 1);
+        var peakIndex = Math.Clamp((int)Math.Round(ratio * (peaks.Count - 1)), 0, peaks.Count - 1);
+        return peaks[peakIndex];
     }
 }

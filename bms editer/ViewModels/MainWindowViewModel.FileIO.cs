@@ -60,7 +60,6 @@ public sealed partial class MainWindowViewModel
         _audioPlayer = audioPlayer;
         OggDurationSeconds = waveform.DurationSeconds;
         OggPeaks = waveform.Peaks;
-        OggRms = waveform.Rms;
         OggOnsets = waveform.Onsets;
         OggFileName = Path.GetFileName(filePath);
         UpdateMeasureCountFromAudio();
@@ -95,7 +94,6 @@ public sealed partial class MainWindowViewModel
         _audioPlayer = null;
         OggFileName = null;
         OggPeaks = null;
-        OggRms = null;
         OggOnsets = null;
         OggDurationSeconds = 0;
         ClearVideo();
@@ -143,7 +141,6 @@ public sealed partial class MainWindowViewModel
         Bpm = Chart.Header.Bpm;
         Player = Math.Clamp(Chart.Header.Player - 1, 0, 2);
         Rank = Math.Clamp(Chart.Header.Rank, 0, 3);
-        AudioOffsetMs = Chart.Header.AudioOffsetMs;
     }
 
     // 실패하면 false. 예전에는 조용히 무시해서 사용자가 성공한 줄 알았다.

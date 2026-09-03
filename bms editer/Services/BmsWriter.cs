@@ -40,13 +40,6 @@ public static class BmsWriter
 
         AppendIfPresent(sb, "#PLAYLEVEL", level);
 
-        // 음원 오프셋은 이 에디터 전용 헤더다. 다른 헤더와 달리 인자로 받지 않고
-        // chart.Header 에서 읽는다. 뷰모델이 값이 바뀔 때마다 거기에 넣어 두고,
-        // 파서도 거기로 읽어들이므로 원본을 열었다 그대로 저장해도 값이 살아남는다.
-        // 0 이면 쓰지 않아서, 오프셋을 쓰지 않는 차트는 저장해도 새 줄이 붙지 않는다.
-        if (Math.Abs(chart.Header.AudioOffsetMs) > 0.0001)
-            sb.Append("#BMSEDITER_OFFSET ").AppendLine(chart.Header.AudioOffsetMs.ToString("0.###", CultureInfo.InvariantCulture));
-
         // 에디터가 다루지 않는 헤더(#TOTAL, #STAGEFILE, #BPMxx, #STOPxx, #BMPxx 등)를
         // 읽어들인 원문 그대로 되돌려 놓는다. 없으면 저장할 때마다 사라진다.
         foreach (var raw in chart.PreservedLines)
