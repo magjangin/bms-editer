@@ -4,25 +4,28 @@ using System.IO;
 using System.Linq;
 using bms_editer.Models;
 using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
 
 namespace bms_editer.ViewModels;
 
-public sealed record LaneNoteStat(string LaneId, int Count);
+// 레인 한 줄. LaneId 는 실제 채널 번호(11~18), Header 는 화면에 보이는 이름이다.
+//
+// 예전에는 LaneId 자리에 Header 를 넣어 두 값이 어긋나 있었다. 지금은 둘이 같아서
+// 드러나지 않았지만, 이 목록으로 노트를 골라내려면(컨트롤 패널) 채널 번호가 진짜여야 한다.
+public sealed record LaneNoteStat(string LaneId, string Header, int Count);
 
 public sealed record WavNoteStat(string Key, string FileName, int Count);
 
-// 노트 통계 창의 상태 모델. **집계해서 보여주기만 한다.**
+// 노트 통계 창(📊)의 상태 모델. **집계해서 보여주기만 한다.**
 //
 // 편집 결과가 곧바로 보이도록 메인 뷰모델의 노트 변경 알림을 구독해 다시 집계한다.
 // 개수가 0인 항목은 목록에서 빼고 실제로 쓰인 레인/키음만 보여준다.
 // 키음은 등록된 #WAV 목록이 아니라 노트가 실제로 가리키는 번호를 기준으로 센다.
 // (수백 개짜리 키음 테이블에서 쓰지 않는 번호가 목록을 가득 채우는 걸 막는다)
 //
-// 한때 "번호를 눌러 그 노트를 격자에서 선택"하는 기능이 여기 있었으나 걷어냈다.
-// 화면에서 명령까지 닿는 길이 두 번 조용히 끊어졌고, 고른 노트가 화면 밖이면
-// 눌렸는지조차 알 수 없어 쓸 만한 상태가 못 됐다. 나중에 제대로 다시 만든다.
-public sealed partial class NoteStatsViewModel : OwnerObservingViewModel
+// 이 집계를 그대로 물려받아 "고른 줄의 노트를 다루는" 공구함이 컨트롤 패널(🎛️)이다.
+// 세는 규칙이 두 벌로 갈라지면 두 창이 서로 다른 숫자를 보여주게 되므로,
+// 집계는 여기 한 곳에만 두고 컨트롤 패널은 앞뒤로 끼어들 자리만 빌려 간다.
+public partial class NoteStatsViewModel : OwnerObservingViewModel
 {
     [ObservableProperty] private IReadOnlyList<LaneNoteStat> _stats = Array.Empty<LaneNoteStat>();
     [ObservableProperty] private IReadOnlyList<WavNoteStat> _wavStats = Array.Empty<WavNoteStat>();
@@ -49,7 +52,12 @@ public sealed partial class NoteStatsViewModel : OwnerObservingViewModel
     // 키음을 추가·삭제하면 번호에 딸린 파일명 표시가 달라진다.
     protected override void OnWavListChanged() => Refresh();
 
-    private void Refresh()
+    // 목록을 통째로 갈아끼우기 직전과 직후. 고른 줄을 지켜야 하는 창이 여기에 끼어든다.
+    protected virtual void OnBeforeRefresh() { }
+
+    protected virtual void OnAfterRefresh() { }
+
+    protected void Refresh()
     {
         var chart = Owner.Chart;
 
@@ -69,8 +77,10 @@ public sealed partial class NoteStatsViewModel : OwnerObservingViewModel
             wavCounts[note.WavKey] = wavCounts.GetValueOrDefault(note.WavKey) + 1;
         }
 
+        OnBeforeRefresh();
+
         Stats = chart.Lanes
-            .Select(lane => new LaneNoteStat(lane.Header, laneCounts.GetValueOrDefault(lane.Id)))
+            .Select(lane => new LaneNoteStat(lane.Id, lane.Header, laneCounts.GetValueOrDefault(lane.Id)))
             .Where(stat => stat.Count > 0)
             .ToList();
 
@@ -83,5 +93,7 @@ public sealed partial class NoteStatsViewModel : OwnerObservingViewModel
             .ToList();
 
         TotalCount = chart.Notes.Count;
+
+        OnAfterRefresh();
     }
 }

@@ -92,12 +92,12 @@ public sealed class LoadPerformanceTests : IDisposable
     }
 
     [Fact]
-    public void 통계창은_한_번_열린_뒤에도_집계가_맞는다()
+    public void 컨트롤_패널은_한_번_열린_뒤에도_집계가_맞는다()
     {
         // 알림을 줄이면서 갱신까지 빠뜨리면 더 나쁘다. 결과가 맞는지 같이 본다.
         var path = WriteBigChart(wavCount: 10, measureCount: 4);
         var vm = new MainWindowViewModel();
-        var stats = new NoteStatsViewModel(vm);
+        var stats = new ControlPanelViewModel(vm);
 
         Assert.True(vm.LoadBms(path), vm.LastErrorMessage);
 

@@ -15,8 +15,8 @@
     <!--
       보여주기만 하는 창이다. 편집하는 동안 집계가 따라 갱신된다.
 
-      키음 줄을 눌러 그 노트를 격자에서 선택하는 기능이 한때 있었으나 걷어냈다.
-      나중에 제대로 다시 만든다.
+      "이 줄의 노트를 격자에서 골라 다루는" 일은 컨트롤 패널(🎛️)이 맡는다.
+      여기는 숫자만 보고 싶을 때 여는 창이라 누를 것을 두지 않는다.
 
       목록은 가상화되도록 바깥 ScrollViewer 없이 Grid 로 배치한다.
       ScrollViewer 안에 ItemsControl 을 넣으면 키음 628개짜리 차트에서 628줄을
@@ -31,7 +31,7 @@
                 <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:LaneNoteStat">
                         <Grid ColumnDefinitions="Auto,*" Margin="0,2">
-                            <TextBlock Grid.Column="0" Text="{Binding LaneId}" Width="48" />
+                            <TextBlock Grid.Column="0" Text="{Binding Header}" Width="48" />
                             <TextBlock Grid.Column="1" Text="{Binding Count}" HorizontalAlignment="Right" />
                         </Grid>
                     </DataTemplate>

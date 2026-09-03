@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using bms_editer.Models;
+using bms_editer.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -37,13 +38,9 @@ public sealed partial class NoteSearchViewModel : ObservableObject
     //
     // **매번 다시 본다.** 예전에는 창을 만들 때 한 번 정하고 굳혀서, 창을 띄워둔 채
     // 3자리 차트를 열면 번호 범위가 2자리에 머물러 3자리 키음을 아예 찾을 수 없었다.
-    private int KeyWidth =>
-        _owner.Chart.WavTable.Keys.Any(key => key.Length == 3)
-        || _owner.Chart.Notes.Any(note => note.WavKey.Length == 3)
-            ? 3
-            : 2;
+    private int KeyWidth => _owner.WavKeyWidth;
 
-    private int MaxKeyValue => KeyWidth == 3 ? (36 * 36 * 36) - 1 : (36 * 36) - 1;
+    private int MaxKeyValue => WavKey.MaxValue(KeyWidth);
 
     public NoteSearchViewModel(MainWindowViewModel owner)
     {
@@ -264,52 +261,9 @@ public sealed partial class NoteSearchViewModel : ObservableObject
         }
     }
 
-    // "01", "A3", "0ZZ" 같은 base-36 키를 정수로 바꾼다.
-    // BMS는 2자리와 3자리 키음 배치를 모두 쓰므로 세 자리까지 받아들인다.
-    private static bool TryParseBase36(string? text, out int value)
-    {
-        value = 0;
-        if (string.IsNullOrWhiteSpace(text))
-            return false;
-
-        var trimmed = text.Trim();
-        if (trimmed.Length is 0 or > 3)
-            return false;
-
-        foreach (var c in trimmed)
-        {
-            var digit = c switch
-            {
-                >= '0' and <= '9' => c - '0',
-                >= 'A' and <= 'Z' => c - 'A' + 10,
-                >= 'a' and <= 'z' => c - 'a' + 10,
-                _ => -1,
-            };
-
-            if (digit < 0)
-            {
-                value = 0;
-                return false;
-            }
-
-            value = (value * 36) + digit;
-        }
-
-        return true;
-    }
+    // base-36 키 변환 규칙은 Services/WavKey 한 곳에 있다.
+    private static bool TryParseBase36(string? text, out int value) => WavKey.TryParse(text, out value);
 
     // 차트가 쓰는 자릿수(2자리 또는 3자리)에 맞춰 키 문자열을 만든다.
-    private string ToBase36(int value)
-    {
-        const string Digits = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-
-        var chars = new char[KeyWidth];
-        for (var i = KeyWidth - 1; i >= 0; i--)
-        {
-            chars[i] = Digits[value % 36];
-            value /= 36;
-        }
-
-        return new string(chars);
-    }
+    private string ToBase36(int value) => WavKey.Format(value, KeyWidth);
 }

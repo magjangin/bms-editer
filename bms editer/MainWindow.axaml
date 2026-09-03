@@ -31,6 +31,7 @@
                 <MenuItem Header="검색/삭제/교체..." Click="OnShowNoteSearchClick" />
                 <MenuItem Header="키음 팔레트..." Click="OnShowWavPaletteClick" />
                 <MenuItem Header="노트 통계..." Click="OnShowStatsClick" />
+                <MenuItem Header="컨트롤 패널..." Click="OnShowControlPanelClick" />
             </MenuItem>
             <MenuItem Header="재생 (P)">
                 <MenuItem Header="재생 / 정지" Command="{Binding TogglePlaybackCommand}" InputGesture="Space" />
@@ -50,10 +51,11 @@
                 <Button Content="열기" Click="OnOpenFileClick" />
                 <Button Content="저장" Click="OnSaveFileClick" />
                 <Separator />
-                <Button Content="📊" Click="OnShowStatsClick" ToolTip.Tip="노트 통계" />
+                <Button Content="📊" Click="OnShowStatsClick" ToolTip.Tip="노트 통계 (보기 전용)" />
                 <ToggleButton Content="✏️" IsChecked="{Binding IsEditMode}" />
                 <Button Content="🧰" Click="OnShowNoteSearchClick" ToolTip.Tip="검색/삭제/교체" />
                 <Button Content="🎨" Click="OnShowWavPaletteClick" ToolTip.Tip="키음 팔레트 (별도 창)" />
+                <Button Content="🎛️" Click="OnShowControlPanelClick" ToolTip.Tip="컨트롤 패널 (레인/키음별 일괄 선택 · 포커스 · 미리듣기 · 일괄 교체)" />
                 <Separator />
                 <Button Content="OGG 열기" Click="OnLoadOggClick" />
                 <Button Content="비디오 열기" Click="OnLoadVideoClick" />

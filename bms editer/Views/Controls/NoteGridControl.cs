@@ -131,7 +131,10 @@ public sealed class NoteGridControl : TimelineControlBase
     private static readonly Typeface LaneHeaderTypeface = new("Inter, Arial, sans-serif");
 
     // 선택한 노트를 둘러 그리는 펜.
-    private static readonly Pen SelectionPen = new(Brushes.Yellow, 2);
+    //
+    // 노트 자체보다 넓은 사각형이라 테두리는 노트 위가 아니라 **검은 바탕 위에** 그려진다.
+    // 그래서 스크래치 레인(16)의 붉은 노트(230,40,40)와 색이 가까워도 테두리는 살아 있다.
+    private static readonly Pen SelectionPen = new(Brushes.Red, 2);
 
     static NoteGridControl()
     {

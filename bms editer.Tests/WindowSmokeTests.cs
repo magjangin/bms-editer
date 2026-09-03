@@ -75,11 +75,50 @@ public sealed class WindowSmokeTests
     });
 
     [Fact]
-    public void 통계_창은_편집을_따라_다시_집계한다() => RunOnUiThread(() =>
+    public void 컨트롤_패널이_열리고_집계를_보여준다() => RunOnUiThread(() =>
+    {
+        var viewModel = new ControlPanelViewModel(LoadedOwner());
+        var window = new ControlPanelWindow(viewModel);
+
+        ShowAndDraw(window);
+
+        // 레인별·키음별 목록이 실제로 채워졌는지.
+        Assert.Equal(5, viewModel.TotalCount);
+        Assert.NotEmpty(viewModel.Stats);
+        Assert.Equal(2, viewModel.WavStats.Count);
+
+        var lists = window.GetVisualDescendants().OfType<ListBox>().ToList();
+        Assert.Equal(2, lists.Count);
+        Assert.All(lists, list => Assert.True(list.IsEffectivelyVisible));
+        Assert.Equal(2, lists[1].ItemsSource!.Cast<object>().Count());
+    });
+
+    // 창에서 명령까지 닿는 길이 실제로 이어져 있는지.
+    //
+    // 예전에 이 자리에서 끊어졌다. 목록 항목 안에서 조상 바인딩으로 명령을 끌어왔더니
+    // 컴파일된 바인딩에서 조용히 실패해 Command 가 null 인 버튼이 됐고, 빌드도 예외도
+    // 멀쩡했다. 그래서 뷰모델 테스트가 아니라 **창을 실제로 만들어** 버튼을 확인한다.
+    [Fact]
+    public void 컨트롤_패널의_작업_버튼에_명령이_붙어_있다() => RunOnUiThread(() =>
+    {
+        var viewModel = new ControlPanelViewModel(LoadedOwner());
+        var window = new ControlPanelWindow(viewModel);
+        ShowAndDraw(window);
+
+        var buttons = window.GetVisualDescendants().OfType<Button>()
+            .Where(b => b.Classes.Contains("action"))
+            .ToList();
+
+        Assert.Equal(6, buttons.Count);
+        Assert.All(buttons, button => Assert.NotNull(button.Command));
+    });
+
+    [Fact]
+    public void 컨트롤_패널은_편집을_따라_다시_집계한다() => RunOnUiThread(() =>
     {
         var owner = LoadedOwner();
-        var viewModel = new NoteStatsViewModel(owner);
-        var window = new NoteStatsWindow(viewModel);
+        var viewModel = new ControlPanelViewModel(owner);
+        var window = new ControlPanelWindow(viewModel);
         ShowAndDraw(window);
 
         Assert.Equal(5, viewModel.TotalCount);

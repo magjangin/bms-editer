@@ -1016,22 +1016,9 @@ public sealed partial class MainWindowViewModel : ObservableObject
             _keySoundPlayer.Play(path);
     }
 
-    private const string Base36Digits = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-
-    // 이 차트가 쓰는 키 자릿수. 키음 테이블과 노트가 가리키는 번호를 함께 본다.
-    // BmsWriter.ComputeKeyWidth 와 같은 규칙이어야 한다.
-    private int GetWavKeyWidth()
-    {
-        var width = 2;
-
-        foreach (var key in Chart.WavTable.Keys)
-            width = Math.Max(width, key.Length);
-
-        foreach (var note in Chart.Notes)
-            width = Math.Max(width, note.WavKey.Length);
-
-        return Math.Clamp(width, 2, 3);
-    }
+    // 이 차트가 쓰는 키 자릿수. 규칙은 WavKey 한 곳에 있고, 검색 창과 컨트롤 패널도
+    // 번호 범위의 최댓값을 여기서 받아 간다.
+    public int WavKeyWidth => WavKey.WidthOf(Chart);
 
     // 비어 있는 다음 키음 번호. **차트가 쓰는 자릿수에 맞춰서** 만든다.
     //
@@ -1040,31 +1027,18 @@ public sealed partial class MainWindowViewModel : ObservableObject
     // 기존 001번 키음을 조용히 덮어썼다. 001을 쓰던 노트가 전부 다른 소리로 바뀌었다.
     private string GetNextWavKey()
     {
-        var width = GetWavKeyWidth();
-        var limit = 1;
-        for (var i = 0; i < width; i++)
-            limit *= 36;
+        var width = WavKeyWidth;
+        var limit = WavKey.MaxValue(width);
 
         // 00 / 000 은 "빈 자리"를 뜻하므로 1부터 시작한다.
-        for (var value = 1; value < limit; value++)
+        for (var value = 1; value <= limit; value++)
         {
-            var key = ToBase36(value, width);
+            var key = WavKey.Format(value, width);
             if (!Chart.WavTable.ContainsKey(key))
                 return key;
         }
 
         throw new InvalidOperationException("WAV 키 한도를 초과했습니다.");
-    }
-
-    private static string ToBase36(int value, int width)
-    {
-        var chars = new char[width];
-        for (var i = width - 1; i >= 0; i--)
-        {
-            chars[i] = Base36Digits[value % 36];
-            value /= 36;
-        }
-        return new string(chars);
     }
 
     // 실패하면 false. 예전에는 예외를 삼켜서 [키음 추가]가 조용히 아무 일도 안 했다.

@@ -465,8 +465,14 @@ public partial class MainWindow : Window
             ShowToolWindow(vm => new NoteSearchWindow(new NoteSearchViewModel(vm)));
 
         // 편집하는 동안 집계가 따라 움직여야 하므로 검색 창과 같이 모드리스로 띄운다.
+        // 숫자만 보는 창이다. 골라서 다루는 쪽은 아래 컨트롤 패널이 맡는다.
         private void OnShowStatsClick(object? sender, RoutedEventArgs e) =>
             ShowToolWindow(vm => new NoteStatsWindow(new NoteStatsViewModel(vm)));
+
+        // 같은 집계를 물려받아 레인/키음별 일괄 선택·미리듣기·일괄 교체까지 잇는 공구함.
+        // 여기서 고른 노트를 격자에서 이어 손보므로 역시 모드리스로 띄운다.
+        private void OnShowControlPanelClick(object? sender, RoutedEventArgs e) =>
+            ShowToolWindow(vm => new ControlPanelWindow(new ControlPanelViewModel(vm)));
 
         // 사이드바의 좁은 키음 목록 대신 넓은 타일 판에서 고르는 창.
         // 선택이 곧 편집용 붓이라 편집하는 동안 계속 띄워둘 수 있게 모드리스로 연다.
