@@ -15,7 +15,8 @@ public sealed partial class MainWindowViewModel
     public BulkObservableCollection<BmsWavItem> WavList { get; } = new();
     [ObservableProperty] private BmsWavItem? _selectedWavItem;
 
-    public IReadOnlyList<BmsNote> Notes => Chart.Notes;
+    private IReadOnlyList<BmsNote>? _notesCache;
+    public IReadOnlyList<BmsNote> Notes => _notesCache ??= Chart.Notes.ToArray();
 
     private readonly HashSet<BmsNote> _selectedNotes = new();
     private IReadOnlyList<BmsNote> _selectedNotesCache = Array.Empty<BmsNote>();
@@ -32,6 +33,7 @@ public sealed partial class MainWindowViewModel
     private void NotifyNotesChanged()
     {
         _sortedNotesCache = null;
+        _notesCache = Chart.Notes.ToArray();
         MarkDirty();
         OnPropertyChanged(nameof(Notes));
     }

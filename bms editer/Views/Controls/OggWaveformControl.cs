@@ -54,6 +54,19 @@ public sealed class OggWaveformControl : TimelineControlBase
         PointerReleased += OnPointerReleased;
     }
 
+    protected override Size MeasureOverride(Size availableSize)
+    {
+        var timelineLength = GetTimelineHeight();
+        if (IsHorizontalView)
+        {
+            return new Size(timelineLength, double.IsNaN(Height) ? 220.0 : Height);
+        }
+        else
+        {
+            return new Size(double.IsNaN(Width) ? 220.0 : Width, timelineLength);
+        }
+    }
+
     private static readonly Pen CenterLinePen = new(Brushes.DimGray, 1);
     private static readonly Pen WavePen = new(new SolidColorBrush(Color.FromRgb(150, 170, 160)), 1);
     private static readonly IBrush WaveFillBrush = new SolidColorBrush(Color.FromArgb(125, 120, 150, 135));

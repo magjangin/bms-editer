@@ -450,6 +450,8 @@ public sealed class NoteGridControl : TimelineControlBase
             if (PlaceNoteCommand?.CanExecute(args) == true)
             {
                 PlaceNoteCommand.Execute(args);
+                InvalidateVisual();
+                e.Handled = true;
             }
         }
         else if (point.Properties.IsRightButtonPressed)
@@ -457,6 +459,8 @@ public sealed class NoteGridControl : TimelineControlBase
             if (RemoveNoteCommand?.CanExecute(args) == true)
             {
                 RemoveNoteCommand.Execute(args);
+                InvalidateVisual();
+                e.Handled = true;
             }
         }
     }

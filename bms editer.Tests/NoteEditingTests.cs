@@ -224,4 +224,49 @@ public sealed class NoteEditingTests : IDisposable
         Assert.False(asked);
         Assert.Empty(vm.WavList);
     }
+
+    // ── 29. 노트 배치·삭제 시 Notes 컬렉션 참조가 갱신되어 UI가 다시 그려진다 ───
+
+    [Fact]
+    public void 노트_배치시_Notes_참조가_바뀌어_Avalonia_바인딩이_갱신된다()
+    {
+        var vm = new MainWindowViewModel();
+        var wavPath = Path.Combine(_directory, "hit.wav");
+        File.WriteAllText(wavPath, "dummy");
+        vm.AddWav(wavPath);
+        Assert.NotNull(vm.SelectedWavItem);
+
+        var initialNotes = vm.Notes;
+        var propertyChangedFired = false;
+        vm.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(MainWindowViewModel.Notes))
+                propertyChangedFired = true;
+        };
+
+        vm.PlaceNoteCommand.Execute(new NotePlacementArgs("11", 1, 0.0));
+
+        Assert.True(propertyChangedFired, "Notes PropertyChanged 알림이 발생하지 않았습니다");
+        Assert.Single(vm.Notes);
+        Assert.NotSame(initialNotes, vm.Notes);
+    }
+
+    [Fact]
+    public void 노트_삭제시_Notes_참조가_바뀌어_Avalonia_바인딩이_갱신된다()
+    {
+        var vm = WithNotes(("11", 1, 0.0));
+        var initialNotes = vm.Notes;
+        var propertyChangedFired = false;
+        vm.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(MainWindowViewModel.Notes))
+                propertyChangedFired = true;
+        };
+
+        vm.RemoveNoteCommand.Execute(new NotePlacementArgs("11", 1, 0.0));
+
+        Assert.True(propertyChangedFired, "Notes PropertyChanged 알림이 발생하지 않았습니다");
+        Assert.Empty(vm.Notes);
+        Assert.NotSame(initialNotes, vm.Notes);
+    }
 }
