@@ -37,6 +37,7 @@ public partial class MainWindow : Window
             vm.ScrollToRatioRequested += ScrollEditorToRatio;
             Waveform.ScrubRequested += OnWaveformScrubRequested;
             Closing += OnWindowClosing;
+            Closed += (_, _) => (DataContext as IDisposable)?.Dispose();
             UpdateEditorOrientation();
             UpdateWindowTitle();
         }

@@ -54,6 +54,10 @@ public sealed class OggWaveformControl : TimelineControlBase
         PointerReleased += OnPointerReleased;
     }
 
+    private static readonly Pen CenterLinePen = new(Brushes.DimGray, 1);
+    private static readonly Pen WavePen = new(new SolidColorBrush(Color.FromRgb(150, 170, 160)), 1);
+    private static readonly IBrush WaveFillBrush = new SolidColorBrush(Color.FromArgb(125, 120, 150, 135));
+
     public override void Render(DrawingContext context)
     {
         var width = Bounds.Width;
@@ -70,21 +74,19 @@ public sealed class OggWaveformControl : TimelineControlBase
 
         if (IsHorizontalView)
         {
-            context.DrawLine(new Pen(Brushes.DimGray, 1), new Point(0, center), new Point(width, center));
+            context.DrawLine(CenterLinePen, new Point(0, center), new Point(width, center));
         }
         else
         {
-            context.DrawLine(new Pen(Brushes.DimGray, 1), new Point(center, 0), new Point(center, height));
+            context.DrawLine(CenterLinePen, new Point(center, 0), new Point(center, height));
         }
 
-        var wavePen = new Pen(new SolidColorBrush(Color.FromRgb(150, 170, 160)), 1);
-        var fillBrush = new SolidColorBrush(Color.FromArgb(125, 120, 150, 135));
         var maxAmplitude = (center - 8) * 0.58 * Math.Clamp(HorizontalZoom, 0.1, 4.0);
         var peaks = Peaks;
 
         if (peaks is { Count: > 1 })
         {
-            DrawBlockWaveform(context, peaks, timelineLength, center, maxAmplitude, fillBrush, wavePen, IsHorizontalView);
+            DrawBlockWaveform(context, peaks, timelineLength, center, maxAmplitude, WaveFillBrush, WavePen, IsHorizontalView);
             DrawOnsetMarkers(context, waveformThickness, timelineLength, Onsets, IsHorizontalView);
         }
         else
@@ -98,7 +100,7 @@ public sealed class OggWaveformControl : TimelineControlBase
                     var ft = fMeasurePosition * 6.0;
                     var fAmplitude = Math.Abs(Math.Sin(ft) * 0.6 + Math.Sin(ft * 2.7 + 1.3) * 0.3 + Math.Sin(ft * 5.3) * 0.1);
                     var fHalf = fAmplitude * maxAmplitude;
-                    context.DrawLine(wavePen, new Point(tPos, center - fHalf), new Point(tPos, center + fHalf));
+                    context.DrawLine(WavePen, new Point(tPos, center - fHalf), new Point(tPos, center + fHalf));
                 }
                 else
                 {
@@ -106,7 +108,7 @@ public sealed class OggWaveformControl : TimelineControlBase
                     var t = measurePosition * 6.0;
                     var amplitude = Math.Abs(Math.Sin(t) * 0.6 + Math.Sin(t * 2.7 + 1.3) * 0.3 + Math.Sin(t * 5.3) * 0.1);
                     var half = amplitude * maxAmplitude;
-                    context.DrawLine(wavePen, new Point(center - half, tPos), new Point(center + half, tPos));
+                    context.DrawLine(WavePen, new Point(center - half, tPos), new Point(center + half, tPos));
                 }
             }
         }

@@ -149,6 +149,26 @@ public sealed class NoteGridControl : TimelineControlBase
     // 이번 드래그가 기존 선택에 더하는 것인지(Ctrl/Shift), 갈아끼우는 것인지.
     private bool _isAdditiveDrag;
 
+    private readonly Dictionary<string, FormattedText> _laneHeaderFormattedTextCache = new();
+    private HashSet<BmsNote>? _cachedSelectedSet;
+    private IReadOnlyList<BmsNote>? _lastObservedSelectedNotes;
+
+    private FormattedText GetOrCreateLaneHeaderFormattedText(string header)
+    {
+        if (!_laneHeaderFormattedTextCache.TryGetValue(header, out var text))
+        {
+            text = new FormattedText(
+                header,
+                System.Globalization.CultureInfo.CurrentCulture,
+                FlowDirection.LeftToRight,
+                LaneHeaderTypeface,
+                12.0,
+                LaneHeaderBrush);
+            _laneHeaderFormattedTextCache[header] = text;
+        }
+        return text;
+    }
+
     public NoteGridControl()
     {
         PointerPressed += OnPointerPressed;
@@ -228,13 +248,7 @@ public sealed class NoteGridControl : TimelineControlBase
         for (var i = 0; i < lanes.Count; i++)
         {
             var lane = lanes[i];
-            var formattedText = new FormattedText(
-                lane.Header,
-                System.Globalization.CultureInfo.CurrentCulture,
-                FlowDirection.LeftToRight,
-                LaneHeaderTypeface,
-                12.0,
-                LaneHeaderBrush);
+            var formattedText = GetOrCreateLaneHeaderFormattedText(lane.Header);
 
             if (IsHorizontalView)
             {
@@ -250,7 +264,13 @@ public sealed class NoteGridControl : TimelineControlBase
 
         // 배치된 노트 그리기
         var notes = Notes;
-        var selectedSet = SelectedNotes is null ? null : new HashSet<BmsNote>(SelectedNotes);
+        var selectedNotes = SelectedNotes;
+        if (!ReferenceEquals(selectedNotes, _lastObservedSelectedNotes))
+        {
+            _lastObservedSelectedNotes = selectedNotes;
+            _cachedSelectedSet = selectedNotes is { Count: > 0 } ? new HashSet<BmsNote>(selectedNotes) : null;
+        }
+        var selectedSet = _cachedSelectedSet;
         if (notes is not null)
         {
             for (var index = 0; index < notes.Count; index++)

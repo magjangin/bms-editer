@@ -1,4 +1,4 @@
-﻿# BMS Editor - 코드 설명서 (Code Explanation)
+# BMS Editor - 코드 설명서 (Code Explanation)
 
 이 문서는 BMS 에디터 프로젝트를 구성하는 각 소스 코드 파일의 역할, 내부 아키텍처, 그리고 컴포넌트 간 데이터 흐름을 상세하게 설명합니다.
 
@@ -45,7 +45,10 @@
 
 | 파일명 | 역할 및 특징 |
 | :--- | :--- |
-| **[MainWindowViewModel.cs](file:///h:/source/repos/bms%20editer/bms%20editer/ViewModels/MainWindowViewModel.cs)** | 메인 화면의 중심 뷰모델입니다. 파일 열기/저장, 차트 로드, 재생/정지 제어, 노트 배치/삭제/이동/선택, 줌 배율, 가로/세로 뷰 전환, 마디 수 동적 동기화, 변경 상태(Dirty Tracking) 및 제목 표시줄 별표(`*`) 관리를 총괄합니다. |
+| **[MainWindowViewModel.cs](file:///h:/source/repos/bms%20editer/bms%20editer/ViewModels/MainWindowViewModel.cs)** | 메인 화면의 중심 뷰모델(Core)입니다. 차트 상태, 마디 수 계산, BPM 및 타임라인(`ChartTimeline`) 연동, UI 뷰/격자 바인딩 속성, 변경 추적(`Dirty Tracking`) 및 `IDisposable` 수명주기 해제를 총괄합니다. |
+| **[MainWindowViewModel.Playback.cs](file:///h:/source/repos/bms%20editer/bms%20editer/ViewModels/MainWindowViewModel.Playback.cs)** | 오디오 및 키음 재생 파티션입니다. `Play`, `Stop`, `TogglePlayback`, 스크러빙(`ScrubPreview`/`ScrubCommit`), `waveOut` 하드웨어 클럭 기준의 재생 위치 갱신 및 이진 탐색 기반 실시간 키음 동기화 트리거를 담당합니다. |
+| **[MainWindowViewModel.FileIO.cs](file:///h:/source/repos/bms%20editer/bms%20editer/ViewModels/MainWindowViewModel.FileIO.cs)** | 파일 및 미디어 입출력 파티션입니다. BMS 열기/저장, 원본 인코딩 보존 및 손실 방지 UTF-8 폴백, OGG 비동기 디코딩 로드, 비디오 파일 연결, 새 파일 초기화 및 변경사항 폐기 확인 콜백을 담당합니다. |
+| **[MainWindowViewModel.Editing.cs](file:///h:/source/repos/bms%20editer/bms%20editer/ViewModels/MainWindowViewModel.Editing.cs)** | 채보 노트 편집 및 선택 파티션입니다. 노트 배치/삭제/이동(경계 체크 및 충돌 감지 포함), 마디 단위 복사, 키음 일괄 교체, 다중 선택 상태(`SelectedNotes`) 및 키음 팔레트 등록/삭제를 담당합니다. |
 | **[ControlPanelViewModel.cs](file:///h:/source/repos/bms%20editer/bms%20editer/ViewModels/ControlPanelViewModel.cs)** | **🎛️ 컨트롤 패널** 전용 뷰모델입니다. `NoteStatsViewModel`의 집계 로직을 상속받아, 고른 레인/키음의 격자 노트 일괄 선택, 화면 밖 대상 위치로 자동 스크롤(포커스), 키음 즉시 미리듣기, 번호 일괄 교체 및 2단계 확인 후 일괄 삭제를 수행합니다. |
 | **[NoteStatsViewModel.cs](file:///h:/source/repos/bms%20editer/bms%20editer/ViewModels/NoteStatsViewModel.cs)** | **📊 통계 창(보기 전용)**의 뷰모델입니다. 실제로 쓰인 레인과 키음별 노트 수를 단일 루프로 고속 집계하며, 편집 알림을 실시간 구독하여 수치가 동기화됩니다. |
 | **[NoteSearchViewModel.cs](file:///h:/source/repos/bms%20editer/bms%20editer/ViewModels/NoteSearchViewModel.cs)** | 조건 검색/삭제/교체 모드리스 창의 뷰모델입니다. 마디 범위, 키음 범위, 레인 필터를 조합해 노트를 조건 검색하고 격자에서 즉시 선택·일괄 삭제·번호 변경을 실행합니다. |
