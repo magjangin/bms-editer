@@ -1,40 +1,70 @@
-# BMS Editor - 코드 설명서 (Code Explanation)
+﻿# BMS Editor - 코드 설명서 (Code Explanation)
 
-이 문서는 BMS 에디터 프로젝트를 구성하는 각 소스 코드 파일의 역할과 설계 구조를 설명합니다.
+이 문서는 BMS 에디터 프로젝트를 구성하는 각 소스 코드 파일의 역할, 내부 아키텍처, 그리고 컴포넌트 간 데이터 흐름을 상세하게 설명합니다.
 
-## 📂 프로젝트 구조 (Project Structure)
+---
 
-### 1. Models (데이터 모델)
-차트 데이터와 설정을 표현하는 핵심 객체들입니다.
-* **[BmsChart.cs](file:///h:/source/repos/bms%20editer/bms%20editer/Models/BmsChart.cs)**: BMS 차트 전체 정보를 보관합니다. 헤더 메타데이터, 키음/배경 이미지 맵, 마디당 박자 길이 변경 사항, 그리고 노트 목록을 관리합니다.
-* **[BmsHeader.cs](file:///h:/source/repos/bms%20editer/bms%20editer/Models/BmsHeader.cs)**: 차트의 메타데이터(제목, 아티스트, 장르, 기본 BPM, 플레이어 모드, 판정 난이도 등)를 저장합니다.
-* **[BmsNote.cs](file:///h:/source/repos/bms%20editer/bms%20editer/Models/BmsNote.cs)**: 개별 노트 객체입니다. 속해 있는 마디 번호, 레인(Lane) ID, 마디 내 상대 위치(0.0~1.0), WAV 키(Base-36), 노트 타입(일반, 롱노트 시작/끝 등) 정보를 가집니다.
-* **[BmsWavItem.cs](file:///h:/source/repos/bms%20editer/bms%20editer/Models/BmsWavItem.cs)**: 키음 목록 뷰에 바인딩하기 위한 모델로, WAV 키음 고유 식별 키와 로컬 파일 경로를 담고 있습니다.
-* **[LaneDefinition.cs](file:///h:/source/repos/bms%20editer/bms%20editer/Models/LaneDefinition.cs)**: 에디터에서 활성화할 노트 레인을 정의합니다. 기본적으로 1P 7키+스크래치 채널(16: 스크래치, 11~15 및 18: 건반) 세팅을 생성합니다.
+## 📂 1. Models (데이터 모델)
 
-### 2. Services (비즈니스 로직 및 엔진)
-입출력, 오디오 재생 및 분석을 처리하는 백엔드 서비스 그룹입니다.
-* **[BmsParser.cs](file:///h:/source/repos/bms%20editer/bms%20editer/Services/BmsParser.cs)**: BMS 파일의 텍스트 줄을 파싱하여 차트 모델로 채웁니다. UTF-8과 CP949(한국어) 인코딩 자동 감지 및 중복/3자리 키음 채널의 분할 단위를 자동으로 결정합니다. `#RANDOM`/`#IF` 등 조건 블록 분기 구조를 파싱하여 분기 맥락(`BranchId`)을 부여합니다.
-* **[BmsWriter.cs](file:///h:/source/repos/bms%20editer/bms%20editer/Services/BmsWriter.cs)**: 편집된 차트를 BMS 텍스트 포맷으로 변환해 저장합니다. 노트의 정확한 비율(0.0~1.0)을 유실 없이 직렬화하기 위해 마디 내 노트 위치들의 최소공배수(LCM)를 이용해 최적의 데이터 분할 길이를 자동으로 계산하며, 조건 블록 분기별 노트를 분리 출력합니다.
-* **[WavDecoder.cs](file:///h:/source/repos/bms%20editer/bms%20editer/Services/WavDecoder.cs)**: WAV (8/16/24/32bit PCM 및 IEEE Float) 및 OGG 오디오 파일을 44100Hz 16-bit Stereo PCM 샘플 배열로 정밀 변환 및 리샘플링합니다.
-* **[WavKey.cs](file:///h:/source/repos/bms%20editer/bms%20editer/Services/WavKey.cs)**: 키음 번호(base-36 `01`~`ZZ` / `001`~`ZZZ`)의 파싱·서식·자릿수 판별 규칙 한 곳입니다. 같은 규칙이 뷰모델마다 한 벌씩 복사돼 있었는데, 이 값이 어긋나면 저장할 때 `BmsWriter`가 폭을 맞추면서 엉뚱한 번호의 키음을 조용히 덮어씁니다.
-* **[KeySoundPlayer.cs](file:///h:/source/repos/bms%20editer/bms%20editer/Services/KeySoundPlayer.cs)**: Win32 `waveOut` API 기반의 실시간 다중 채널(폴리포닉) 키음 스트리밍 믹서입니다. 사전 디코딩된 PCM 캐시를 바탕으로 화음 및 빠른 연속 타건을 무지연 합산 재생합니다.
-* **[OggAudioPlayer.cs](file:///h:/source/repos/bms%20editer/bms%20editer/Services/OggAudioPlayer.cs)**: 배경 음악(OGG)을 디코딩하고 Win32 `waveOut` API P/Invoke를 사용하여 지연 시간(Latency)을 최소화한 실시간 재생 및 탐색(Scrubbing)을 구현합니다. 성능 향상을 위해 소스 생성 P/Invoke인 `[LibraryImport]`를 사용합니다.
-* **[OggPeakLoader.cs](file:///h:/source/repos/bms%20editer/bms%20editer/Services/OggPeakLoader.cs)**: 오디오 파형 출력을 위해 OGG 데이터를 고속 다운샘플링하여 피크(Peak) 진폭 배열을 생성하며, 드럼 비트나Onset 타격점을 탐지(Onset detection)해 파형 위에 격자 씽크 가이드를 그릴 수 있도록 돕습니다.
+차트 데이터, 헤더 정보, 라인/노트 구조 및 레인 설정을 표현하는 핵심 객체 계층입니다.
 
-### 3. ViewModels (MVVM 뷰모델)
-화면의 상태 및 사용자 인터랙션 흐름을 제어합니다.
-* **[MainWindowViewModel.cs](file:///h:/source/repos/bms%20editer/bms%20editer/ViewModels/MainWindowViewModel.cs)**: 메인 에디터 화면의 모든 상태(현재 차트, 재생 중 위치, 줌 배율, 가로/세로 뷰 옵션 등)를 관리하고 노트 배치, 삭제, 선택, 이동 명령(Command)들을 제공합니다. `KeySoundPlayer`를 통한 다중 키음 믹싱 재생 및 OGG 오디오 재생을 통합 제어합니다.
-* **[NoteSearchViewModel.cs](file:///h:/source/repos/bms%20editer/bms%20editer/ViewModels/NoteSearchViewModel.cs)**: 검색/삭제/교체 창의 상태 모델입니다. 대상 노트(선택 여부·롱 여부·숨김 여부), 마디 범위, 키음 번호 범위(base-36 두 자리), 열(레인) 조건을 조합해 노트를 걸러내고 선택·삭제·키음 번호 일괄 변경을 수행합니다.
-* **[NoteStatsViewModel.cs](file:///h:/source/repos/bms%20editer/bms%20editer/ViewModels/NoteStatsViewModel.cs)**: **📊 노트 통계 창**의 상태 모델이자 집계 규칙이 사는 곳입니다. 레인별 노트 개수와 키음별 사용 빈도를 세고, 메인 뷰모델의 노트 변경 알림과 키음 목록 변경을 구독해 편집하는 즉시 다시 집계합니다(창을 닫을 때 `Dispose`로 구독 해제). 개수가 0인 항목은 빼고 실제로 쓰인 레인·키음만 보여주며, 키음은 등록된 `#WAV` 테이블이 아니라 노트가 실제로 가리키는 번호를 기준으로 셉니다. 목록을 갈아끼우기 직전·직후에 `OnBeforeRefresh`/`OnAfterRefresh` 훅을 열어 두어, 고른 줄을 지켜야 하는 컨트롤 패널이 여기에 끼어듭니다. **세는 규칙을 두 벌로 갈라 두면 두 창이 서로 다른 숫자를 보여주게 되므로 집계는 이 한 곳에만 둡니다.**
-* **[ControlPanelViewModel.cs](file:///h:/source/repos/bms%20editer/bms%20editer/ViewModels/ControlPanelViewModel.cs)**: **🎛️ 컨트롤 패널**의 상태 모델입니다. 위 집계를 그대로 물려받고(`NoteStatsViewModel` 상속), 그 줄을 골라 **격자에서 일괄 선택·포커스 · 키음 미리듣기 · 번호 일괄 교체 · 일괄 삭제**까지 이어 갑니다. 다시 집계할 때 고르고 있던 줄은 번호로 다시 잡아 두므로 편집 한 번에 선택이 풀리지 않습니다. 목록 항목에는 명령을 걸지 않고(예전에 조상 바인딩이 컴파일된 바인딩에서 조용히 끊어졌습니다) 고른 줄만 `SelectedLaneStat`/`SelectedWavStat` 로 받습니다.
+| 파일명 | 역할 및 핵심 구조 |
+| :--- | :--- |
+| **[BmsChart.cs](file:///h:/source/repos/bms%20editer/bms%20editer/Models/BmsChart.cs)** | BMS 차트 전체 데이터의 컨테이너입니다. 헤더 메타데이터(`Header`), 노트 컬렉션(`Notes`), 키음 파일 테이블(`WavTable`), 확장 BPM 테이블(`BpmTable`), 마디 길이 변경 배율(`MeasureLengths`), BPM 변경 시퀀스(`BpmChanges`), 보존 원문 줄(`PreservedLines`), 조건문 포함 여부(`HasConditionalBlocks`)를 일괄 보관합니다. |
+| **[BmsHeader.cs](file:///h:/source/repos/bms%20editer/bms%20editer/Models/BmsHeader.cs)** | 차트의 기본 메타데이터(곡 제목, 아티스트, 장르, 기본 BPM, 플레이어 모드, 판정 난이도 Rank, 표기 레벨 등)를 저장합니다. |
+| **[BmsNote.cs](file:///h:/source/repos/bms%20editer/bms%20editer/Models/BmsNote.cs)** | 개별 노트 객체입니다. 속한 마디 번호(`Measure`), 레인 ID(`LaneId`), 마디 내 상대 위치(`Position`, 0.0~1.0), 키음 식별 키(`WavKey`), 분기 식별자(`BranchId`), 원본 줄 순서(`SourceLineOrder`)를 가집니다. |
+| **[BpmChange.cs](file:///h:/source/repos/bms%20editer/bms%20editer/Models/BpmChange.cs)** | 곡 도중 발생하는 BPM 변화 이벤트 모델입니다. 마디 번호(`Measure`), 마디 내 상대 위치(`Position`), 변경될 새로운 BPM 수치(`Bpm`)를 들고 있습니다. |
+| **[BmsRawLine.cs](file:///h:/source/repos/bms%20editer/bms%20editer/Models/BmsRawLine.cs)** | 에디터가 직접 수정하지 않는 BMS 원문 줄(BGM 레인, 미지원 채널, 주석, 조건 제어문 등)을 유실 없이 저장하기 위한 보존 모델입니다. 줄 순서(`Order`)와 분기 식별자(`BranchId`)를 추적합니다. |
+| **[BmsWavItem.cs](file:///h:/source/repos/bms%20editer/bms%20editer/Models/BmsWavItem.cs)** | UI 팔레트 및 리스트 바인딩용 모델입니다. WAV 키(Base-36)와 파일 경로, 원본 텍스트, 경로 추측 여부(`IsPathGuessed`)를 관리합니다. |
+| **[LaneDefinition.cs](file:///h:/source/repos/bms%20editer/bms%20editer/Models/LaneDefinition.cs)** | 에디터에서 활성화할 건반 레인을 정의합니다. 기본적으로 1P 건반 채널(16: 스크래치, 11~15: 1P 건반 1~5, 18: 1P 건반 6) 구성을 생성합니다. |
 
-### 4. Views / Controls (UI 뷰 및 커스텀 컨트롤)
-사용자에게 렌더링되고 입력을 받는 프레젠테이션 레이어입니다.
-* **[MainWindow.axaml / MainWindow.axaml.cs](file:///h:/source/repos/bms%20editer/bms%20editer/MainWindow.axaml)**: 에디터의 메인 레이아웃 및 파일 열기/저장 창 처리, 키 입력 감지(방향키 이동, Delete 키 제거)를 담당합니다.
-* **[TimelineControlBase.cs](file:///h:/source/repos/bms%20editer/bms%20editer/Views/Controls/TimelineControlBase.cs)**: 격자판과 파형 드로잉 컨트롤의 공통 베이스 컨트롤입니다. 줌, 격자 단위 계산 기능, 재생바 커서 및 싱크 경고 점멸 플래시 그리기와 같이 공통된 화면 그리기 연출을 한 곳에서 모아 처리합니다.
-* **[NoteStatsWindow.axaml / NoteStatsWindow.axaml.cs](file:///h:/source/repos/bms%20editer/bms%20editer/Views/NoteStatsWindow.axaml)**: 툴바의 📊 버튼으로 여는 노트 통계 창입니다. 편집하면서 집계가 따라 움직이도록 모드리스로 띄우며, 누를 것은 두지 않습니다.
-* **[ControlPanelWindow.axaml / ControlPanelWindow.axaml.cs](file:///h:/source/repos/bms%20editer/bms%20editer/Views/ControlPanelWindow.axaml)**: 툴바의 🎛️ 버튼으로 여는 컨트롤 패널 창입니다. 편집하면서 집계가 따라 움직이고 고른 노트를 격자에서 이어 손볼 수 있도록 모드리스로 띄웁니다. 누르는 것은 전부 목록 **밖**의 버튼이고, 코드비하인드는 "줄을 두 번 누르면 그 줄의 노트를 선택"하는 지름길만 잇습니다.
-* **[NoteSearchWindow.axaml / NoteSearchWindow.axaml.cs](file:///h:/source/repos/bms%20editer/bms%20editer/Views/NoteSearchWindow.axaml)**: 툴바의 🧰 버튼으로 여는 검색/삭제/교체 창입니다. 결과를 격자에서 바로 확인할 수 있도록 모달이 아닌 모드리스로 띄우며, 이미 열려 있으면 새 창을 만들지 않고 기존 창을 앞으로 가져옵니다.
-* **[NoteGridControl.cs](file:///h:/source/repos/bms%20editer/bms%20editer/Views/Controls/NoteGridControl.cs)**: 실질적인 건반형 격자판과 배치된 노트를 그리는 커스텀 컨트롤입니다. 좌클릭(노트 배치 / 드래그 선택 영역 지정) 및 우클릭(노트 삭제) 등 상세한 격자 조작과 단축키 이동 동작을 연동합니다.
-* **[OggWaveformControl.cs](file:///h:/source/repos/bms%20editer/bms%20editer/Views/Controls/OggWaveformControl.cs)**: 로드된 오디오 파형 및 박자 탐지점(Onset)을 에디터 격자 위치에 정확히 매칭시켜 파형 가이드라인을 그리는 컨트롤입니다. 휠 스크러빙 및 조작 편의성을 지원합니다.
+---
+
+## ⚙️ 2. Services (비즈니스 로직 및 엔진)
+
+파일 파싱, 직렬화 저장, 오디오 디코딩, 실시간 믹싱 재생 및 시간축 동기화를 담당하는 엔진 계층입니다.
+
+| 파일명 | 역할 및 핵심 기술 |
+| :--- | :--- |
+| **[BmsParser.cs](file:///h:/source/repos/bms%20editer/bms%20editer/Services/BmsParser.cs)** | BMS 텍스트 파일을 구문 분석하여 `BmsChart` 모델로 변환합니다. 바이트 레벨 판별을 통해 BOM → UTF-8 → CP932/CP949 인코딩을 자동 감지하며, 2자리/3자리 키음 채널 분할 크기 결정 및 조건 블록(`#RANDOM`/`#IF`/`#SWITCH`)의 분기 맥락(`BranchId`)을 안전하게 추출합니다. |
+| **[BmsWriter.cs](file:///h:/source/repos/bms%20editer/bms%20editer/Services/BmsWriter.cs)** | 차트 모델을 규격에 맞는 BMS 텍스트로 직렬화합니다. 마디 내 노트 위치들의 최소공배수(LCM)를 이용해 무손실 분할 해상도를 계산하고, 원문 보존 줄(`PreservedLines`)과 분기별 노트를 원본 순서대로 안전하게 복원 출력합니다. |
+| **[SafeFileWriter.cs](file:///h:/source/repos/bms%20editer/bms%20editer/Services/SafeFileWriter.cs)** | 원자적(Atomic) 파일 저장 서비스입니다. 같은 디렉터리의 임시 파일(`.tmp`)에 완전히 기록한 뒤에만 원본을 교체하며, 직전 정상 저장본을 `.bak` 파일로 백업하여 충돌이나 예외 시에도 원본 손상을 원천 방지합니다. |
+| **[ChartTimeline.cs](file:///h:/source/repos/bms%20editer/bms%20editer/Services/ChartTimeline.cs)** | **"마디 위치 ↔ 절대 시각(초)" 변환을 전담하는 핵심 동기화 엔진**입니다. 곡 도중의 마디 길이 배율(`#xxx02`)과 BPM 변경(`#xxx03`/`#xxx08`)을 통합 누적 계산하여, 격자선·노트·파형·재생바가 동일한 시각 기준을 공유하도록 보장합니다. |
+| **[KeySoundPlayer.cs](file:///h:/source/repos/bms%20editer/bms%20editer/Services/KeySoundPlayer.cs)** | Win32 `waveOut` API 기반의 언매니지드 네이티브 헤더(`WAVEHDR`) 포인터를 직접 제어하는 실시간 다중 채널(폴리포닉) 키음 믹서입니다. 사전 디코딩된 PCM 캐시를 포화 가산(Saturation Clamping)으로 실시간 합산하여 화음과 고밀도 연타를 끊김 없이 재생합니다. |
+| **[WavDecoder.cs](file:///h:/source/repos/bms%20editer/bms%20editer/Services/WavDecoder.cs)** | WAV (8/16/24/32bit PCM, IEEE Float, `WAVE_FORMAT_EXTENSIBLE`) 및 OGG 오디오를 44100Hz 16-bit Stereo PCM 샘플 배열로 균일하게 디코딩하고 리샘플링합니다. |
+| **[WavKey.cs](file:///h:/source/repos/bms%20editer/bms%20editer/Services/WavKey.cs)** | Base-36 키음 번호(`01`~`ZZ`, `001`~`ZZZ`)의 파싱, 유효성 검증, 서식 변환 규칙을 단일화하여 뷰모델 및 파서 전반에서 키음 번호 일관성을 유지합니다. |
+| **[OggDecoder.cs](file:///h:/source/repos/bms%20editer/bms%20editer/Services/OggDecoder.cs)** | 배경 음악(OGG) 파일을 메모리에 단 1회만 PCM16으로 백그라운드 디코딩하여, 재생 엔진과 파형 분석기가 결과 데이터를 공유하게 합니다. |
+| **[OggAudioPlayer.cs](file:///h:/source/repos/bms%20editer/bms%20editer/Services/OggAudioPlayer.cs)** | `winmm.dll`의 `waveOut` 함수군을 P/Invoke 소스 생성(`[LibraryImport]`)으로 직접 호출하여 지연 시간을 최소화한 OGG 실시간 재생 및 탐색(Scrubbing)을 제공합니다. |
+| **[OggPeakLoader.cs](file:///h:/source/repos/bms%20editer/bms%20editer/Services/OggPeakLoader.cs)** | 디코딩된 PCM 신호의 진폭 피크(Peak) 배열을 고속 다운샘플링하고, 에너지 급증 구간을 분석하여 비트 온셋(Onset) 마커를 추출합니다. 버킷 누적 오차를 방지하는 정밀 비율 공식을 사용합니다. |
+
+---
+
+## 🖥️ 3. ViewModels (MVVM 뷰모델)
+
+사용자 입력 명령 처리, 화면 바인딩 상태 유지 및 창 간 통신을 제어하는 프레젠테이션 로직 계층입니다.
+
+| 파일명 | 역할 및 특징 |
+| :--- | :--- |
+| **[MainWindowViewModel.cs](file:///h:/source/repos/bms%20editer/bms%20editer/ViewModels/MainWindowViewModel.cs)** | 메인 화면의 중심 뷰모델입니다. 파일 열기/저장, 차트 로드, 재생/정지 제어, 노트 배치/삭제/이동/선택, 줌 배율, 가로/세로 뷰 전환, 마디 수 동적 동기화, 변경 상태(Dirty Tracking) 및 제목 표시줄 별표(`*`) 관리를 총괄합니다. |
+| **[ControlPanelViewModel.cs](file:///h:/source/repos/bms%20editer/bms%20editer/ViewModels/ControlPanelViewModel.cs)** | **🎛️ 컨트롤 패널** 전용 뷰모델입니다. `NoteStatsViewModel`의 집계 로직을 상속받아, 고른 레인/키음의 격자 노트 일괄 선택, 화면 밖 대상 위치로 자동 스크롤(포커스), 키음 즉시 미리듣기, 번호 일괄 교체 및 2단계 확인 후 일괄 삭제를 수행합니다. |
+| **[NoteStatsViewModel.cs](file:///h:/source/repos/bms%20editer/bms%20editer/ViewModels/NoteStatsViewModel.cs)** | **📊 통계 창(보기 전용)**의 뷰모델입니다. 실제로 쓰인 레인과 키음별 노트 수를 단일 루프로 고속 집계하며, 편집 알림을 실시간 구독하여 수치가 동기화됩니다. |
+| **[NoteSearchViewModel.cs](file:///h:/source/repos/bms%20editer/bms%20editer/ViewModels/NoteSearchViewModel.cs)** | 조건 검색/삭제/교체 모드리스 창의 뷰모델입니다. 마디 범위, 키음 범위, 레인 필터를 조합해 노트를 조건 검색하고 격자에서 즉시 선택·일괄 삭제·번호 변경을 실행합니다. |
+| **[WavPaletteViewModel.cs](file:///h:/source/repos/bms%20editer/bms%20editer/ViewModels/WavPaletteViewModel.cs)** | 키음 팔레트 창의 뷰모델입니다. 등록된 WAV 키음 목록과 각 키음의 사용 횟수를 모니터링하고 미리듣기 및 선택 상태를 동기화합니다. |
+| **[OwnerObservingViewModel.cs](file:///h:/source/repos/bms%20editer/bms%20editer/ViewModels/OwnerObservingViewModel.cs)** | 보조 창(통계, 컨트롤 패널, 팔레트 등)들이 메인 뷰모델의 이벤트를 구독하고 창이 닫힐 때 안전하게 구독 해제(`Dispose`)할 수 있도록 돕는 추상 기본 클래스입니다. |
+| **[BulkObservableCollection.cs](file:///h:/source/repos/bms%20editer/bms%20editer/ViewModels/BulkObservableCollection.cs)** | 대량의 아이템을 추가/교체할 때 매 아이템마다 변경 알림이 발생하는 성능 저하를 막고, 일괄 처리 후 단 1회의 `Reset` 알림만 발생시키는 특수 컬렉션입니다. |
+
+---
+
+## 🎨 4. Views & Controls (UI 화면 및 커스텀 컨트롤)
+
+Avalonia UI 기반의 렌더링 파이프라인과 네이티브 인터랙션을 담당하는 화면 계층입니다.
+
+| 파일명 | 역할 및 렌더링 메커니즘 |
+| :--- | :--- |
+| **[MainWindow.axaml / .cs](file:///h:/source/repos/bms%20editer/bms%20editer/MainWindow.axaml)** | 최상위 윈도우입니다. 메뉴바, 툴바, 가로/세로 뷰 스위처, 사이드 패널 레이아웃 및 윈도우 단축키(Space 재생, Delete 삭제, 방향키 이동, Ctrl+S/O/N)를 처리합니다. |
+| **[TimelineControlBase.cs](file:///h:/source/repos/bms%20editer/bms%20editer/Views/Controls/TimelineControlBase.cs)** | `NoteGridControl`과 `OggWaveformControl`이 상속하는 베이스 컨트롤입니다. 줌 배율, 스크롤 오프셋, `BeatSplit`(기본 16분할) 기준 격자선 위치 열거(`EnumerateGridLines`), 재생 헤드 커서 및 싱크 경고 점멸 플래시 렌더링을 일원화하여 공유합니다. |
+| **[NoteGridControl.cs](file:///h:/source/repos/bms%20editer/bms%20editer/Views/Controls/NoteGridControl.cs)** | 채보 격자판과 노트를 그리는 핵심 드로잉 컨트롤입니다. Skia 캔버스 클리핑 기반으로 무결성 렌더링을 보장하며, 좌클릭 노트 배치/드래그 선택, 우클릭 삭제, 선택 노트 강조 렌더링을 수행합니다. |
+| **[OggWaveformControl.cs](file:///h:/source/repos/bms%20editer/bms%20editer/Views/Controls/OggWaveformControl.cs)** | 배경 음악 파형과 온셋 타격선 가이드를 그리는 컨트롤입니다. 마우스 휠 스크러빙 및 재생 위치 클릭 탐색 인터랙션을 제공합니다. |
+| **[VideoPreviewControl.cs](file:///h:/source/repos/bms%20editer/bms%20editer/Views/Controls/VideoPreviewControl.cs)** | Windows 네이티브 `WebView2` HWND를 기반으로 BGA 배경 비디오(MP4, WebM 등)를 로드하고 재생 타임라인과 밀리초 단위로 실시간 동기화합니다. |
+| **[ControlPanelWindow.axaml / .cs](file:///h:/source/repos/bms%20editer/bms%20editer/Views/ControlPanelWindow.axaml)** | 툴바의 🎛️ 버튼으로 띄우는 모드리스 컨트롤 패널입니다. 레인/키음 목록을 클릭하여 즉시 격자 포커싱 및 미리듣기를 수행할 수 있습니다. |
+| **[ConfirmWindow.axaml / .cs](file:///h:/source/repos/bms%20editer/bms%20editer/Views/ConfirmWindow.axaml)** | 저장되지 않은 변경사항 확인이나 대량 삭제 시 호출되는 3지선다(저장 / 저장 안 함 / 취소) 대화상자입니다. |
