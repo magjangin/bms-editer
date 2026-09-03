@@ -88,8 +88,18 @@ public sealed class WaveformOnsetTests
 
         // 예전 방식은 어택 하나가 이웃 버킷 서너 개에 번져서 마커가 뭉쳐 섰다.
         // 봉우리를 골라내면 타격 수를 크게 넘지 않는다.
-        // (곡이 무음에서 시작하는 지점 하나가 더 잡히므로 +1 을 허용한다)
         Assert.InRange(waveform.Onsets.Length, beats, beats + 2);
+    }
+
+    [Fact]
+    public void 세기가_0인_봉우리는_마커로_남지_않는다()
+    {
+        var waveform = OggPeakLoader.Load(BuildClickTrack(141.0, 16));
+
+        // 세기 0 짜리까지 목록에 담으면 그리는 쪽이 매 프레임 헛돌기만 한다.
+        Assert.All(waveform.Onsets, onset => Assert.True(
+            onset.Strength > 0f,
+            $"{onset.Seconds:F3}s 의 세기가 {onset.Strength:F3} 인데도 마커로 남았다"));
     }
 
     [Fact]

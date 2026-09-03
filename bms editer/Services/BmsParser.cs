@@ -53,6 +53,10 @@ public static partial class BmsParser
     [GeneratedRegex(@"^#PLAYLEVEL\s+(.*)", RegexOptions.IgnoreCase)]
     private static partial Regex PlayLevelRegex();
 
+    // 이 에디터가 붙이는 음원 오프셋(ms). BMS 표준 헤더가 아니다.
+    [GeneratedRegex(@"^#BMSEDITER_OFFSET\s+(-?[0-9\.]+)", RegexOptions.IgnoreCase)]
+    private static partial Regex AudioOffsetRegex();
+
     // 마디는 보통 세 자리지만, 규격을 넘겨 네 자리를 쓰는 차트가 실제로 있다.
     // 세 자리로만 받으면 해석에 실패해서 "에디터가 모르는 줄"이 되고,
     // 저장할 때 데이터 줄이 아니라 파일 맨 위 헤더 블록으로 끌려 올라갔다.
@@ -166,6 +170,14 @@ public static partial class BmsParser
             if (playLevelMatch.Success)
             {
                 chart.Header.Level = playLevelMatch.Groups[1].Value.Trim();
+                continue;
+            }
+
+            var offsetMatch = AudioOffsetRegex().Match(line);
+            if (offsetMatch.Success)
+            {
+                if (double.TryParse(offsetMatch.Groups[1].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var offsetMs))
+                    chart.Header.AudioOffsetMs = offsetMs;
                 continue;
             }
 
@@ -349,6 +361,7 @@ public static partial class BmsParser
         || PlayerRegex().IsMatch(line)
         || RankRegex().IsMatch(line)
         || PlayLevelRegex().IsMatch(line)
+        || AudioOffsetRegex().IsMatch(line)
         || WavRegex().IsMatch(line);
 
     // 시간축을 바꾸는 채널을 읽어 차트에 담는다.

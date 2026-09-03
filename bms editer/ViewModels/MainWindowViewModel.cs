@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using bms_editer.Models;
 using bms_editer.Services;
 
@@ -44,7 +45,94 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
     [ObservableProperty] private IReadOnlyList<float>? _oggRms;
     [ObservableProperty] private IReadOnlyList<OnsetMarker>? _oggOnsets;
     [ObservableProperty] private double _oggDurationSeconds;
-    [ObservableProperty] private double _playbackPositionSeconds;
+
+    // 음원을 타임라인에서 뒤로 미는 양(ms). 화면·저장 모두 ms 단위로 다룬다.
+    //
+    // 곡의 첫 박이 파일 맨 앞에서 정확히 마디 경계에 떨어지는 일은 거의 없다.
+    // 이 값이 없으면 맞는 BPM 인데도 마디선과 어택이 어긋나 보여서, BPM 을 틀리게
+    // 고치는 쪽으로 손이 간다. (실제로 22.9ms 어긋난 곡에서 겪었다)
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(AudioOffsetSeconds))]
+    [NotifyPropertyChangedFor(nameof(PlaybackCursorRatio))]
+    private double _audioOffsetMs;
+
+    public double AudioOffsetSeconds => AudioOffsetMs / 1000.0;
+
+    // 재생 커서가 타임라인에서 서는 자리(0~1).
+    //
+    // 재생 위치는 장치가 알려주는 **음원** 시각이라 오프셋을 태워야 격자와 같은 축에 선다.
+    // 컨트롤은 TimelineControlBase.AudioRatio 가 같은 일을 하고, 자동 스크롤은 이걸 쓴다.
+    // 두 곳이 각자 나눗셈을 쓰다가 커서만 파형에서 벗어나는 일이 없어야 한다.
+    public double PlaybackCursorRatio =>
+        OggDurationSeconds <= 0
+            ? 0.0
+            : Math.Clamp((PlaybackPositionSeconds + AudioOffsetSeconds) / OggDurationSeconds, 0, 1);
+
+    partial void OnAudioOffsetMsChanged(double value)
+    {
+        Chart.Header.AudioOffsetMs = value;
+        MarkDirty();
+        FlashGridSync();
+    }
+
+    // 검출된 어택이 16분 격자에 가장 잘 붙는 오프셋을 찾는다.
+    //
+    // 후보를 16분음표의 ±절반으로만 훑는 것이 핵심이다. 온셋은 격자에 대해 주기적이라
+    // 한 칸씩 밀어도 점수가 똑같이 나온다. 범위를 열어 두면 실제로 겪은 곡에서
+    // -23ms 대신 +80ms(= -23 + 106.4) 가 뽑혔다. 0 에 가장 가까운 답이 옳은 답이다.
+    [RelayCommand]
+    private void DetectAudioOffset()
+    {
+        if (TryDetectAudioOffsetMs() is { } detected)
+            AudioOffsetMs = Math.Round(detected, 1);
+    }
+
+    public double? TryDetectAudioOffsetMs()
+    {
+        var onsets = OggOnsets;
+        if (onsets is null || onsets.Count == 0 || Bpm <= 0)
+            return null;
+
+        // 세기가 약한 봉우리는 리버브 꼬리라 격자에 붙을 확률이 낮다. 답을 흐리기만 한다.
+        var strong = new List<double>();
+        foreach (var onset in onsets)
+        {
+            if (onset.Strength > StrongOnsetForDetection)
+                strong.Add(onset.Seconds);
+        }
+
+        if (strong.Count < MinOnsetsForDetection)
+            return null;
+
+        var step = 240.0 / Bpm / 16.0;
+        var best = 0.0;
+        var bestScore = double.MaxValue;
+
+        for (var candidate = -step / 2; candidate <= step / 2; candidate += 0.0005)
+        {
+            var score = 0.0;
+            foreach (var seconds in strong)
+            {
+                var position = (seconds + candidate) / step;
+                score += Math.Abs(position - Math.Round(position));
+            }
+
+            if (score < bestScore)
+            {
+                bestScore = score;
+                best = candidate;
+            }
+        }
+
+        return best * 1000.0;
+    }
+
+    private const float StrongOnsetForDetection = 0.6f;
+    private const int MinOnsetsForDetection = 8;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PlaybackCursorRatio))]
+    private double _playbackPositionSeconds;
     [ObservableProperty] private bool _isPlaybackCursorVisible;
     [ObservableProperty] private bool _isGridSyncFlashVisible;
     [ObservableProperty] private bool _isPlaying;

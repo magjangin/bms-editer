@@ -31,14 +31,14 @@ public sealed class OggWaveformControl : TimelineControlBase
     public static readonly StyledProperty<IReadOnlyList<OnsetMarker>?> OnsetsProperty =
         AvaloniaProperty.Register<OggWaveformControl, IReadOnlyList<OnsetMarker>?>(nameof(Onsets));
 
-    // 버킷별 최대 진폭. 어택이 어디서 튀었는지를 그대로 보여준다.
+    // 버킷별 최대 진폭. 어택이 어디서 튀었는지를 담는다.
     public IReadOnlyList<float>? Peaks
     {
         get => GetValue(PeaksProperty);
         set => SetValue(PeaksProperty, value);
     }
 
-    // 버킷별 RMS. 피크 안쪽에 겹쳐 그려서 "소리의 몸통"을 나타낸다.
+    // 버킷별 RMS. 지속음의 몸통.
     public IReadOnlyList<float>? Rms
     {
         get => GetValue(RmsProperty);
@@ -68,11 +68,7 @@ public sealed class OggWaveformControl : TimelineControlBase
     private static readonly IBrush BackgroundBrush = new SolidColorBrush(Color.FromRgb(15, 20, 20));
     private static readonly Pen CenterLinePen = new(Brushes.DimGray, 1);
     private static readonly Pen WavePen = new(new SolidColorBrush(Color.FromRgb(150, 170, 160)), 1);
-
-    // 피크는 옅게 깔고 RMS 를 그 위에 진하게 겹친다. 지속음의 몸통 위로 어택만
-    // 뿔처럼 솟아 보여서, 마디선을 어디에 맞춰야 하는지가 눈에 바로 들어온다.
-    private static readonly IBrush PeakFillBrush = new SolidColorBrush(Color.FromArgb(110, 118, 158, 138));
-    private static readonly IBrush RmsFillBrush = new SolidColorBrush(Color.FromArgb(210, 168, 208, 186));
+    private static readonly IBrush WaveFillBrush = new SolidColorBrush(Color.FromArgb(125, 120, 150, 135));
 
     public override void Render(DrawingContext context)
     {
@@ -97,29 +93,16 @@ public sealed class OggWaveformControl : TimelineControlBase
             context.DrawLine(CenterLinePen, new Point(center, 0), new Point(center, height));
         }
 
-        // 피크가 1.0 으로 정규화돼 있으므로 줌 1.0 이면 곡의 가장 큰 소리가
-        // 반높이의 62% 를 채운다. 줌을 올려도 중심선 밖으로는 나가지 않게 자른다.
-        var maxAmplitude = (center - 6) * 0.62 * Math.Clamp(HorizontalZoom, 0.1, 4.0);
-        var amplitudeLimit = Math.Max(0.0, center - 2);
+        var maxAmplitude = (center - 8) * 0.58 * Math.Clamp(HorizontalZoom, 0.1, 4.0);
         var peaks = Peaks;
 
         if (peaks is { Count: > 1 })
         {
-            EnsureWaveGeometry(peaks, Rms, timelineLength, center, maxAmplitude, amplitudeLimit, IsHorizontalView);
-
-            if (_peakGeometry is not null)
-                context.DrawGeometry(PeakFillBrush, null, _peakGeometry);
-
-            if (_rmsGeometry is not null)
-                context.DrawGeometry(RmsFillBrush, null, _rmsGeometry);
-
+            DrawBlockWaveform(context, peaks, Rms, timelineLength, center, maxAmplitude, IsHorizontalView);
             DrawOnsetMarkers(context, waveformThickness, timelineLength, Onsets, IsHorizontalView);
         }
         else
         {
-            // 음원을 닫으면 캐시해 둔 도형(수만 점짜리)도 같이 놓아준다.
-            ReleaseWaveGeometry();
-
             var rowHeight = RowHeight * VerticalZoom * GetGridSpacingScale();
             for (var tPos = 0.0; tPos <= timelineLength; tPos += 2.0)
             {
@@ -199,132 +182,92 @@ public sealed class OggWaveformControl : TimelineControlBase
         e.Handled = true;
     }
 
-    // 화면 블록 한 칸의 길이(px). 1px 이면 세로 줌을 끝까지 올렸을 때 한 칸이 약 3.9ms 라
-    // 소스 버킷(2.5ms)과 균형이 맞는다.
-    private const double BlockLength = 1.0;
+    // 화면 블록 한 칸의 길이(px).
+    private const double BlockLength = 2.0;
 
-    private const int MaxBlockCount = 200_000;
-
-    // 파형 자체는 재생 커서가 움직여도 그대로다. 커서 때문에 초당 30번 다시 그리는데
-    // 그때마다 수만 점짜리 도형을 새로 만들면 아무 의미 없이 GC 만 돈다.
-    // 실제로 달라지는 값이 있을 때만 다시 만든다.
-    private IReadOnlyList<float>? _geometryPeaks;
-    private IReadOnlyList<float>? _geometryRms;
-    private double _geometryTimelineLength;
-    private double _geometryCenter;
-    private double _geometryMaxAmplitude;
-    private double _geometryAmplitudeLimit;
-    private bool _geometryIsHorizontal;
-    private Geometry? _peakGeometry;
-    private Geometry? _rmsGeometry;
-
-    private void EnsureWaveGeometry(
+    private void DrawBlockWaveform(
+        DrawingContext context,
         IReadOnlyList<float> peaks,
         IReadOnlyList<float>? rms,
         double timelineLength,
         double center,
         double maxAmplitude,
-        double amplitudeLimit,
         bool isHorizontal)
     {
-        if (_peakGeometry is not null
-            && ReferenceEquals(_geometryPeaks, peaks)
-            && ReferenceEquals(_geometryRms, rms)
-            && _geometryTimelineLength == timelineLength
-            && _geometryCenter == center
-            && _geometryMaxAmplitude == maxAmplitude
-            && _geometryAmplitudeLimit == amplitudeLimit
-            && _geometryIsHorizontal == isHorizontal)
-            return;
+        var displayPointCount = Math.Max(2, (int)Math.Ceiling(timelineLength / BlockLength));
+        var bucketShift = GetBucketShift(peaks.Count);
 
-        var blockCount = Math.Clamp((int)Math.Ceiling(timelineLength / BlockLength), 2, MaxBlockCount);
-
-        _peakGeometry = BuildEnvelope(peaks, blockCount, timelineLength, center, maxAmplitude, amplitudeLimit, isHorizontal);
-        _rmsGeometry = rms is { Count: > 1 }
-            ? BuildEnvelope(rms, blockCount, timelineLength, center, maxAmplitude, amplitudeLimit, isHorizontal)
-            : null;
-
-        _geometryPeaks = peaks;
-        _geometryRms = rms;
-        _geometryTimelineLength = timelineLength;
-        _geometryCenter = center;
-        _geometryMaxAmplitude = maxAmplitude;
-        _geometryAmplitudeLimit = amplitudeLimit;
-        _geometryIsHorizontal = isHorizontal;
-    }
-
-    private void ReleaseWaveGeometry()
-    {
-        if (_peakGeometry is null && _rmsGeometry is null)
-            return;
-
-        _peakGeometry = null;
-        _rmsGeometry = null;
-        _geometryPeaks = null;
-        _geometryRms = null;
-    }
-
-    // 위쪽(세로 뷰에서는 왼쪽) 가장자리를 앞으로 훑고 아래쪽 가장자리를 되짚어 닫은
-    // 다각형 하나. 예전에는 블록마다 사각형을 하나씩 채워서, 5분 곡을 최대 줌으로 보면
-    // 프레임마다 수만 개의 그리기 명령이 쌓였다.
-    private static Geometry BuildEnvelope(
-        IReadOnlyList<float> values,
-        int blockCount,
-        double timelineLength,
-        double center,
-        double maxAmplitude,
-        double amplitudeLimit,
-        bool isHorizontal)
-    {
-        var step = timelineLength / blockCount;
-        var geometry = new StreamGeometry();
-
-        using (var ctx = geometry.Open())
+        for (var i = 0; i < displayPointCount; i++)
         {
-            for (var i = 0; i < blockCount; i++)
+            var tPos = i * BlockLength;
+            var sourceIndex = isHorizontal ? i : (displayPointCount - 1 - i);
+            var half = GetDisplayAmplitude(peaks, rms, sourceIndex, displayPointCount, bucketShift) * maxAmplitude;
+            if (half < 0.5)
+                continue;
+
+            if (isHorizontal)
             {
-                var half = GetBlockAmplitude(values, i, blockCount, isHorizontal, maxAmplitude, amplitudeLimit);
-                var point = ToPoint(i * step, center - half, isHorizontal);
-
-                if (i == 0)
-                    ctx.BeginFigure(point, isFilled: true);
-                else
-                    ctx.LineTo(point);
+                var rect = new Rect(tPos, center - half, Math.Max(1, BlockLength - 0.35), half * 2);
+                context.FillRectangle(WaveFillBrush, rect);
+                if (i % 3 == 0)
+                    context.DrawLine(WavePen, new Point(tPos, center - half), new Point(tPos, center + half));
             }
-
-            for (var i = blockCount - 1; i >= 0; i--)
+            else
             {
-                var half = GetBlockAmplitude(values, i, blockCount, isHorizontal, maxAmplitude, amplitudeLimit);
-                ctx.LineTo(ToPoint(i * step, center + half, isHorizontal));
+                var rect = new Rect(center - half, tPos, half * 2, Math.Max(1, BlockLength - 0.35));
+                context.FillRectangle(WaveFillBrush, rect);
+                if (i % 3 == 0)
+                    context.DrawLine(WavePen, new Point(center - half, tPos), new Point(center + half, tPos));
             }
-
-            ctx.EndFigure(true);
         }
-
-        return geometry;
     }
 
-    private static Point ToPoint(double alongTimeline, double acrossTimeline, bool isHorizontal) =>
-        isHorizontal ? new Point(alongTimeline, acrossTimeline) : new Point(acrossTimeline, alongTimeline);
+    // 음원 오프셋을 버킷 수로 환산한다. 파형을 뒤로 밀면 같은 화면 자리에서
+    // 그만큼 **앞쪽** 버킷을 읽어야 한다.
+    private int GetBucketShift(int bucketCount)
+    {
+        var duration = DurationSeconds;
+        if (duration <= 0 || bucketCount <= 0 || AudioOffsetSeconds == 0)
+            return 0;
 
-    private static double GetBlockAmplitude(
-        IReadOnlyList<float> values,
+        return (int)Math.Round(AudioOffsetSeconds / duration * bucketCount);
+    }
+
+    // 블록이 덮는 구간의 값. 한 칸만 찍어 읽으면 줌을 줄였을 때 어택이 사라진다.
+    //
+    // 표시값은 RMS(몸통)와 피크(어택)를 섞은 하나의 진폭이다. 둘을 따로 겹쳐 그려 봤는데
+    // 파형이 배경이 아니라 주인공이 되어 버려서, 정작 그 위에 겹치는 마디선과 마커가
+    // 묻혔다. 섞는 비율은 v0.1.0 과 같다.
+    private static double GetDisplayAmplitude(
+        IReadOnlyList<float> peaks,
+        IReadOnlyList<float>? rms,
         int blockIndex,
         int blockCount,
-        bool isHorizontal,
-        double maxAmplitude,
-        double amplitudeLimit)
+        int bucketShift)
     {
-        // 세로 뷰는 아래가 0초라 소스 순서를 뒤집는다.
-        var sourceBlock = isHorizontal ? blockIndex : (blockCount - 1 - blockIndex);
-        var (start, end) = OggPeakLoader.GetBlockSourceRange(sourceBlock, blockCount, values.Count);
+        var (start, end) = OggPeakLoader.GetBlockSourceRange(blockIndex, blockCount, peaks.Count);
 
-        // 블록이 덮는 구간의 최댓값. 한 칸만 찍어 읽으면 줌을 줄였을 때 어택이 사라진다.
-        var value = 0f;
+        start -= bucketShift;
+        end -= bucketShift;
+
+        if (end <= 0 || start >= peaks.Count)
+            return 0;
+
+        start = Math.Max(0, start);
+        end = Math.Min(peaks.Count, end);
+
+        var peak = 0f;
         for (var i = start; i < end; i++)
-            value = MathF.Max(value, values[i]);
+            peak = MathF.Max(peak, peaks[i]);
 
-        return Math.Min(value * maxAmplitude, amplitudeLimit);
+        var body = 0f;
+        if (rms is not null && rms.Count == peaks.Count)
+        {
+            for (var i = start; i < end; i++)
+                body = MathF.Max(body, rms[i]);
+        }
+
+        return Math.Min(1.0, (body * 0.75) + (peak * 0.30));
     }
 
     private static readonly IPen[] OnsetPens = CreateOnsetPens();
@@ -361,10 +304,13 @@ public sealed class OggWaveformControl : TimelineControlBase
             if (strength <= 0.01f)
                 continue;
 
-            var pen = GetOnsetPen((byte)Math.Clamp((int)((strength * 135f) + 10f), 25, 145));
+            // 마커는 음원 시각으로 들어온다. 오프셋을 태워 격자와 같은 축에 올린다.
+            var ratio = AudioRatio(onset.Seconds);
+            if (ratio < 0 || ratio > 1)
+                continue;
 
-            // 마커는 초로 들어온다. 격자·노트·재생 커서와 같은 변환을 쓴다.
-            var tPos = ToTimelinePosition(Math.Clamp(onset.Seconds / durationSeconds, 0, 1), timelineLength);
+            var pen = GetOnsetPen((byte)Math.Clamp((int)((strength * 135f) + 10f), 25, 145));
+            var tPos = ToTimelinePosition(ratio, timelineLength);
 
             if (strength > 0.45f)
             {

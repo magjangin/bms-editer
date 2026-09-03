@@ -12,6 +12,11 @@ public sealed class BmsHeader
     public int Rank { get; set; } = 2;
     public string Level { get; set; } = string.Empty;
 
+    // 음원을 타임라인에서 뒤로 미는 양(ms). BMS 표준 헤더가 아니라 이 에디터 전용이라
+    // `#BMSEDITER_OFFSET` 으로 따로 적는다. 다른 플레이어는 모르는 헤더를 무시한다.
+    // 0 이면 아예 쓰지 않아서, 오프셋을 안 쓰는 차트는 파일이 그대로 남는다.
+    public double AudioOffsetMs { get; set; }
+
     // 확장 헤더(#TOTAL, #STAGEFILE, #BPMxx 등)는 여기 담지 않는다.
     // BmsChart.PreservedLines 가 원문 그대로 들고 있다가 저장할 때 되돌려 놓는다.
     // 예전에는 ExtendedFields 사전이 있었는데, 채우는 곳도 읽는 곳도 없는 빈 껍데기였다.
@@ -25,5 +30,6 @@ public sealed class BmsHeader
         Player = source.Player;
         Rank = source.Rank;
         Level = source.Level;
+        AudioOffsetMs = source.AudioOffsetMs;
     }
 }

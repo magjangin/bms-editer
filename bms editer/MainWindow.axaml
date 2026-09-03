@@ -98,6 +98,7 @@
                         Peaks="{Binding OggPeaks}"
                         Rms="{Binding OggRms}"
                         Onsets="{Binding OggOnsets}"
+                        AudioOffsetSeconds="{Binding AudioOffsetSeconds}"
                         DurationSeconds="{Binding OggDurationSeconds}"
                         PlaybackPositionSeconds="{Binding PlaybackPositionSeconds}"
                         IsPlaybackCursorVisible="{Binding IsPlaybackCursorVisible}"
@@ -114,6 +115,7 @@
                         GridMeasure="{Binding GridMeasure}"
                         Bpm="{Binding Bpm}"
                         Timeline="{Binding Timeline}"
+                        AudioOffsetSeconds="{Binding AudioOffsetSeconds}"
                         DurationSeconds="{Binding OggDurationSeconds}"
                         PlaybackPositionSeconds="{Binding PlaybackPositionSeconds}"
                         IsPlaybackCursorVisible="{Binding IsPlaybackCursorVisible}"
@@ -209,6 +211,14 @@
                             <TextBlock Text="파형 가로 줌" VerticalAlignment="Center" Width="90" />
                             <Slider Value="{Binding WaveformHorizontalZoom}" Minimum="0.25" Maximum="4" Width="150" />
                             <TextBlock Text="{Binding WaveformHorizontalZoom, StringFormat={}{0:0.00}}" VerticalAlignment="Center" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <TextBlock Text="음원 오프셋" VerticalAlignment="Center" Width="90"
+                                       ToolTip.Tip="곡의 첫 박이 마디 경계에 정확히 떨어지지 않을 때, 파형·온셋·재생 커서를 이 값(ms)만큼 뒤로 밉니다. 격자와 노트는 움직이지 않습니다." />
+                            <NumericUpDown Value="{Binding AudioOffsetMs}" Minimum="-5000" Maximum="5000"
+                                           Increment="1" FormatString="0.#" Width="110" />
+                            <Button Content="자동" Command="{Binding DetectAudioOffsetCommand}"
+                                    ToolTip.Tip="검출된 어택이 16분 격자에 가장 잘 붙는 값을 찾아 넣습니다" />
                         </StackPanel>
                         <CheckBox Content="재생바 따라가기" IsChecked="{Binding FollowPlaybackCursor}" />
                         <CheckBox Content="격자에 맞추기(G)" IsChecked="{Binding SnapToGrid}"

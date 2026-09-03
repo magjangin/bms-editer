@@ -703,7 +703,7 @@ public partial class MainWindow : Window
                 if (EditorScrollViewer.Viewport.Width <= 0)
                     return;
 
-                var cursorX = (vm.PlaybackPositionSeconds / vm.OggDurationSeconds) * timelineLength;
+                var cursorX = vm.PlaybackCursorRatio * timelineLength;
                 var leftMargin = EditorScrollViewer.Viewport.Width * 0.25;
                 var rightMargin = EditorScrollViewer.Viewport.Width * 0.75;
                 var cursorInView = cursorX - offset.X;
@@ -721,7 +721,7 @@ public partial class MainWindow : Window
                 if (EditorScrollViewer.Viewport.Height <= 0)
                     return;
 
-                var cursorY = (1.0 - (vm.PlaybackPositionSeconds / vm.OggDurationSeconds)) * timelineLength;
+                var cursorY = (1.0 - vm.PlaybackCursorRatio) * timelineLength;
                 var topMargin = EditorScrollViewer.Viewport.Height * 0.25;
                 var bottomMargin = EditorScrollViewer.Viewport.Height * 0.75;
                 var cursorInView = cursorY - offset.Y;

@@ -49,10 +49,21 @@ public sealed class WaveformRenderTests
         return values;
     }
 
-    private static OggWaveformControl BuildControl(float[] peaks)
+    // 어택이 전혀 없는 기준 그림용. 조용한 지속음만 깔린다.
+    private static float[] BuildFlat(int count)
+    {
+        var values = new float[count];
+        for (var i = 0; i < count; i++)
+            values[i] = 0.05f;
+
+        return values;
+    }
+
+    private static OggWaveformControl BuildControl(float[] peaks, double audioOffsetSeconds = 0)
     {
         return new OggWaveformControl
         {
+            AudioOffsetSeconds = audioOffsetSeconds,
             Peaks = peaks,
             Rms = peaks,
             Onsets = Array.Empty<OnsetMarker>(),
@@ -67,9 +78,19 @@ public sealed class WaveformRenderTests
         };
     }
 
-    // 세로로 칠해진 파형의 두께를 x 열마다 잰다.
-    private static int[] MeasureColumnThickness(Window window)
+    // 창을 하나 띄워 실제로 그린 뒤 픽셀을 그대로 돌려준다.
+    private static (byte[] Pixels, int Width, int Height) Capture(float[] values, double audioOffsetSeconds = 0)
     {
+        var window = new Window
+        {
+            Width = Width,
+            Height = Height,
+            Content = BuildControl(values, audioOffsetSeconds),
+        };
+
+        window.Show();
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
         using var frame = window.CaptureRenderedFrame()
             ?? throw new InvalidOperationException("프레임을 뜨지 못했다");
 
@@ -90,26 +111,35 @@ public sealed class WaveformRenderTests
             handle.Free();
         }
 
-        var thickness = new int[pixelSize.Width];
+        window.Close();
+        return (buffer, pixelSize.Width, pixelSize.Height);
+    }
 
-        for (var y = 0; y < pixelSize.Height; y++)
+    // 어택이 있는 그림과 없는 그림을 떠서 x 열마다 달라진 픽셀 수를 센다.
+    //
+    // 색으로 파형만 골라내려고도 해 봤는데, 격자선이 파형 위에 겹쳐 그려지는 데다
+    // 마디선·박선·보조선이 저마다 다른 알파로 섞여서 어떤 임계를 잡아도 새어 들어왔다.
+    // 두 번 그려서 빼면 "파형 때문에 달라진 자리"만 정확히 남는다.
+    private static int[] MeasureChangedColumns(float[] withSpike, float[] flat, double audioOffsetSeconds = 0)
+    {
+        var (spikePixels, width, height) = Capture(withSpike, audioOffsetSeconds);
+        var (flatPixels, _, _) = Capture(flat, audioOffsetSeconds);
+
+        var changed = new int[width];
+
+        for (var y = 0; y < height; y++)
         {
-            for (var x = 0; x < pixelSize.Width; x++)
+            for (var x = 0; x < width; x++)
             {
-                var offset = ((y * pixelSize.Width) + x) * 4;
+                var offset = ((y * width) + x) * 4;
 
-                // 배경은 RGB(15,20,20), 파형은 초록빛이 도는 밝은 색이다.
-                // 격자선은 회색이라 초록 성분이 붉은 성분보다 크지 않다.
-                var blue = buffer[offset];
-                var green = buffer[offset + 1];
-                var red = buffer[offset + 2];
-
-                if (green > 60 && green > red + 12 && green > blue + 12)
-                    thickness[x]++;
+                // 안티에일리어싱 때문에 1~2 정도는 늘 흔들린다.
+                if (Math.Abs(spikePixels[offset + 1] - flatPixels[offset + 1]) > 8)
+                    changed[x]++;
             }
         }
 
-        return thickness;
+        return changed;
     }
 
     private static int IndexOfMax(int[] values)
@@ -133,21 +163,14 @@ public sealed class WaveformRenderTests
     {
         const double spikeRatio = 0.4;
 
-        var window = new Window
-        {
-            Width = Width,
-            Height = Height,
-            Content = BuildControl(BuildSpike(bucketCount, spikeRatio, 0.05)),
-        };
+        var changed = MeasureChangedColumns(
+            BuildSpike(bucketCount, spikeRatio, 0.05),
+            BuildFlat(bucketCount));
 
-        window.Show();
-        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
-
-        var thickness = MeasureColumnThickness(window);
-        var peakColumn = IndexOfMax(thickness);
+        var peakColumn = IndexOfMax(changed);
         var expectedColumn = spikeRatio * Width;
 
-        Assert.True(thickness[peakColumn] > 0, "파형이 아예 그려지지 않았다");
+        Assert.True(changed[peakColumn] > 0, "파형이 아예 그려지지 않았다");
         Assert.True(
             Math.Abs(peakColumn - expectedColumn) <= 3,
             $"어택이 {expectedColumn:F0}px 에 있어야 하는데 {peakColumn}px 에서 가장 두껍다");
@@ -156,22 +179,36 @@ public sealed class WaveformRenderTests
     [Fact]
     public void 조용한_구간과_어택이_뚜렷하게_구분된다() => RunOnUiThread(() =>
     {
-        var window = new Window
-        {
-            Width = Width,
-            Height = Height,
-            Content = BuildControl(BuildSpike(4000, 0.5, 0.05)),
-        };
+        var changed = MeasureChangedColumns(
+            BuildSpike(4000, 0.5, 0.05),
+            BuildFlat(4000));
 
-        window.Show();
-        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        // 어택이 있는 자리만 달라져야 한다. 조용한 구간은 두 그림이 같다.
+        var loud = changed[IndexOfMax(changed)];
+        var quiet = changed[10];
 
-        var thickness = MeasureColumnThickness(window);
+        Assert.True(loud > 20, $"어택 자리에서 바뀐 픽셀이 {loud}개뿐이다");
+        Assert.Equal(0, quiet);
+    });
 
-        // 조용한 구간(0.05)보다 어택 구간이 훨씬 두꺼워야 한다.
-        var loud = thickness[IndexOfMax(thickness)];
-        var quiet = thickness[10];
+    [Fact]
+    public void 오프셋을_주면_파형이_그만큼_뒤로_간다() => RunOnUiThread(() =>
+    {
+        // 화면은 10초를 320px 에 담으므로 초당 32px 다. 0.5초를 밀면 16px 움직여야 한다.
+        const double offsetSeconds = 0.5;
+        const double pixelsPerSecond = Width / DurationSeconds;
 
-        Assert.True(loud > quiet * 4, $"어택 {loud}px, 조용한 구간 {quiet}px 로 차이가 나지 않는다");
+        var spike = BuildSpike(4000, 0.4, 0.05);
+        var flat = BuildFlat(4000);
+
+        var before = IndexOfMax(MeasureChangedColumns(spike, flat));
+        var after = IndexOfMax(MeasureChangedColumns(spike, flat, offsetSeconds));
+
+        var movedPixels = after - before;
+        var expectedPixels = offsetSeconds * pixelsPerSecond;
+
+        Assert.True(
+            Math.Abs(movedPixels - expectedPixels) <= 2,
+            $"{expectedPixels:F0}px 움직여야 하는데 {movedPixels}px 움직였다");
     });
 }
