@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Linq;
 using CommunityToolkit.Mvvm.Input;
 using bms_editer.Models;
@@ -68,7 +68,7 @@ public sealed partial class MainWindowViewModel
 
         try
         {
-            _audioPlayer.Play(startSeconds);
+            _audioPlayer.Play(startSeconds, PlaybackSpeed);
         }
         catch (Exception ex)
         {
@@ -101,7 +101,7 @@ public sealed partial class MainWindowViewModel
         var playedSeconds = _audioPlayer.GetPlayedSeconds();
         var currentSec = playedSeconds is { } played
             ? _playbackStartSeconds + played
-            : _playbackStartSeconds + (DateTimeOffset.UtcNow - _playbackStartedAt).TotalSeconds;
+            : _playbackStartSeconds + (DateTimeOffset.UtcNow - _playbackStartedAt).TotalSeconds * PlaybackSpeed;
 
         PlaybackPositionSeconds = currentSec;
 
@@ -114,7 +114,7 @@ public sealed partial class MainWindowViewModel
 
     private void PlayNotesInTimeRange(double start, double end)
     {
-        if (Bpm <= 0 || _playbackNotes.Length == 0) return;
+        if (!IsKeySoundEnabled || Bpm <= 0 || _playbackNotes.Length == 0) return;
 
         // 시각 계산은 Timeline 이 맡는다. 예전에는 여기서 240/BPM 을 직접 써서,
         // BPM 이 바뀌거나 4/4가 아닌 마디가 있는 차트는 키음이 엉뚱한 때에 울렸다.
@@ -182,5 +182,11 @@ public sealed partial class MainWindowViewModel
         {
             PlayWavSound(SelectedWavItem.Key);
         }
+    }
+
+    [RelayCommand]
+    private void ToggleKeySound()
+    {
+        IsKeySoundEnabled = !IsKeySoundEnabled;
     }
 }

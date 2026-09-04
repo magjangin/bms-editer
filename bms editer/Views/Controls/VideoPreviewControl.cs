@@ -96,12 +96,21 @@ public sealed class VideoPreviewControl : Control, IDisposable
         _webView?.NavigateToString(BuildEmptyHtml());
     }
 
+    private double _playbackRate = 1.0;
+
+    public void SetPlaybackRate(double rate)
+    {
+        _playbackRate = Math.Clamp(rate, 0.05, 4.0);
+        var rateText = _playbackRate.ToString("0.###", CultureInfo.InvariantCulture);
+        ExecuteVideoScript($"(() => {{ const v = document.getElementById('previewVideo'); if (v) v.playbackRate = {rateText}; }})()");
+    }
+
     public void PlayFrom(double seconds)
     {
         _isPlaying = true;
         _lastSyncedSeconds = double.NegativeInfinity;
         _lastRequestedSeconds = Math.Max(0, seconds);
-        ExecuteVideoScript(SetTimeScript(_lastRequestedSeconds, 0.12, play: true));
+        ExecuteVideoScript(SetTimeScript(_lastRequestedSeconds, 0.12, play: true, _playbackRate));
     }
 
     public void PauseAt(double seconds)
@@ -109,7 +118,7 @@ public sealed class VideoPreviewControl : Control, IDisposable
         _isPlaying = false;
         _lastSyncedSeconds = double.NegativeInfinity;
         _lastRequestedSeconds = Math.Max(0, seconds);
-        ExecuteVideoScript(SetTimeScript(_lastRequestedSeconds, 0.06, play: false));
+        ExecuteVideoScript(SetTimeScript(_lastRequestedSeconds, 0.06, play: false, _playbackRate));
     }
 
     // 마지막으로 WebView2 에 실제로 보낸 시각. 너무 자주 보내지 않으려고 기억해 둔다.
@@ -133,9 +142,9 @@ public sealed class VideoPreviewControl : Control, IDisposable
         _lastSyncedSeconds = _lastRequestedSeconds;
 
         if (_isPlaying)
-            ExecuteVideoScript(SetTimeScript(_lastRequestedSeconds, 0.25, play: true));
+            ExecuteVideoScript(SetTimeScript(_lastRequestedSeconds, 0.25, play: true, _playbackRate));
         else
-            ExecuteVideoScript(SetTimeScript(_lastRequestedSeconds, 0.06, play: false));
+            ExecuteVideoScript(SetTimeScript(_lastRequestedSeconds, 0.06, play: false, _playbackRate));
     }
 
     // 이미 떼어냈는지. 초기화가 끝나기 전에 떼어내면 이 표시를 보고 바로 정리한다.
@@ -273,15 +282,17 @@ public sealed class VideoPreviewControl : Control, IDisposable
             CoreWebView2HostResourceAccessKind.Allow);
     }
 
-    private static string SetTimeScript(double seconds, double tolerance, bool play)
+    private static string SetTimeScript(double seconds, double tolerance, bool play, double playbackRate)
     {
         var secondsText = seconds.ToString("0.###", CultureInfo.InvariantCulture);
         var toleranceText = tolerance.ToString("0.###", CultureInfo.InvariantCulture);
+        var rateText = Math.Clamp(playbackRate, 0.05, 4.0).ToString("0.###", CultureInfo.InvariantCulture);
         var action = play ? "v.play().catch(()=>{});" : "v.pause();";
         return
             "(() => {" +
             "const v = document.getElementById('previewVideo');" +
             "if (!v) return;" +
+            "v.playbackRate = " + rateText + ";" +
             "const t = " + secondsText + ";" +
             "if (Number.isFinite(v.duration) && t > v.duration) { v.pause(); return; }" +
             "if (Math.abs(v.currentTime - t) > " + toleranceText + ") v.currentTime = t;" +

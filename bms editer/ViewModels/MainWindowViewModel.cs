@@ -31,6 +31,7 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
     private string? _currentFilePath;
     private readonly DispatcherTimer _playbackTimer;
     private readonly DispatcherTimer _gridSyncFlashTimer;
+    private readonly DispatcherTimer _playbackSpeedDebounceTimer;
     private OggAudioPlayer? _audioPlayer;
     private DateTimeOffset _playbackStartedAt;
     private double _playbackStartSeconds;
@@ -81,10 +82,35 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
     // 키음 팔레트 창의 보기 모드(0 목록, 1 보통, 2 큰, 3 아주 큰 아이콘)
     [ObservableProperty] private int _wavPaletteViewModeIndex = 2;
 
+    // 재생 배속 (0.1x ~ 1.0x) 및 키음 활성화 여부
+    [ObservableProperty] private double _playbackSpeed = 1.0;
+    [ObservableProperty] private bool _isKeySoundEnabled = true;
+
+    public string KeySoundToggleText => IsKeySoundEnabled ? "🔊 키음 소리 켜짐" : "🔇 키음 소리 끄기";
+
+    partial void OnIsKeySoundEnabledChanged(bool value) => OnPropertyChanged(nameof(KeySoundToggleText));
+
+    partial void OnPlaybackSpeedChanged(double value)
+    {
+        if (!IsPlaying)
+            return;
+
+        _playbackSpeedDebounceTimer.Stop();
+        _playbackSpeedDebounceTimer.Start();
+    }
+
     public MainWindowViewModel()
     {
         _playbackTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(33) };
         _playbackTimer.Tick += (_, _) => UpdatePlaybackPosition();
+
+        _playbackSpeedDebounceTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(80) };
+        _playbackSpeedDebounceTimer.Tick += (_, _) =>
+        {
+            _playbackSpeedDebounceTimer.Stop();
+            if (IsPlaying)
+                PlayFrom(PlaybackPositionSeconds);
+        };
 
         _gridSyncFlashTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(120) };
         _gridSyncFlashTimer.Tick += (_, _) =>

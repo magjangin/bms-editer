@@ -646,6 +646,11 @@ public partial class MainWindow : Window
                 else
                     VideoPreview.ClearVideo();
             }
+            else if (e.PropertyName == nameof(MainWindowViewModel.PlaybackSpeed))
+            {
+                if (sender is MainWindowViewModel vm)
+                    VideoPreview.SetPlaybackRate(vm.PlaybackSpeed);
+            }
         }
 
         private void UpdateEditorOrientation()

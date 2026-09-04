@@ -54,18 +54,21 @@ public sealed partial class OggAudioPlayer : IDisposable
         };
     }
 
-    public void Play(double startSeconds)
+    public void Play(double startSeconds, double speed = 1.0)
     {
         Stop();
 
         if (_pcmBytes.Length == 0)
             return;
 
+        var speedClamped = Math.Clamp(speed, 0.05, 4.0);
+        var targetSampleRate = Math.Max(1000, (int)Math.Round(_sampleRate * speedClamped));
+
         var format = new WaveFormat
         {
             FormatTag = 1,
             Channels = _channels,
-            SamplesPerSec = _sampleRate,
+            SamplesPerSec = targetSampleRate,
             BitsPerSample = _bitsPerSample,
         };
         format.BlockAlign = (short)(format.Channels * format.BitsPerSample / 8);
