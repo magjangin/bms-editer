@@ -37,6 +37,7 @@ public sealed partial class WavPaletteViewModel : OwnerObservingViewModel
                 return;
 
             Owner.SelectedWavItem = value;
+            Owner.IsEditMode = true;
 
             if (PreviewOnSelect)
                 Owner.PlayWavSound(value.Key);

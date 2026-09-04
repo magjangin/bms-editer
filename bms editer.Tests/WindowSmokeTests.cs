@@ -162,4 +162,57 @@ public sealed class WindowSmokeTests
 
         Assert.True(window.IsVisible);
     });
+
+    [Fact]
+    public void 우클릭_시_재생이_멈춘다() => RunOnUiThread(() =>
+    {
+        var owner = LoadedOwner();
+        var window = new MainWindow { DataContext = owner };
+        ShowAndDraw(window);
+        var vm = (MainWindowViewModel)window.DataContext!;
+
+        // 1) 파형 클릭 (X = 100)
+        vm.IsPlaying = true;
+        window.MouseDown(new Avalonia.Point(100, 100), Avalonia.Input.MouseButton.Right);
+        Assert.False(vm.IsPlaying);
+
+        // 2) 일반 모드에서 격자 클릭 (IsEditMode = false)
+        vm.IsPlaying = true;
+        window.MouseDown(new Avalonia.Point(300, 100), Avalonia.Input.MouseButton.Right);
+        Assert.False(vm.IsPlaying);
+
+        // 3) 편집 모드(IsEditMode = true)에서 노트 영역 우클릭
+        vm.IsPlaying = true;
+        vm.IsEditMode = true;
+        window.MouseDown(new Avalonia.Point(260, 120), Avalonia.Input.MouseButton.Right);
+        Assert.False(vm.IsPlaying);
+
+        // 4) 스크롤뷰어 빈 공간(레인 오른쪽 X = 800) 우클릭
+        vm.IsPlaying = true;
+        window.MouseDown(new Avalonia.Point(800, 300), Avalonia.Input.MouseButton.Right);
+        Assert.False(vm.IsPlaying);
+
+        // 5) 윈도우 상단 툴바 영역 우클릭
+        vm.IsPlaying = true;
+        window.MouseDown(new Avalonia.Point(50, 40), Avalonia.Input.MouseButton.Right);
+        Assert.False(vm.IsPlaying);
+    });
+
+    [Fact]
+    public void 팔레트_버튼_클릭_시_연필_아이콘이_활성화된다() => RunOnUiThread(() =>
+    {
+        var owner = LoadedOwner();
+        owner.IsEditMode = false;
+        var window = new MainWindow { DataContext = owner };
+        ShowAndDraw(window);
+
+        Assert.False(owner.IsEditMode);
+
+        var paletteButton = window.GetVisualDescendants().OfType<Button>()
+            .First(b => b.Content as string == "🎨");
+
+        paletteButton.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+
+        Assert.True(owner.IsEditMode);
+    });
 }

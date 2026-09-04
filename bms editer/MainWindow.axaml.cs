@@ -38,6 +38,7 @@ public partial class MainWindow : Window
             Waveform.ScrubRequested += OnWaveformScrubRequested;
             Closing += OnWindowClosing;
             Closed += (_, _) => (DataContext as IDisposable)?.Dispose();
+            AddHandler(PointerPressedEvent, OnWindowPointerPressedTunnel, RoutingStrategies.Tunnel, handledEventsToo: true);
             UpdateEditorOrientation();
             UpdateWindowTitle();
         }
@@ -476,9 +477,14 @@ public partial class MainWindow : Window
             ShowToolWindow(vm => new ControlPanelWindow(new ControlPanelViewModel(vm)));
 
         // 사이드바의 좁은 키음 목록 대신 넓은 타일 판에서 고르는 창.
-        // 선택이 곧 편집용 붓이라 편집하는 동안 계속 띄워둘 수 있게 모드리스로 연다.
-        private void OnShowWavPaletteClick(object? sender, RoutedEventArgs e) =>
+        // 선택이 곧 편집용 붓이므로 팔레트를 열 때 편집 모드(연필 아이콘)를 즉시 활성화한다.
+        private void OnShowWavPaletteClick(object? sender, RoutedEventArgs e)
+        {
+            if (DataContext is MainWindowViewModel vm)
+                vm.IsEditMode = true;
+
             ShowToolWindow(vm => new WavPaletteWindow(new WavPaletteViewModel(vm)));
+        }
 
         // 모드리스 보조 창을 종류당 하나만 띄운다. 이미 떠 있으면 앞으로 가져온다.
         //
@@ -580,7 +586,29 @@ public partial class MainWindow : Window
             properties.IsLeftButtonPressed ||
             properties.IsRightButtonPressed ||
             properties.IsXButton1Pressed ||
-            properties.IsXButton2Pressed;
+            properties.IsXButton2Pressed ||
+            properties.PointerUpdateKind is PointerUpdateKind.LeftButtonPressed
+                or PointerUpdateKind.RightButtonPressed
+                or PointerUpdateKind.XButton1Pressed
+                or PointerUpdateKind.XButton2Pressed;
+
+        // 재생 중 마우스 우클릭(또는 좌클릭) 시 현재 위치에서 즉시 재생을 멈춘다.
+        // Tunnel 단계에서 창 전체로 미리 가로채므로, 자식 컨트롤(노트 격자·파형 등)에서
+        // 이벤트를 Handled 처리하거나 에디터 빈 영역을 클릭해도 안정적으로 즉각 정지한다.
+        private void OnWindowPointerPressedTunnel(object? sender, PointerPressedEventArgs e)
+        {
+            if (DataContext is not MainWindowViewModel vm || !vm.IsPlaying)
+                return;
+
+            var properties = e.GetCurrentPoint(this).Properties;
+            if (properties.IsMiddleButtonPressed)
+                return;
+
+            if (IsNonMiddleMouseButtonPressed(properties))
+            {
+                vm.StopPlaybackAtCurrentPosition();
+            }
+        }
 
         private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
         {
