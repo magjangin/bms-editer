@@ -6,7 +6,7 @@
         x:Class="bms_editer.Views.NoteSearchWindow"
         x:DataType="vm:NoteSearchViewModel"
         Title="검색/삭제/교체"
-        Width="490" SizeToContent="Height"
+        Width="510" SizeToContent="Height"
         CanResize="False"
         CanMinimize="False"
         ShowInTaskbar="False"
@@ -144,7 +144,7 @@
                                 HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
                                 Command="{Binding CopyMatchesCommand}"
                                 ToolTip.Tip="조건에 맞는 노트를 오른쪽 마디 수만큼 옮긴 자리에 복제합니다. 음수를 넣으면 앞쪽으로 복사합니다. 이미 노트가 있는 자리는 건너뜁니다." />
-                        <NumericUpDown Grid.Column="1" Width="96" Value="{Binding CopyMeasureOffset}"
+                        <NumericUpDown Grid.Column="1" Width="124" Value="{Binding CopyMeasureOffset}"
                                        Minimum="-999" Maximum="999" Increment="1" FormatString="0" />
                     </Grid>
 
