@@ -72,6 +72,14 @@ OGG 배경 오디오 파형(Waveform) 로딩, 온셋(Onset) 분석에 따른 그
    - **번호 일괄 교체 · 일괄 삭제**: 고른 번호를 쓰는 노트의 키음 번호를 한꺼번에 바꾸거나 지웁니다. 되돌리기가 아직 없으므로 **삭제는 먼저 확인**을 받고, 교체 후에는 바뀐 번호 줄을 고른 채로 두어 곧바로 이어 작업할 수 있습니다.
    - 편집으로 집계가 다시 돌아도 고르고 있던 줄은 번호로 다시 잡으므로 선택이 풀리지 않습니다.
 
+13. **재생 배속 조절(0.1x ~ 1.0x)과 키음 끄기/켜기**
+   - 오른쪽 패널의 **재생 배속** 슬라이더로 배경음을 늦춰 들을 수 있습니다. 파형만 봐서는 가릴 수 없는
+     10~30ms 어긋남을 귀로 잡을 때 씁니다. 배속을 낮추면 어긋남의 절대 길이가 그대로 늘어납니다.
+   - 늦추는 방식이 **재생 장치의 샘플레이트를 낮추는 것**이라 배경음은 음정도 함께 내려갑니다.
+     키음(`#WAV`)은 별도 믹서로 나가므로 **원래 속도·원래 음정 그대로** 울립니다.
+   - **🔊 키음 소리 켜짐 / 🔇 끄기** 토글로 BGM 만 남겨 놓고 들을 수 있습니다.
+   - 자세한 사용 순서는 [박자 맞추기 작업 가이드](docs/guides/beat_sync_workflow.md)에 있습니다.
+
 ---
 
 ## 🛠 빌드 및 실행 방법 (Build & Run)
@@ -139,6 +147,7 @@ dotnet publish "bms editer/bms editer.csproj" -p:PublishProfile=win-x64
 | 분류 | 문서 | 내용 |
 |------|------|------|
 | **목차** | [README.md](docs/README.md) | 문서 전체 인덱스 및 디렉터리 가이드. |
+| **작업 가이드** | [beat_sync_workflow.md](docs/guides/beat_sync_workflow.md) | **파형·BPM·재생 배속으로 박자 맞추는 순서.** 파형만으로 어긋남이 안 보일 때 배속을 낮춰 귀로 확인합니다. |
 | **모딩 가이드** | [sixtar_gate_startrail.md](docs/guides/sixtar_gate_startrail.md) | 식스타 게이트: 스타트레일 (Mono) 커스텀 차트/키음 주입 가이드. |
 | **모딩 가이드** | [sixtar_gate_stargazer.md](docs/guides/sixtar_gate_stargazer.md) | 식스타 게이트: 스타게이저 (Il2Cpp) 메타데이터 및 차트 주입 가이드. |
 | **모딩 가이드** | [muse_dash.md](docs/guides/muse_dash.md) | 뮤즈 대시 (Il2Cpp) 커스텀 채보 매핑 및 영구 보존(Archive) 가이드. |

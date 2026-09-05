@@ -22,6 +22,28 @@ public static class OggPeakLoader
     public static double GetBucketRatio(int index, int count) =>
         count <= 0 ? 0.0 : (double)index / count;
 
+    // 화면 칸 하나가 덮는 시간 구간 [startRatio, endRatio) 에 걸리는 버킷 범위 [From, To).
+    // GetBucketRatio 를 뒤집은 규칙이다. 그리는 쪽은 "이 칸에 어느 버킷을 보여줄까"를
+    // 반드시 여기에 물어야 한다.
+    //
+    // 네 번째였다. OggWaveformControl 이 파형 막대를 그릴 때만 i/(Count-1) 로 되짚어서,
+    // 같은 배열을 쓰는 온셋 마커와 최대 17ms 벌어졌다. 게다가 그 배율 오차(0.002~0.008%)의
+    // 부호가 세로 줌에 따라 뒤집혀서, 줌을 만지면 파형이 격자 밑에서 미끄러졌다.
+    //
+    // 최소 한 칸은 반드시 돌려준다. 화면 칸이 버킷보다 촘촘하면 같은 버킷을 여러 칸이
+    // 나눠 갖고, 성기면 여러 버킷이 한 칸에 묶인다. 묶인 쪽에서 **최댓값**을 골라야
+    // 킥처럼 순간적으로 튀는 피크가 화면에서 통째로 사라지지 않는다.
+    // (예전에는 최근접 버킷 하나만 집어 와서 실제로 사라졌다)
+    public static (int From, int To) GetBucketRange(double startRatio, double endRatio, int count)
+    {
+        if (count <= 0)
+            return (0, 0);
+
+        var from = Math.Clamp((int)Math.Floor(startRatio * count), 0, count - 1);
+        var to = Math.Clamp((int)Math.Ceiling(endRatio * count), from + 1, count);
+        return (from, to);
+    }
+
     // peaksPerSecond: 초당 샘플 개수. 곡 길이에 비례해서 정하므로
     // 짧은 곡/긴 곡 모두 화면에서 비슷한 밀도로 보인다(고정 총 개수 대비 개선).
     // 이미 풀어놓은 PCM 에서 피크를 뽑는다.

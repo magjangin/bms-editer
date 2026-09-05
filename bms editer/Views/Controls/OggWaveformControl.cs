@@ -199,8 +199,19 @@ public sealed class OggWaveformControl : TimelineControlBase
         for (var i = 0; i < displayPointCount; i++)
         {
             var tPos = i * blockLength;
-            var sourceIndex = isHorizontal ? i : (displayPointCount - 1 - i);
-            var half = GetDisplayPeak(peaks, sourceIndex, displayPointCount) * maxAmplitude;
+
+            // 이 칸이 덮는 시간 구간을 **픽셀 위치에서 곧바로** 구한다.
+            // 예전에는 소스 인덱스(i 또는 displayPointCount-1-i)로 되짚었는데,
+            // displayPointCount 가 ceil 로 올림된 값이라 timelineLength 와 어긋났다.
+            // 그 어긋남이 세로 뷰에서만 파형을 통째로 밀었다(곡에 따라 최대 3ms).
+            var startRatio = tPos / timelineLength;
+            var endRatio = (tPos + blockLength) / timelineLength;
+
+            // 세로 뷰는 아래가 0초다. 같은 픽셀 칸이 뒤집힌 시간 구간을 덮는다.
+            if (!isHorizontal)
+                (startRatio, endRatio) = (1.0 - endRatio, 1.0 - startRatio);
+
+            var half = GetDisplayPeak(peaks, startRatio, endRatio) * maxAmplitude;
             if (half < 0.5)
                 continue;
 
@@ -337,11 +348,21 @@ public sealed class OggWaveformControl : TimelineControlBase
         }
     }
 
-    private static double GetDisplayPeak(IReadOnlyList<float> peaks, int displayIndex, int displayPointCount)
+    // 화면 칸 하나가 덮는 시간 구간에 걸린 버킷들 중 가장 큰 값.
+    //
+    // 버킷 <-> 시각 규칙은 OggPeakLoader 한 곳에만 둔다. 여기서 다시 쓰다가
+    // 온셋 마커와 최대 17ms 어긋났다. (OggPeakLoader.GetBucketRange 주석 참고)
+    //
+    // 최댓값을 고르는 것도 규칙의 일부다. 예전처럼 최근접 버킷 하나만 집어 오면,
+    // 세로 줌이 낮아 화면 칸이 버킷보다 성길 때 킥 같은 순간 피크가 통째로 빠졌다.
+    private static double GetDisplayPeak(IReadOnlyList<float> peaks, double startRatio, double endRatio)
     {
-        if (peaks.Count == 0) return 0;
-        var ratio = displayPointCount <= 1 ? 0 : (double)displayIndex / (displayPointCount - 1);
-        var peakIndex = Math.Clamp((int)Math.Round(ratio * (peaks.Count - 1)), 0, peaks.Count - 1);
-        return peaks[peakIndex];
+        var (from, to) = OggPeakLoader.GetBucketRange(startRatio, endRatio, peaks.Count);
+
+        var peak = 0.0;
+        for (var i = from; i < to; i++)
+            peak = Math.Max(peak, peaks[i]);
+
+        return peak;
     }
 }
