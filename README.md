@@ -3,6 +3,14 @@
 BMS(Be-Music Source) 차트를 시각적으로 확인하고 편집할 수 있는 **Avalonia UI** 기반의 리듬게임 채보 에디터입니다. 
 OGG 배경 오디오 파형(Waveform) 로딩, 온셋(Onset) 분석에 따른 그리드 씽크 시각화, 그리고 WAV 키음 미리듣기 기능을 제공합니다.
 
+> [!WARNING]
+> **커스텀 채보를 만들 수는 있지만, 지금은 작성에 시간이 너무 오래 걸립니다.**
+> 뮤즈 대시 340노트를 만드는 데 **약 4시간**이 걸렸고, 그중 절반 이상이 노트를 찍는 시간이 아니라
+> **"맞게 찍었는지 확인하는" 시간**이었습니다. 게임마다 노트의 종류를 `#WAV` 쪽에 적는데
+> 이 에디터가 그 규칙을 모르기 때문입니다(롱노트 시작·끝이 화면에서 구분되지 않습니다).
+> **개선점을 찾고 있는 중이며, 아직 확정된 설계가 아닙니다.**
+> 실측 기록·원인 분석·개선 후보 → **[⏱️ 채보 작성 시간 — 경고와 개선 과제](docs/issues/authoring_time.md)**
+
 ---
 
 ## 🚀 주요 기능 (Key Features)
@@ -154,6 +162,7 @@ dotnet publish "bms editer/bms editer.csproj" -p:PublishProfile=win-x64
 | **모딩 가이드** | [gunvolt_records_cychronicle.md](docs/guides/gunvolt_records_cychronicle.md) | 건볼트 레코즈 사이크로니클 (Mono) 6레인 채보 및 플릭/페어리 가이드. |
 | **코드 설명서** | [code_explanation.md](docs/architecture/code_explanation.md) | 소스 파일별 역할, 구조 및 컴포넌트 상세 설명서. |
 | **품질/이슈** | [known_issues.md](docs/issues/known_issues.md) | **남은 일과 이미 고친 것.** 1~3차 점검에서 나온 37건 중 33건 해결. 실사용으로 확인할 항목도 여기 있습니다. |
+| **품질/이슈** | [authoring_time.md](docs/issues/authoring_time.md) | ⚠️ **작성 시간 경고.** 만들 수는 있지만 오래 걸립니다(뮤즈 대시 340노트 = 약 4시간). 실측 기록과 원인 분석, **찾고 있는 개선 후보**. |
 | **사양** | [grid_specification.md](docs/specifications/grid_specification.md) | 마디 내부 그리드 분할 규칙과 기본 동작 사양. |
 | **원리** | [bpm_sync_principles.md](docs/architecture/bpm_sync_principles.md) | BPM 변경에 따른 격자·파형 동기화 원리. |
 | **원리** | [video_ogg_principles.md](docs/architecture/video_ogg_principles.md) | 비디오·OGG 연동 원리. |
