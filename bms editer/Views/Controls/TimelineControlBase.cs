@@ -37,6 +37,9 @@ public abstract class TimelineControlBase : Control
     public static readonly StyledProperty<double> PlaybackPositionSecondsProperty =
         AvaloniaProperty.Register<TimelineControlBase, double>(nameof(PlaybackPositionSeconds));
 
+    public static readonly StyledProperty<double> AudioOffsetSecondsProperty =
+        AvaloniaProperty.Register<TimelineControlBase, double>(nameof(AudioOffsetSeconds));
+
     public static readonly StyledProperty<bool> IsPlaybackCursorVisibleProperty =
         AvaloniaProperty.Register<TimelineControlBase, bool>(nameof(IsPlaybackCursorVisible));
 
@@ -132,6 +135,20 @@ public abstract class TimelineControlBase : Control
         set => SetValue(PlaybackPositionSecondsProperty, value);
     }
 
+    // 음원을 타임라인에서 뒤로 미는 양(초).
+    // 격자와 노트는 차트 시간축 위에 그대로 두고, 음원에서 나온 것만(파형, 온셋, 재생 커서) 이 값만큼 민다.
+    public double AudioOffsetSeconds
+    {
+        get => GetValue(AudioOffsetSecondsProperty);
+        set => SetValue(AudioOffsetSecondsProperty, value);
+    }
+
+    public double AudioRatio(double audioSeconds) =>
+        DurationSeconds <= 0 ? 0.0 : (audioSeconds + AudioOffsetSeconds) / DurationSeconds;
+
+    public double AudioSecondsAtRatio(double ratio) =>
+        (ratio * DurationSeconds) - AudioOffsetSeconds;
+
     public bool IsPlaybackCursorVisible
     {
         get => GetValue(IsPlaybackCursorVisibleProperty);
@@ -156,7 +173,7 @@ public abstract class TimelineControlBase : Control
             RowHeightProperty, VerticalZoomProperty, HorizontalZoomProperty, MeasureCountProperty,
             BeatSplitProperty, GridMeasureProperty, BpmProperty, DurationSecondsProperty,
             PlaybackPositionSecondsProperty, IsPlaybackCursorVisibleProperty, IsGridSyncFlashVisibleProperty,
-            IsHorizontalViewProperty, TimelineProperty);
+            IsHorizontalViewProperty, TimelineProperty, AudioOffsetSecondsProperty);
 
         // HorizontalZoom 이 여기 빠져 있어서, 가로 줌을 바꾸면 다시 그려지기만 하고
         // 컨트롤 크기는 그대로였다. 레인이 잘리거나 오른쪽에 빈 자리가 남았다.
@@ -270,7 +287,7 @@ public abstract class TimelineControlBase : Control
         if (!IsPlaybackCursorVisible || DurationSeconds <= 0)
             return;
 
-        var ratio = Math.Clamp(PlaybackPositionSeconds / DurationSeconds, 0, 1);
+        var ratio = Math.Clamp(AudioRatio(PlaybackPositionSeconds), 0, 1);
         var glowPen = new Pen(new SolidColorBrush(Color.FromArgb(90, 50, 255, 120)), 5);
         var cursorPen = new Pen(new SolidColorBrush(Color.FromRgb(40, 255, 90)), 2);
 

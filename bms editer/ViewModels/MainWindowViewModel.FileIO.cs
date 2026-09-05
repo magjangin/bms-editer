@@ -141,6 +141,7 @@ public sealed partial class MainWindowViewModel
         Bpm = Chart.Header.Bpm;
         Player = Math.Clamp(Chart.Header.Player - 1, 0, 2);
         Rank = Math.Clamp(Chart.Header.Rank, 0, 3);
+        AudioOffsetMs = Chart.Header.AudioOffsetMs;
     }
 
     // 실패하면 false. 예전에는 조용히 무시해서 사용자가 성공한 줄 알았다.

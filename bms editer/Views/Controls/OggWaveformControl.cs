@@ -99,7 +99,7 @@ public sealed class OggWaveformControl : TimelineControlBase
 
         if (peaks is { Count: > 1 })
         {
-            DrawBlockWaveform(context, peaks, timelineLength, center, maxAmplitude, WaveFillBrush, WavePen, IsHorizontalView);
+            DrawBlockWaveform(context, peaks, timelineLength, center, maxAmplitude, WaveFillBrush, WavePen, IsHorizontalView, AudioOffsetSeconds, DurationSeconds);
             DrawOnsetMarkers(context, waveformThickness, timelineLength, Onsets, IsHorizontalView);
         }
         else
@@ -178,7 +178,9 @@ public sealed class OggWaveformControl : TimelineControlBase
         if (timelineLength <= 0)
             return;
 
-        var ratio = IsHorizontalView ? Math.Clamp(pos / timelineLength, 0, 1) : Math.Clamp(1.0 - (pos / timelineLength), 0, 1);
+        var timelineRatio = IsHorizontalView ? Math.Clamp(pos / timelineLength, 0, 1) : Math.Clamp(1.0 - (pos / timelineLength), 0, 1);
+        var audioSeconds = AudioSecondsAtRatio(timelineRatio);
+        var ratio = Math.Clamp(audioSeconds / DurationSeconds, 0, 1);
         ScrubRequested?.Invoke(this, new WaveformScrubRequestedEventArgs(ratio, isFinal));
         e.Handled = true;
     }
@@ -191,25 +193,32 @@ public sealed class OggWaveformControl : TimelineControlBase
         double maxAmplitude,
         IBrush fillBrush,
         IPen outlinePen,
-        bool isHorizontal)
+        bool isHorizontal,
+        double audioOffsetSeconds,
+        double durationSeconds)
     {
         var blockLength = 2.0;
         var displayPointCount = Math.Max(2, (int)Math.Ceiling(timelineLength / blockLength));
+        var offsetRatio = durationSeconds > 0 ? (audioOffsetSeconds / durationSeconds) : 0.0;
 
         for (var i = 0; i < displayPointCount; i++)
         {
             var tPos = i * blockLength;
 
             // 이 칸이 덮는 시간 구간을 **픽셀 위치에서 곧바로** 구한다.
-            // 예전에는 소스 인덱스(i 또는 displayPointCount-1-i)로 되짚었는데,
-            // displayPointCount 가 ceil 로 올림된 값이라 timelineLength 와 어긋났다.
-            // 그 어긋남이 세로 뷰에서만 파형을 통째로 밀었다(곡에 따라 최대 3ms).
             var startRatio = tPos / timelineLength;
             var endRatio = (tPos + blockLength) / timelineLength;
 
             // 세로 뷰는 아래가 0초다. 같은 픽셀 칸이 뒤집힌 시간 구간을 덮는다.
             if (!isHorizontal)
                 (startRatio, endRatio) = (1.0 - endRatio, 1.0 - startRatio);
+
+            // 음원 오프셋만큼 타임라인 위치에서 음원 버퍼 위치를 역산한다.
+            startRatio -= offsetRatio;
+            endRatio -= offsetRatio;
+
+            if (endRatio <= 0 || startRatio >= 1.0)
+                continue;
 
             var half = GetDisplayPeak(peaks, startRatio, endRatio) * maxAmplitude;
             if (half < 0.5)
@@ -244,14 +253,14 @@ public sealed class OggWaveformControl : TimelineControlBase
 
     private static IPen GetOnsetPen(byte alpha) => OnsetPens[Math.Clamp((int)alpha, 25, 145)];
 
-    private static void DrawOnsetMarkers(
+    private void DrawOnsetMarkers(
         DrawingContext context,
         double thickness,
         double timelineLength,
         IReadOnlyList<float>? onsets,
         bool isHorizontal)
     {
-        if (onsets is null || onsets.Count == 0 || timelineLength <= 0)
+        if (onsets is null || onsets.Count == 0 || timelineLength <= 0 || DurationSeconds <= 0)
             return;
 
         var startOffset = isHorizontal ? 20.0 : 6.0;
@@ -263,11 +272,17 @@ public sealed class OggWaveformControl : TimelineControlBase
             var alphaVal = onsets[i];
             if (alphaVal <= 0.01f) continue;
 
+            var audioSeconds = OggPeakLoader.GetBucketRatio(i, onsets.Count) * DurationSeconds;
+            var ratio = AudioRatio(audioSeconds);
+            if (ratio < 0 || ratio > 1)
+                continue;
+
             var alpha = (byte)Math.Clamp((int)(alphaVal * 135f + 10f), 25, 145);
             var pen = GetOnsetPen(alpha);
+            var tPos = ToTimelinePosition(ratio, timelineLength);
 
-            var ratio = OggPeakLoader.GetBucketRatio(i, onsets.Count);
-            var tPos = isHorizontal ? ratio * timelineLength : (1.0 - ratio) * timelineLength;
+            if (tPos < -0.5 || tPos > timelineLength + 0.5)
+                continue;
 
             if (alphaVal > 0.45f)
             {

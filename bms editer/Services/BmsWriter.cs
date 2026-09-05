@@ -40,6 +40,9 @@ public static class BmsWriter
 
         AppendIfPresent(sb, "#PLAYLEVEL", level);
 
+        if (Math.Abs(chart.Header.AudioOffsetMs) > 1e-4)
+            sb.Append("#BMSEDITER_OFFSET ").AppendLine(chart.Header.AudioOffsetMs.ToString("0.####", CultureInfo.InvariantCulture));
+
         // 에디터가 다루지 않는 헤더(#TOTAL, #STAGEFILE, #BPMxx, #STOPxx, #BMPxx 등)를
         // 읽어들인 원문 그대로 되돌려 놓는다. 없으면 저장할 때마다 사라진다.
         foreach (var raw in chart.PreservedLines)

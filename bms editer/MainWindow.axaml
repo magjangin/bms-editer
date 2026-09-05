@@ -100,6 +100,7 @@
                         Peaks="{Binding OggPeaks}"
                         Onsets="{Binding OggOnsets}"
                         DurationSeconds="{Binding OggDurationSeconds}"
+                        AudioOffsetSeconds="{Binding AudioOffsetSeconds}"
                         PlaybackPositionSeconds="{Binding PlaybackPositionSeconds}"
                         IsPlaybackCursorVisible="{Binding IsPlaybackCursorVisible}"
                         IsGridSyncFlashVisible="{Binding IsGridSyncFlashVisible}"
@@ -116,6 +117,7 @@
                         Bpm="{Binding Bpm}"
                         Timeline="{Binding Timeline}"
                         DurationSeconds="{Binding OggDurationSeconds}"
+                        AudioOffsetSeconds="{Binding AudioOffsetSeconds}"
                         PlaybackPositionSeconds="{Binding PlaybackPositionSeconds}"
                         IsPlaybackCursorVisible="{Binding IsPlaybackCursorVisible}"
                         IsGridSyncFlashVisible="{Binding IsGridSyncFlashVisible}"
@@ -215,6 +217,21 @@
                             <TextBlock Text="재생 배속" VerticalAlignment="Center" Width="90" />
                             <Slider Value="{Binding PlaybackSpeed}" Minimum="0.1" Maximum="1.0" Width="150" />
                             <TextBlock Text="{Binding PlaybackSpeed, StringFormat={}{0:0.00}x}" VerticalAlignment="Center" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <TextBlock Text="음원 오프셋" VerticalAlignment="Center" Width="90" ToolTip.Tip="음원을 앞뒤로 밀어 첫 박을 마디 격자에 맞춥니다 (ms)" />
+                            <Slider Value="{Binding AudioOffsetMs}" Minimum="-200" Maximum="200" Width="150" />
+                            <TextBlock Text="{Binding AudioOffsetMs, StringFormat={}{0:0.0}ms}" VerticalAlignment="Center" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Stretch" Margin="0,2,0,4">
+                            <Button Content="⚡ 오프셋 자동 맞춤"
+                                    Command="{Binding DetectAudioOffsetCommand}"
+                                    HorizontalAlignment="Stretch"
+                                    HorizontalContentAlignment="Center"
+                                    ToolTip.Tip="음원의 어택(온셋)을 분석하여 16분 격자에 가장 잘 맞는 오프셋을 자동 계산합니다" />
+                            <Button Content="0 초기화"
+                                    Command="{Binding ResetAudioOffsetCommand}"
+                                    ToolTip.Tip="오프셋을 0ms로 되돌립니다" />
                         </StackPanel>
                         <ToggleButton Content="{Binding KeySoundToggleText}"
                                       IsChecked="{Binding IsKeySoundEnabled}"

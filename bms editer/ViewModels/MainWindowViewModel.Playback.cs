@@ -105,7 +105,7 @@ public sealed partial class MainWindowViewModel
 
         PlaybackPositionSeconds = currentSec;
 
-        PlayNotesInTimeRange(_lastPlaybackPositionSeconds, currentSec);
+        PlayNotesInTimeRange(_lastPlaybackPositionSeconds + AudioOffsetSeconds, currentSec + AudioOffsetSeconds);
         _lastPlaybackPositionSeconds = currentSec;
 
         if (PlaybackPositionSeconds >= OggDurationSeconds)

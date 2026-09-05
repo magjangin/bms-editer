@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using bms_editer.Models;
 using bms_editer.Services;
 
@@ -44,7 +45,85 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
     [ObservableProperty] private IReadOnlyList<float>? _oggPeaks;
     [ObservableProperty] private IReadOnlyList<float>? _oggOnsets;
     [ObservableProperty] private double _oggDurationSeconds;
-    [ObservableProperty] private double _playbackPositionSeconds;
+
+    // 음원을 타임라인에서 뒤로 미는 양(ms).
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(AudioOffsetSeconds))]
+    [NotifyPropertyChangedFor(nameof(PlaybackCursorRatio))]
+    private double _audioOffsetMs;
+
+    public double AudioOffsetSeconds => AudioOffsetMs / 1000.0;
+
+    public double PlaybackCursorRatio =>
+        OggDurationSeconds <= 0
+            ? 0.0
+            : Math.Clamp((PlaybackPositionSeconds + AudioOffsetSeconds) / OggDurationSeconds, 0, 1);
+
+    partial void OnAudioOffsetMsChanged(double value)
+    {
+        Chart.Header.AudioOffsetMs = value;
+        MarkDirty();
+        FlashGridSync();
+    }
+
+    [RelayCommand]
+    private void DetectAudioOffset()
+    {
+        if (TryDetectAudioOffsetMs() is { } detected)
+            AudioOffsetMs = Math.Round(detected, 1);
+    }
+
+    [RelayCommand]
+    private void ResetAudioOffset()
+    {
+        AudioOffsetMs = 0.0;
+    }
+
+    public double? TryDetectAudioOffsetMs()
+    {
+        var onsets = OggOnsets;
+        if (onsets is null || onsets.Count == 0 || Bpm <= 0 || OggDurationSeconds <= 0)
+            return null;
+
+        var strongSeconds = new List<double>();
+        for (var i = 0; i < onsets.Count; i++)
+        {
+            if (onsets[i] > 0.45f)
+            {
+                var sec = OggPeakLoader.GetBucketRatio(i, onsets.Count) * OggDurationSeconds;
+                strongSeconds.Add(sec);
+            }
+        }
+
+        if (strongSeconds.Count < 4)
+            return null;
+
+        var step = 240.0 / Bpm / 16.0;
+        var best = 0.0;
+        var bestScore = double.MaxValue;
+
+        for (var candidate = -step / 2; candidate <= step / 2; candidate += 0.0005)
+        {
+            var score = 0.0;
+            foreach (var sec in strongSeconds)
+            {
+                var position = (sec + candidate) / step;
+                score += Math.Abs(position - Math.Round(position));
+            }
+
+            if (score < bestScore)
+            {
+                bestScore = score;
+                best = candidate;
+            }
+        }
+
+        return best * 1000.0;
+    }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PlaybackCursorRatio))]
+    private double _playbackPositionSeconds;
     [ObservableProperty] private bool _isPlaybackCursorVisible;
     [ObservableProperty] private bool _isGridSyncFlashVisible;
     [ObservableProperty] private bool _isPlaying;
