@@ -151,4 +151,4 @@
 
 ---
 
-관련 문서: [known_issues.md](known_issues.md) (남은 일 전체) · [beat_sync_workflow.md](../guides/beat_sync_workflow.md) (박자 맞추기)
+관련 문서: [known_issues.md](known_issues.md) (남은 일 전체) · [beat_sync_workflow.md](../guides/beat_sync_workflow.md) (박자 맞추기) · [hold_note_wav_detection.md](../specifications/hold_note_wav_detection.md) (WAV 파일명 기반 홀드 자동 감지 설계)
