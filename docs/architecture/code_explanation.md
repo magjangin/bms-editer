@@ -64,7 +64,13 @@ Avalonia UI 기반의 렌더링 파이프라인과 네이티브 인터랙션을 
 
 | 파일명 | 역할 및 렌더링 메커니즘 |
 | :--- | :--- |
-| **[MainWindow.axaml / .cs](file:///h:/source/repos/bms%20editer/bms%20editer/MainWindow.axaml)** | 최상위 윈도우입니다. 메뉴바, 툴바, 가로/세로 뷰 스위처, 사이드 패널 레이아웃 및 윈도우 단축키(Space 재생, Delete 삭제, 방향키 이동, Ctrl+S/O/N)를 처리합니다. |
+| **[MainWindow.axaml](../../bms%20editer/MainWindow.axaml)** | 최상위 윈도우의 레이아웃입니다. 메뉴바, 툴바, 가로/세로 뷰 스위처, 사이드 패널 구성을 정의합니다. 코드 비하인드는 아래 6개 파티션으로 나뉘어 있습니다(`MainWindowViewModel` 과 같은 분할 방식). |
+| **[MainWindow.axaml.cs](../../bms%20editer/MainWindow.axaml.cs)** | 코드 비하인드 Core입니다. 뷰모델 생성과 이벤트 배선, 저장 안 한 작업을 지키는 창 닫기 확인(`Closing` 은 await 할 수 없어 취소 후 재시도), 창 제목 갱신, 그리고 뷰모델 변경 알림을 각 파티션으로 보내는 라우팅을 담당합니다. |
+| **[MainWindow.FileIO.cs](../../bms%20editer/MainWindow.FileIO.cs)** | 파일·미디어 대화상자 파티션입니다. BMS/OGG/비디오/WAV 선택, 폴더 열기 시 차트·음원·영상 자동 탐색(`FindBestFile`), 저장 경로 선택과 제목→안전한 파일명 변환, 저장 실패·경고 보고를 담당합니다. |
+| **[MainWindow.Input.cs](../../bms%20editer/MainWindow.Input.cs)** | 키보드 입력 파티션입니다. 창 전체에서 받는 단축키(Space 재생, Delete 삭제, Esc 선택 해제, 방향키 이동, Ctrl+S/Shift+S/O/N)와, 텍스트 입력·목록·슬라이더에 포커스가 있을 때 단축키를 양보하는 `IsWithin<T>` 판정을 담당합니다. |
+| **[MainWindow.ToolWindows.cs](../../bms%20editer/MainWindow.ToolWindows.cs)** | 모드리스 보조 창 파티션입니다. 검색·통계·컨트롤 패널·키음 팔레트를 종류당 하나만 띄우고, 창이 닫힐 때 뷰모델 구독을 반드시 해제해 누수를 막습니다(`ShowToolWindow<TWindow>`). |
+| **[MainWindow.Scrubbing.cs](../../bms%20editer/MainWindow.Scrubbing.cs)** | 포인터 스크러빙 파티션입니다. 휠 클릭 드래그로 재생 위치를 끌고(뗄 때 한 번만 커밋), 파형 컨트롤의 스크럽 요청을 받고, Tunnel 단계에서 창 전체의 클릭을 미리 가로채 재생 중 즉시 정지시킵니다. |
+| **[MainWindow.Viewport.cs](../../bms%20editer/MainWindow.Viewport.cs)** | 스크롤·방향 파티션입니다. 가로/세로 전환 시 레이아웃 방향 교체, 검색·통계 창에서 고른 노트 자리로 격자 이동(레이아웃 완료를 기다려 한 박자 뒤 실행), 재생 커서 자동 추적, 타임라인 길이 계산을 담당합니다. |
 | **[TimelineControlBase.cs](file:///h:/source/repos/bms%20editer/bms%20editer/Views/Controls/TimelineControlBase.cs)** | `NoteGridControl`과 `OggWaveformControl`이 상속하는 베이스 컨트롤입니다. 줌 배율, 스크롤 오프셋, `BeatSplit`(기본 16분할) 기준 격자선 위치 열거(`EnumerateGridLines`), 재생 헤드 커서 및 싱크 경고 점멸 플래시 렌더링을 일원화하여 공유합니다. |
 | **[NoteGridControl.cs](file:///h:/source/repos/bms%20editer/bms%20editer/Views/Controls/NoteGridControl.cs)** | 채보 격자판과 노트를 그리는 핵심 드로잉 컨트롤입니다. Skia 캔버스 클리핑 기반으로 무결성 렌더링을 보장하며, 좌클릭 노트 배치/드래그 선택, 우클릭 삭제, 선택 노트 강조 렌더링을 수행합니다. |
 | **[OggWaveformControl.cs](file:///h:/source/repos/bms%20editer/bms%20editer/Views/Controls/OggWaveformControl.cs)** | 배경 음악 파형과 온셋 타격선 가이드를 그리는 컨트롤입니다. 마우스 휠 스크러빙 및 재생 위치 클릭 탐색 인터랙션을 제공합니다. |
