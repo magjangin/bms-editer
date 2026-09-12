@@ -18,9 +18,12 @@ docs/
 │   ├── sixtar_gate_startrail.md       # 식스타 게이트: 스타트레일 (Mono) 커스텀 차트/키음 주입 가이드
 │   ├── sixtar_gate_stargazer.md       # 식스타 게이트: 스타게이저 (Il2Cpp) 메타데이터/차트 주입 가이드
 │   ├── muse_dash.md                   # 뮤즈 대시 (Il2Cpp) 커스텀 채보 매핑 및 영구 보존 가이드
-│   └── gunvolt_records_cychronicle.md # 건볼트 레코즈 사이크로니클 (Mono) 6레인 채보 및 플릭/페어리 가이드
+│   ├── gunvolt_records_cychronicle.md # 건볼트 레코즈 사이크로니클 (Mono) 6레인 채보 및 플릭/페어리 가이드
+│   └── deflate.md                     # DEFLATE 4레인(+드롭) 채보 및 파일명 기반 홀드 작성 가이드
 ├── specifications/                    # 사양 및 규격 정의서
-│   └── grid_specification.md          # 마디 내부 그리드 분할 규칙 및 기본 동작 사양서
+│   ├── grid_specification.md          # 마디 내부 그리드 분할 규칙 및 기본 동작 사양서
+│   ├── hold_pairing_spec.md           # 🔗 홀드 짝 맞추기 — 전략 3종·검사기·표시 사양 (게임 무관)
+│   └── game_profiles.md               # 🎮 게임별 값 단일 표 — 레인·키 폭·판별 전략·검증 상태
 └── issues/                            # 품질 관리 및 이슈 추적
     ├── known_issues.md                # 버그 해결 기록, 미해결 과제, 실물 검증 체크리스트
     └── authoring_time.md              # ⏱️ 채보 작성 시간 경고 · 실측 기록 · 개선 후보
@@ -41,9 +44,12 @@ docs/
 * **[sixtar_gate_stargazer.md](guides/sixtar_gate_stargazer.md)**: Il2Cpp 기반의 *Sixtar Gate: STARGAZER*에서 4방향 회전형 레인(`16, 12, 13, 11`), `#WAV` 파일명 기반 롱노트 판별, 분수 무손실 `Area/BeatInfo` 주입 가이드입니다.
 * **[muse_dash.md](guides/muse_dash.md)**: Il2Cpp 기반의 *Muse Dash* 2레인(지상/공중) 구조에 맞춘 채보 매핑(`13, 14, 15, 18`), 6자리 UID 오브젝트 지정, 홀드/샌드백 자동 매칭 및 영구 보존(Archive) 가이드입니다.
 * **[gunvolt_records_cychronicle.md](guides/gunvolt_records_cychronicle.md)**: Unity Mono 기반의 *GUNVOLT RECORDS Cychronicle* (`GRC2`)에서 좌/우 6레인 매핑(`16, 11, 12` vs `14, 15, 18`), 8방향 플릭(`03~0A`) 및 페어리 아크(`11~18`, `1A/1B`) 주입 가이드입니다.
+* **[deflate.md](guides/deflate.md)**: *DEFLATE*의 플레이 4레인(`16, 11, 12, 13`) + 드롭 레인(`14`) 매핑, `DrumMode`(HiHat/KickSnare)가 같은 물리 레인을 나눠 쓰는 구조, **`#WAV` 파일명 키워드로 홀드 시작/끝을 판별하는 규칙**(부분 일치 · Tail 우선 · 가장 가까운 Tail)과 1마디 3840틱 시간 계산 가이드입니다.
 
 ### 3. 규격 및 동작 사양 (`specifications/`)
 * **[grid_specification.md](specifications/grid_specification.md)**: 마디당 기본 16분할(16비트 스냅) 그리드 렌더링 규칙, 확대/축소 비율, 주요 박자선(Beat Line) 구분 로직의 명세를 정의합니다.
+* **[hold_pairing_spec.md](specifications/hold_pairing_spec.md)**: 🔗 **홀드 짝 맞추기 사양.** 키음이 든 "역할"을 읽어 홀드 시작·끝을 짝짓고, 몸통으로 이어 그리고, 어긋난 자리를 편집 중에 지목합니다. 판별 전략은 **셋뿐**(슬롯 코드 값 · 파일명 키워드 · 출현 순서)이고, 핵심 결정은 **"게임은 소비하고 에디터는 보존한다"** — `Chart.Notes` 를 건드리지 않는 파생 링크 표라서 저장 왕복이 안전합니다. **게임 이름이 나오지 않습니다.**
+* **[game_profiles.md](specifications/game_profiles.md)**: 🎮 **게임별 값 단일 표.** 레인 · 키 폭 · 홀드 판별 전략 · 파라미터 · 실측 검증 여부(✅/⬜)를 한 곳에서만 관리합니다. 게임 추가 = 이 표 한 줄 + JSON 하나 + 가이드 하나. **다른 문서들은 게임 표를 따로 들지 않고 이 파일로 링크합니다.**
 
 ### 4. 이슈 및 품질 관리 (`issues/`)
 * **[known_issues.md](issues/known_issues.md)**: 37건의 잠재 이슈 중 33건의 해결 과정(조건 블록 보존, 키음 네이티브 믹싱, 렌더 무결성, 🎛️ 컨트롤 패널 추가 등)과 현재 남은 과제(Undo/Redo), 실물 테스트 확인 기록을 총망라합니다.
