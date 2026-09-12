@@ -26,7 +26,11 @@
 
 | 파일명 | 역할 및 핵심 기술 |
 | :--- | :--- |
-| **[BmsParser.cs](file:///h:/source/repos/bms%20editer/bms%20editer/Services/BmsParser.cs)** | BMS 텍스트 파일을 구문 분석하여 `BmsChart` 모델로 변환합니다. 바이트 레벨 판별을 통해 BOM → UTF-8 → CP932/CP949 인코딩을 자동 감지하며, 2자리/3자리 키음 채널 분할 크기 결정 및 조건 블록(`#RANDOM`/`#IF`/`#SWITCH`)의 분기 맥락(`BranchId`)을 안전하게 추출합니다. |
+| **[BmsParser.cs](../../bms%20editer/Services/BmsParser.cs)** | 파싱 파이프라인 Core입니다. `BmsParseResult` 정의와 2패스 `Parse()` — 1패스에서 헤더·`#WAV` 정의를 모으고, 2패스에서 데이터 줄을 노트로 풀며 편집 대상이 아닌 줄은 원문 그대로 보존(`PreservedLines`)하고 조건 블록(`#RANDOM`/`#IF`/`#SWITCH`)의 분기 맥락(`BranchId`)을 추적합니다. 아래 4개 파티션으로 나뉘어 있습니다. |
+| **[BmsParser.Patterns.cs](../../bms%20editer/Services/BmsParser.Patterns.cs)** | BMS 문법 정규식을 한곳에 모은 파티션입니다. 모든 `[GeneratedRegex]` 선언(헤더·`#WAV`·데이터 줄·제어문)과, 1패스에서 이미 읽어간 헤더인지 판별해 원문 보존 대상을 가리는 `IsConsumedHeader` 가 있습니다. 데이터 줄 정규식은 규격을 넘는 4자리 마디도 받습니다. |
+| **[BmsParser.Channels.cs](../../bms%20editer/Services/BmsParser.Channels.cs)** | 시간축 채널 해석 파티션입니다. 마디 길이 배율(`02`)·직접 BPM(`03`)·`#BPMxx` 참조 BPM(`08`)을 읽어 차트에 담고, 슬롯 열거(`EnumerateSlots`)와 2자리/3자리 키음 분할 크기 판정(`DetermineChunkSize`)을 담당합니다. |
+| **[BmsParser.MediaPaths.cs](../../bms%20editer/Services/BmsParser.MediaPaths.cs)** | 미디어 경로 해석 파티션입니다. 폴더를 재귀로 훑어 파일명 색인을 만들고, 적힌 자리에 파일이 없으면 같은 이름을 하위 폴더에서 찾아 붙입니다. 그 **추측 여부를 `guessed` 로 구분해 알려주어** 호출한 쪽이 추측 결과를 저장 파일에 박지 않게 합니다. |
+| **[BmsParser.Encoding.cs](../../bms%20editer/Services/BmsParser.Encoding.cs)** | 인코딩 감지 파티션입니다. 바이트를 한 번만 읽고 BOM → 엄격 UTF-8 → CP932/CP949 순으로 가릅니다. CP932와 CP949는 서로의 바이트를 오류 없이 삼키므로, **`#WAV`/`#BMP` 파일명이 실제로 폴더에 있는 개수**(1순위)와 반각 가타카나·제어 문자 점수(2순위)로 판정합니다. 고른 인코딩은 저장에 그대로 쓰입니다. |
 | **[BmsWriter.cs](file:///h:/source/repos/bms%20editer/bms%20editer/Services/BmsWriter.cs)** | 차트 모델을 규격에 맞는 BMS 텍스트로 직렬화합니다. 마디 내 노트 위치들의 최소공배수(LCM)를 이용해 무손실 분할 해상도를 계산하고, 원문 보존 줄(`PreservedLines`)과 분기별 노트를 원본 순서대로 안전하게 복원 출력합니다. |
 | **[SafeFileWriter.cs](file:///h:/source/repos/bms%20editer/bms%20editer/Services/SafeFileWriter.cs)** | 원자적(Atomic) 파일 저장 서비스입니다. 같은 디렉터리의 임시 파일(`.tmp`)에 완전히 기록한 뒤에만 원본을 교체하며, 직전 정상 저장본을 `.bak` 파일로 백업하여 충돌이나 예외 시에도 원본 손상을 원천 방지합니다. |
 | **[ChartTimeline.cs](file:///h:/source/repos/bms%20editer/bms%20editer/Services/ChartTimeline.cs)** | **"마디 위치 ↔ 절대 시각(초)" 변환을 전담하는 핵심 동기화 엔진**입니다. 곡 도중의 마디 길이 배율(`#xxx02`)과 BPM 변경(`#xxx03`/`#xxx08`)을 통합 누적 계산하여, 격자선·노트·파형·재생바가 동일한 시각 기준을 공유하도록 보장합니다. |
