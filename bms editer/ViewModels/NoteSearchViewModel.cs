@@ -60,15 +60,15 @@ public sealed partial class NoteSearchViewModel : ObservableObject
     // "롱"·"숨기기" 필터를 쓸 수 있는지.
     //
     // BmsParser 는 편집 대상인 건반 채널(11~18)만 노트로 만들고 전부 Normal 로 둔다.
-    // 롱노트(51~59)·숨김(31~39) 채널은 원문 보존으로 빠지므로, 이 두 필터는
-    // 어떤 노트에도 해당되지 않는다. 눌러도 아무 일이 없는 버튼을 켜 두면
+    // 롱노트는 노트 종류가 아니라 게임 프로파일이 읽어낸 홀드 짝(MainWindowViewModel.HoldLinks)으로 드러난다.
+    // 해당되는 노트가 없을 때 눌러도 아무 일이 없는 버튼을 켜 두면
     // "조건을 잘못 넣었나" 하고 사용자만 헤매므로, 해당되는 노트가 생기기 전까지는 잠근다.
     public bool AreNoteTypeFiltersUsable =>
-        _owner.Chart.Notes.Any(n => n.Type != NoteType.Normal);
+        _owner.HoldLinks.Count > 0 || _owner.Chart.Notes.Any(n => n.Type != NoteType.Normal);
 
     public string NoteTypeFilterHint => AreNoteTypeFiltersUsable
-        ? "노트 종류로 거릅니다"
-        : "이 에디터는 아직 롱노트·숨김 노트를 편집 대상으로 읽지 않습니다. 해당되는 노트가 없어 잠겨 있습니다";
+        ? "노트 종류로 거릅니다 (롱 = 게임 프로파일로 짝지어진 홀드의 시작·끝)"
+        : "짝지어진 홀드가 없어 잠겨 있습니다. 오른쪽 패널에서 게임 프로파일을 고르면 홀드 짝을 읽습니다";
 
     // 대상 노트 - 선택 상태
     [ObservableProperty] private bool _includeSelected = true;
@@ -133,7 +133,8 @@ public sealed partial class NoteSearchViewModel : ObservableObject
             if (!(isSelected ? IncludeSelected : IncludeUnselected))
                 continue;
 
-            var isLong = note.Type is NoteType.LongStart or NoteType.LongEnd;
+            // 롱노트는 노트 종류가 아니라 게임 프로파일이 읽어낸 홀드 짝으로 판정한다.
+            var isLong = note.Type is NoteType.LongStart or NoteType.LongEnd || _owner.IsHoldNote(note);
             if (!(isLong ? IncludeLong : IncludeNormal))
                 continue;
 

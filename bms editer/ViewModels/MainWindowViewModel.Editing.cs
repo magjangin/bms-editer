@@ -35,6 +35,10 @@ public sealed partial class MainWindowViewModel
         _sortedNotesCache = null;
         _notesCache = Chart.Notes.ToArray();
         MarkDirty();
+
+        // 모든 편집 경로가 여기를 지난다. 홀드 짝도 여기서 한 번에 다시 읽는다.
+        // (삭제·이동·키음 교체·복제 어느 것이든 짝을 깰 수 있다)
+        RecomputeHolds();
         OnPropertyChanged(nameof(Notes));
     }
 

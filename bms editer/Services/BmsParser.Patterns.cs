@@ -38,6 +38,10 @@ public static partial class BmsParser
     [GeneratedRegex(@"^#BMSEDITER_OFFSET\s+([-+0-9\.]+)", RegexOptions.IgnoreCase)]
     private static partial Regex AudioOffsetRegex();
 
+    // 이 차트의 홀드를 어느 게임 규칙으로 짝짓는지. 게임 쪽 파서는 모르는 헤더라 무시한다.
+    [GeneratedRegex(@"^#BMSEDITER_PROFILE\s+(\S+)", RegexOptions.IgnoreCase)]
+    private static partial Regex ProfileRegex();
+
     // 마디는 보통 세 자리지만, 규격을 넘겨 네 자리를 쓰는 차트가 실제로 있다.
     // 세 자리로만 받으면 해석에 실패해서 "에디터가 모르는 줄"이 되고,
     // 저장할 때 데이터 줄이 아니라 파일 맨 위 헤더 블록으로 끌려 올라갔다.
@@ -65,5 +69,6 @@ public static partial class BmsParser
         || RankRegex().IsMatch(line)
         || PlayLevelRegex().IsMatch(line)
         || AudioOffsetRegex().IsMatch(line)
+        || ProfileRegex().IsMatch(line)
         || WavRegex().IsMatch(line);
 }

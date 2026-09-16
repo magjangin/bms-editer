@@ -3,6 +3,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="using:bms_editer.ViewModels"
+        xmlns:models="using:bms_editer.Models"
         xmlns:controls="using:bms_editer.Views.Controls"
         mc:Ignorable="d" d:DesignWidth="1280" d:DesignHeight="720"
         x:Class="bms_editer.MainWindow"
@@ -70,6 +71,7 @@
                 <TextBlock Text="{Binding GridDisplay, StringFormat='Grid: {0}'}" />
                 <TextBlock Text="{Binding OggFileName, StringFormat='OGG: {0}', TargetNullValue='OGG: (없음)'}" />
                 <TextBlock Text="{Binding VideoFileName, StringFormat='Video: {0}', TargetNullValue='Video: (없음)'}" />
+                <TextBlock Text="{Binding HoldSummaryText}" />
             </StackPanel>
         </Border>
 
@@ -123,6 +125,8 @@
                         IsGridSyncFlashVisible="{Binding IsGridSyncFlashVisible}"
                         IsHorizontalView="{Binding IsHorizontalView}"
                         Notes="{Binding Notes}"
+                        HoldLinks="{Binding HoldLinks}"
+                        HoldProblemNotes="{Binding HoldProblemNotes}"
                         IsCircleNoteShape="{Binding IsCircleNoteShape}"
                         IsEditMode="{Binding IsEditMode}"
                         SnapToGrid="{Binding SnapToGrid}"
@@ -179,6 +183,37 @@
                         </ComboBox>
                         <TextBlock Text="#LEVEL" />
                         <TextBox Text="{Binding Level}" />
+                    </StackPanel>
+
+                    <TextBlock Text="게임 프로파일 · 홀드" FontWeight="Bold" Margin="0,12,0,0" />
+                    <StackPanel Spacing="4">
+                        <ComboBox ItemsSource="{Binding Profiles}"
+                                  SelectedItem="{Binding SelectedProfile}"
+                                  HorizontalAlignment="Stretch"
+                                  ToolTip.Tip="게임마다 홀드의 시작·끝을 적는 방식이 다릅니다. 고른 게임의 규칙으로 짝을 읽어 격자에 몸통으로 그립니다">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate x:DataType="models:GameProfile">
+                                    <TextBlock Text="{Binding DisplayName}" />
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                        <TextBlock Text="{Binding ProfileOriginText}" TextWrapping="Wrap" Opacity="0.7" />
+                        <TextBlock Text="{Binding ProfileVerificationText}" TextWrapping="Wrap" Opacity="0.85"
+                                   IsVisible="{Binding !IsProfileAssumed}" />
+                        <TextBlock Text="{Binding ProfileVerificationText}" TextWrapping="Wrap" Foreground="Orange"
+                                   IsVisible="{Binding IsProfileAssumed}" />
+                        <TextBlock Text="{Binding HoldSummaryText}" TextWrapping="Wrap" FontWeight="SemiBold" />
+                        <ListBox ItemsSource="{Binding HoldDiagnostics}"
+                                 SelectedItem="{Binding SelectedHoldDiagnostic}"
+                                 IsVisible="{Binding HasHoldDiagnostics}"
+                                 MaxHeight="160"
+                                 ToolTip.Tip="항목을 고르면 그 노트를 선택하고 격자를 그 자리로 옮깁니다">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate x:DataType="models:HoldDiagnostic">
+                                    <TextBlock Text="{Binding DisplayText}" TextWrapping="Wrap" FontSize="12" />
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
                     </StackPanel>
 
                     <TextBlock Text="격자" FontWeight="Bold" Margin="0,12,0,0" />

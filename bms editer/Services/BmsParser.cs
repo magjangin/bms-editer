@@ -134,6 +134,13 @@ public static partial class BmsParser
                 continue;
             }
 
+            var profileMatch = ProfileRegex().Match(line);
+            if (profileMatch.Success)
+            {
+                chart.Header.ProfileId = profileMatch.Groups[1].Value.Trim();
+                continue;
+            }
+
             var wavMatch = WavRegex().Match(line);
             if (wavMatch.Success)
             {

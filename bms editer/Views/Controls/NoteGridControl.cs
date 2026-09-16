@@ -50,6 +50,14 @@ public sealed class NoteGridControl : TimelineControlBase
     public static readonly StyledProperty<System.Windows.Input.ICommand?> SelectNotesCommandProperty =
         AvaloniaProperty.Register<NoteGridControl, System.Windows.Input.ICommand?>(nameof(SelectNotesCommand));
 
+    // 게임 프로파일이 읽어낸 홀드 짝. 노트를 고치지 않고 위에 얹는 파생 정보라 따로 받는다.
+    public static readonly StyledProperty<IReadOnlyList<HoldLink>?> HoldLinksProperty =
+        AvaloniaProperty.Register<NoteGridControl, IReadOnlyList<HoldLink>?>(nameof(HoldLinks));
+
+    // 짝이 어긋난 노트. 몸통 없이 경고 테두리로 표시한다.
+    public static readonly StyledProperty<IReadOnlyList<BmsNote>?> HoldProblemNotesProperty =
+        AvaloniaProperty.Register<NoteGridControl, IReadOnlyList<BmsNote>?>(nameof(HoldProblemNotes));
+
     public IReadOnlyList<LaneDefinition>? Lanes
     {
         get => GetValue(LanesProperty);
@@ -104,6 +112,18 @@ public sealed class NoteGridControl : TimelineControlBase
         set => SetValue(SelectNotesCommandProperty, value);
     }
 
+    public IReadOnlyList<HoldLink>? HoldLinks
+    {
+        get => GetValue(HoldLinksProperty);
+        set => SetValue(HoldLinksProperty, value);
+    }
+
+    public IReadOnlyList<BmsNote>? HoldProblemNotes
+    {
+        get => GetValue(HoldProblemNotesProperty);
+        set => SetValue(HoldProblemNotesProperty, value);
+    }
+
     // 노트 한 개마다 새로 만들면 프레임당 수천 개가 할당된다. 색이 고정이라 나눠 쓴다.
     private static readonly Pen NoteOutlinePen = new(Brushes.Black, 1);
 
@@ -136,10 +156,52 @@ public sealed class NoteGridControl : TimelineControlBase
     // 그래서 스크래치 레인(16)의 붉은 노트(230,40,40)와 색이 가까워도 테두리는 살아 있다.
     private static readonly Pen SelectionPen = new(Brushes.Red, 2);
 
+    // 홀드 몸통 폭. 레인 폭 전체를 채우면 몸통 위에 겹친 다른 노트가 묻힌다.
+    public const double HoldBodyWidthRatio = 0.44;
+
+    // 짝이 어긋난 노트의 테두리. 선택 테두리(빨강 실선)와 헷갈리지 않게 주황 점선으로 둔다.
+    private static readonly Pen HoldProblemPen = new(new SolidColorBrush(Color.FromRgb(255, 120, 0)), 2, DashStyle.Dash);
+
+    private static readonly Dictionary<string, IBrush> HoldBodyBrushes = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly Dictionary<string, IPen> HoldLinkPens = new(StringComparer.OrdinalIgnoreCase);
+
+    // 종류마다 몸통 색이 달라야 샌드백·게이트·페어리가 홀드와 섞여 보이지 않는다.
+    public static Color GetHoldColor(string kind) => kind.ToUpperInvariant() switch
+    {
+        "SANDBAG" => Color.FromArgb(220, 255, 105, 180),
+        "GATE" => Color.FromArgb(210, 70, 220, 255),
+        "FAIRY" => Color.FromArgb(220, 185, 120, 255),
+        "DOUBLE" => Color.FromArgb(220, 120, 230, 110),
+        "SPAM" => Color.FromArgb(220, 255, 140, 50),
+        _ => Color.FromArgb(220, 255, 190, 40),
+    };
+
+    private static IBrush GetHoldBrush(string kind)
+    {
+        if (!HoldBodyBrushes.TryGetValue(kind, out var brush))
+        {
+            brush = new SolidColorBrush(GetHoldColor(kind));
+            HoldBodyBrushes[kind] = brush;
+        }
+
+        return brush;
+    }
+
+    private static IPen GetHoldLinkPen(string kind)
+    {
+        if (!HoldLinkPens.TryGetValue(kind, out var pen))
+        {
+            pen = new Pen(GetHoldBrush(kind), 4);
+            HoldLinkPens[kind] = pen;
+        }
+
+        return pen;
+    }
+
     static NoteGridControl()
     {
         AffectsRender<NoteGridControl>(LanesProperty, LaneWidthProperty, NotesProperty, IsCircleNoteShapeProperty,
-            SelectedNotesProperty);
+            SelectedNotesProperty, HoldLinksProperty, HoldProblemNotesProperty);
         AffectsMeasure<NoteGridControl>(LanesProperty, LaneWidthProperty);
     }
 
@@ -262,6 +324,9 @@ public sealed class NoteGridControl : TimelineControlBase
             }
         }
 
+        // 홀드 몸통은 노트보다 먼저 그린다. 머리·꼬리 노트가 몸통 위에 올라와야 한다.
+        DrawHoldBodies(context, lanes, laneThickness, timelineLength);
+
         // 배치된 노트 그리기
         var notes = Notes;
         var selectedNotes = SelectedNotes;
@@ -327,6 +392,8 @@ public sealed class NoteGridControl : TimelineControlBase
             }
         }
 
+        DrawHoldProblems(context, lanes, laneThickness, timelineLength);
+
         if (_dragStartPoint is { } dragStart && _dragCurrentPoint is { } dragEnd)
         {
             var selectionRect = NormalizedRect(dragStart, dragEnd);
@@ -337,6 +404,84 @@ public sealed class NoteGridControl : TimelineControlBase
         DrawGridSyncFlash(context, totalWidth, totalHeight);
         DrawPlaybackCursor(context, totalWidth, totalHeight);
     }
+
+    // 홀드 몸통.
+    //
+    // 양 끝 좌표를 각각 ComputeNoteTPos 로 구한다. 노트와 같은 시간축을 써야 몸통 끝이 끝 노트와 만난다.
+    // 마디 단위로 선형 보간해 늘리면 BPM 변화나 변박 구간을 지나는 홀드의 끝이 끝 노트와 어긋난다.
+    private void DrawHoldBodies(DrawingContext context, IReadOnlyList<LaneDefinition> lanes, double laneThickness, double timelineLength)
+    {
+        var links = HoldLinks;
+        if (links is null || links.Count == 0)
+            return;
+
+        for (var i = 0; i < links.Count; i++)
+        {
+            var link = links[i];
+            var headLane = FindLaneIndex(lanes, link.Head.LaneId);
+            var tailLane = FindLaneIndex(lanes, link.Tail.LaneId);
+            if (headLane == -1 || tailLane == -1)
+                continue;
+
+            var headPos = ComputeNoteTPos(link.Head, timelineLength);
+            var tailPos = ComputeNoteTPos(link.Tail, timelineLength);
+
+            if (headLane == tailLane)
+            {
+                var body = ComputeHoldBodyRect(headLane * laneThickness, laneThickness, headPos, tailPos, IsHorizontalView);
+                context.FillRectangle(GetHoldBrush(link.Kind), body);
+            }
+            else
+            {
+                // 채널을 건너 맺어지는 짝(게임이 여러 채널을 레인 하나로 모으는 게이트 같은 경우)은 선으로 잇는다.
+                context.DrawLine(
+                    GetHoldLinkPen(link.Kind),
+                    LaneCenter(headLane, headPos, laneThickness),
+                    LaneCenter(tailLane, tailPos, laneThickness));
+            }
+        }
+    }
+
+    private void DrawHoldProblems(DrawingContext context, IReadOnlyList<LaneDefinition> lanes, double laneThickness, double timelineLength)
+    {
+        var problems = HoldProblemNotes;
+        if (problems is null || problems.Count == 0)
+            return;
+
+        for (var i = 0; i < problems.Count; i++)
+        {
+            var note = problems[i];
+            var laneIndex = FindLaneIndex(lanes, note.LaneId);
+            if (laneIndex == -1)
+                continue;
+
+            var tPos = ComputeNoteTPos(note, timelineLength);
+            var laneOffset = laneIndex * laneThickness;
+            var rect = IsHorizontalView
+                ? new Rect(tPos - 10, laneOffset - 1, 20, laneThickness + 2)
+                : new Rect(laneOffset - 1, tPos - 10, laneThickness + 2, 20);
+
+            context.DrawRectangle(null, HoldProblemPen, rect);
+        }
+    }
+
+    // 홀드 몸통 사각형. 레인 가운데에 HoldBodyWidthRatio 폭으로, 머리에서 꼬리까지.
+    public static Rect ComputeHoldBodyRect(double laneOffset, double laneThickness, double headPos, double tailPos, bool isHorizontalView)
+    {
+        var width = Math.Max(4.0, laneThickness * HoldBodyWidthRatio);
+        var inset = (laneThickness - width) / 2;
+        var start = Math.Min(headPos, tailPos);
+        var length = Math.Abs(tailPos - headPos);
+
+        return isHorizontalView
+            ? new Rect(start, laneOffset + inset, length, width)
+            : new Rect(laneOffset + inset, start, width, length);
+    }
+
+    private Point LaneCenter(int laneIndex, double tPos, double laneThickness) =>
+        IsHorizontalView
+            ? new Point(tPos, laneIndex * laneThickness + laneThickness / 2)
+            : new Point(laneIndex * laneThickness + laneThickness / 2, tPos);
 
     private double ComputeNoteTPos(BmsNote note, double timelineLength)
     {

@@ -7,10 +7,10 @@
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <ApplicationIcon>Assets\icon.ico</ApplicationIcon>
-    <Version>0.1.3</Version>
-    <AssemblyVersion>0.1.3.0</AssemblyVersion>
-    <FileVersion>0.1.3.0</FileVersion>
-    <InformationalVersion>0.1.3</InformationalVersion>
+    <Version>0.1.4</Version>
+    <AssemblyVersion>0.1.4.0</AssemblyVersion>
+    <FileVersion>0.1.4.0</FileVersion>
+    <InformationalVersion>0.1.4</InformationalVersion>
     <Product>bms editer</Product>
     <Company>magjangin</Company>
     <Description>BMS Chart Editor for Rhythm Games</Description>
@@ -18,6 +18,15 @@
 
   <ItemGroup>
     <AvaloniaResource Include="Assets\**" />
+  </ItemGroup>
+
+  <!-- 게임 프로파일(홀드 짝 규칙)은 exe 안에 넣는다.
+       README 가 "exe 하나만 복사하면 실행" 을 약속하므로, 옆 폴더에만 두면 exe 만 복사해 간
+       사용자는 홀드가 하나도 안 잡히는데 이유가 화면에 없다.
+       AvaloniaResource 가 아니라 EmbeddedResource 인 이유: Avalonia 런타임을 띄우지 않고도
+       읽혀야 단위 테스트가 프로파일을 바로 검증할 수 있다. -->
+  <ItemGroup>
+    <EmbeddedResource Include="Profiles\*.json" LogicalName="profiles/%(Filename)%(Extension)" />
   </ItemGroup>
 
   <ItemGroup>

@@ -199,7 +199,12 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
         };
 
         // 키음을 넣거나 뺀 것도 저장해야 할 변경이다.
-        WavList.CollectionChanged += (_, _) => MarkDirty();
+        // 파일명으로 홀드를 가리는 게임이 있어서, 키음 표가 바뀌면 짝도 다시 읽는다.
+        WavList.CollectionChanged += (_, _) =>
+        {
+            MarkDirty();
+            RecomputeHolds();
+        };
     }
 
     public string GridDisplay => $"{BeatSplit}/{Math.Max(1, GridMeasure)}";

@@ -16,30 +16,32 @@
 
 ## 📋 1. 프로파일 표
 
-| 게임 | 프로파일 id | 편집 레인 | 키 폭 | 홀드 판별 전략 | 검증 | 가이드 |
+| 게임 | 프로파일 id | 편집 레인 | 키 폭 | 홀드 판별 전략 | 상태 | 가이드 |
 |:---|:---|:---|:---:|:---|:---:|:---|
-| **DEFLATE** | `deflate` | `16` `11` `12` `13` + `14`(드롭) | 3 | **② FileNameKeyword** | ⬜ | [deflate.md](../guides/deflate.md) |
-| **뮤즈 대시** | `muse_dash` | `13` `14` `15` `18` | 2 | **③ OccurrenceParity** | ✅ | [muse_dash.md](../guides/muse_dash.md) |
-| **스타게이저** | `stargazer` | `16` `12` `13` `11` | 2 | **② FileNameKeyword** | ⬜ | [sixtar_gate_stargazer.md](../guides/sixtar_gate_stargazer.md) |
-| **스타트레일** | `startrail` | Solar: `11` `12` `14` `15` + `16`<br>Lunar: `11`~`15` + `16` `18` | 2 | **① KeyValue** | ⬜ | [sixtar_gate_startrail.md](../guides/sixtar_gate_startrail.md) |
-| **건볼트** | `gunvolt` | `16` `11` `12` / `14` `15` `18` | 2 | **① KeyValue** (아크는 N:M) | ⬜ | [gunvolt_records_cychronicle.md](../guides/gunvolt_records_cychronicle.md) |
+| **스타트레일** | `startrail` | Solar: `11` `12` `14` `15` + `16`<br>Lunar: `11`~`15` + `16` `18` | 2 | **① KeyValue** | ✅ 실측 완료 | [sixtar_gate_startrail.md](../guides/sixtar_gate_startrail.md) |
+| **스타게이저** | `stargazer` | `16` `12` `13` `11` | 2 | **② FileNameKeyword** | ✅ 실측 완료 | [sixtar_gate_stargazer.md](../guides/sixtar_gate_stargazer.md) |
+| **건볼트** | `gunvolt` | `16` `11` `12` / `14` `15` `18` | 2 | **① KeyValue** (아크는 N:M) | ✅ 실측 완료 | [gunvolt_records_cychronicle.md](../guides/gunvolt_records_cychronicle.md) |
+| **DEFLATE** | `deflate` | `16` `11` `12` `13` + `14`(드롭) | 3 | **② FileNameKeyword** | ⬜ 키음 확인 | [deflate.md](../guides/deflate.md) |
+| ~~**뮤즈 대시**~~ | `muse_dash` | `13` `14` `15` `18` | 2 | **③ OccurrenceParity** | **❌ 지원 제외** | [muse_dash.md](../guides/muse_dash.md) |
 
-`✅` = 실제로 채보를 만들어 확인함 · `⬜` = 게임 모드 소스를 읽고 적은 **추정**
+`✅ 실측 완료` = 실제 게임 BMS 차트(MARENOIA, shut up, Discotic Night 등)를 읽고 짝/렌더링 검증 완료  
+`❌ 지원 제외` = 6자리 UID 체계 및 출현 순서 전파(Cascade)로 인한 극심한 난이도와 시간 소요로 **공식 지원 대상에서 제외**
 
-> [!WARNING]
-> **5종 중 4종이 미검증입니다.** 미검증 프로파일로 홀드 몸통을 그리면 "자신 있게 틀린 화면"이 됩니다.
-> 이 열이 곧 프로파일 JSON의 `verified` 값이고, `false` 면 화면에 그 사실을 띄웁니다.
-> → [hold_pairing_spec.md §12](hold_pairing_spec.md)
+> [!CAUTION]
+> **뮤즈 대시 지원 제외 안내**  
+> 뮤즈 대시는 6자리 UID 지정과 채널 내 출현 순서(홀수=시작, 짝수=끝) 기반의 페어링 규칙을 사용합니다.
+> 중간에 노트 하나를 수정하거나 끼워 넣으면 이후의 모든 홀드가 뒤집히는 연쇄 전파(Cascade)가 발생하여, 실측 340노트에 4시간 이상이 소요되는 등 제작 난이도가 극히 높습니다.
+> 이에 따라 **BMS Editer의 공식 지원 및 채보 작성 대상에서 제외**합니다.
 
 ### 전략이 셋뿐인 이유
 
 위 표의 "전략" 열에 값이 **3종류뿐**입니다. BMS에서 홀드를 표시할 수 있는 자리가 물리적으로 그만큼이기 때문입니다.
 
-| 전략 | 쓰는 게임 | 게임이 늘면 |
+| 전략 | 쓰는 게임 | 비고 |
 |:---|:---|:---|
-| ① KeyValue (슬롯 코드 값) | 스타트레일, 건볼트 | **전략은 안 늘어난다.** |
-| ② FileNameKeyword (파일명) | DEFLATE, 스타게이저 | 이 표에 **한 줄**과 |
-| ③ OccurrenceParity (출현 순서) | 뮤즈 대시 | **JSON 하나**만 늘어난다 |
+| ① KeyValue (슬롯 코드 값) | 스타트레일, 건볼트 | 코드 기반 N:M 및 게이트 지원 |
+| ② FileNameKeyword (파일명) | DEFLATE, 스타게이저 | 파일명 키워드 부분일치 |
+| ③ OccurrenceParity (출현 순서) | ~~뮤즈 대시~~ | **작업 난이도 과다로 제외됨** |
 
 ---
 
@@ -102,7 +104,10 @@
 >
 > 8방향 플릭(`03`~`0A`)은 짝이 없는 단발이므로 홀드 대상이 아닙니다.
 
-### 뮤즈 대시 (`muse_dash`) — ③ OccurrenceParity
+### ~~뮤즈 대시 (`muse_dash`)~~ — [지원 제외]
+
+> [!WARNING]
+> **공식 작업 대상 제외:** 6자리 UID 체계의 난해함과 출현 순서 전파로 인한 극심한 작업 시간 소요(340노트에 4시간)로 인해 **공식 채보 작성 대상에서 제외**되었습니다. 아래 내용은 참고 및 기술 보존용입니다.
 
 파일명 앞 6자리 UID의 숫자 자리로 "홀드 대상"을 판별하고, **같은 채널에서 홀수 번째 = 시작 / 짝수 번째 = 끝**입니다.
 

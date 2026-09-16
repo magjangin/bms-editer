@@ -17,7 +17,7 @@ docs/
 │   ├── beat_sync_workflow.md          # 파형·BPM·재생 배속으로 박자 맞추는 작업 순서 가이드
 │   ├── sixtar_gate_startrail.md       # 식스타 게이트: 스타트레일 (Mono) 커스텀 차트/키음 주입 가이드
 │   ├── sixtar_gate_stargazer.md       # 식스타 게이트: 스타게이저 (Il2Cpp) 메타데이터/차트 주입 가이드
-│   ├── muse_dash.md                   # 뮤즈 대시 (Il2Cpp) 커스텀 채보 매핑 및 영구 보존 가이드
+│   ├── muse_dash.md                   # [지원 제외] 뮤즈 대시 (Il2Cpp) 커스텀 채보 가이드 (작성 난이도 과다로 제외, 보존용)
 │   ├── gunvolt_records_cychronicle.md # 건볼트 레코즈 사이크로니클 (Mono) 6레인 채보 및 플릭/페어리 가이드
 │   └── deflate.md                     # DEFLATE 4레인(+드롭) 채보 및 파일명 기반 홀드 작성 가이드
 ├── specifications/                    # 사양 및 규격 정의서
@@ -42,7 +42,7 @@ docs/
 * **[beat_sync_workflow.md](guides/beat_sync_workflow.md)**: 고정된 파형 위에 격자를 맞추는 작업 가이드입니다. **파형만 봐서는 어긋남을 가릴 수 없을 때 재생 배속(0.1x~1.0x)을 낮춰 귀로 확인하는 방법**과, 증상별 원인 구분(음원 오프셋 / BPM 소수점 / BPM 변화·변박·`#STOP` / 온셋 신뢰도)을 다룹니다.
 * **[sixtar_gate_startrail.md](guides/sixtar_gate_startrail.md)**: Unity Mono 기반의 *Sixtar Gate: STARTRAIL* (`sxtg2`)에서 BMS Editer 레인을 Solar(4K)/Lunar(5K+Gate) 모드에 매핑하고, 롱노트(`02`/`03`)와 게이트 개폐(`04`/`05`)를 주입하는 가이드입니다.
 * **[sixtar_gate_stargazer.md](guides/sixtar_gate_stargazer.md)**: Il2Cpp 기반의 *Sixtar Gate: STARGAZER*에서 4방향 회전형 레인(`16, 12, 13, 11`), `#WAV` 파일명 기반 롱노트 판별, 분수 무손실 `Area/BeatInfo` 주입 가이드입니다.
-* **[muse_dash.md](guides/muse_dash.md)**: Il2Cpp 기반의 *Muse Dash* 2레인(지상/공중) 구조에 맞춘 채보 매핑(`13, 14, 15, 18`), 6자리 UID 오브젝트 지정, 홀드/샌드백 자동 매칭 및 영구 보존(Archive) 가이드입니다.
+* **[muse_dash.md](guides/muse_dash.md)**: **[지원 제외]** 뮤즈 대시 2레인 구조 매핑 및 모딩 아카이브 가이드입니다. 6자리 UID 체계와 출현 순서 전파(Cascade)로 인한 극심한 제작 난이도로 인해 공식 지원 대상에서 제외되었습니다 (보존용 아카이브).
 * **[gunvolt_records_cychronicle.md](guides/gunvolt_records_cychronicle.md)**: Unity Mono 기반의 *GUNVOLT RECORDS Cychronicle* (`GRC2`)에서 좌/우 6레인 매핑(`16, 11, 12` vs `14, 15, 18`), 8방향 플릭(`03~0A`) 및 페어리 아크(`11~18`, `1A/1B`) 주입 가이드입니다.
 * **[deflate.md](guides/deflate.md)**: *DEFLATE*의 플레이 4레인(`16, 11, 12, 13`) + 드롭 레인(`14`) 매핑, `DrumMode`(HiHat/KickSnare)가 같은 물리 레인을 나눠 쓰는 구조, **`#WAV` 파일명 키워드로 홀드 시작/끝을 판별하는 규칙**(부분 일치 · Tail 우선 · 가장 가까운 Tail)과 1마디 3840틱 시간 계산 가이드입니다.
 

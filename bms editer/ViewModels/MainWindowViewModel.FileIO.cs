@@ -121,6 +121,9 @@ public sealed partial class MainWindowViewModel
         CurrentFilePath = null;
         DocumentEncoding = new UTF8Encoding(false);
 
+        // 비운 문서는 게임 프로파일도 비운다. 앞 문서의 규칙으로 다음 문서의 노트를 짝짓지 않게.
+        ApplyProfileForDocument(null);
+
         NotifyNotesChanged();
         OnPropertyChanged(nameof(SelectedNotes));
 
@@ -191,6 +194,10 @@ public sealed partial class MainWindowViewModel
 
         CurrentFilePath = filePath;
         LastErrorMessage = null;
+
+        // 파일의 #BMSEDITER_PROFILE 을 따르고, 없으면 경로로 게임을 추정한다.
+        // 추정한 것은 저장할 때 파일에 적지 않는다. (ApplyProfileForDocument 참고)
+        ApplyProfileForDocument(filePath);
 
         // UI 렌더링 강제 업데이트 유도
         NotifyNotesChanged();
