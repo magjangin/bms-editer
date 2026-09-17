@@ -28,20 +28,21 @@ $$\text{secondsPerStep} = \frac{240.0}{\text{BPM} \times \text{BeatSplit}}$$
   - 마디선 간의 간격이 **시각적으로 넓어집니다 (그리드 팽창)**.
   - 고정된 오디오 길이 안에 더 적은 마디선이 렌더링됩니다.
 
-#### [렌더링 구현 코드 스니펫]
+#### [현대적 렌더링 구현: ChartTimeline 및 EnumerateGridLines]
+초기에는 `240.0 / (Bpm * split)` 단순 수식을 썼으나, 곡 중간의 BPM 변경(`#xxx03`/`#xxx08`) 및 변박(`#xxx02`)이 발생하면 뒤쪽 마디가 전부 밀리는 문제가 있었습니다.
+현재는 **`ChartTimeline` 엔진**이 곡 전체의 BPM 변화 지점과 마디 배율을 누적한 시간표를 작성하고, `TimelineControlBase.EnumerateGridLines`가 이를 조회하여 격자선을 열거합니다:
+
 ```csharp
-// NoteGridControl.cs 및 OggWaveformControl.cs 공통
-var secondsPerStep = 240.0 / (Bpm * split);
+// TimelineControlBase.cs EnumerateGridLines()
+var timeline = EffectiveTimeline; // ChartTimeline 인스턴스
 for (var index = 0; ; index++)
 {
-    var seconds = index * secondsPerStep;
-    if (seconds > DurationSeconds) return;
+    // index / split 마디 위치의 절대 초(Seconds)를 ChartTimeline에서 일원화 조회
+    var seconds = timeline.SecondsAt((double)index / split);
+    if (seconds > DurationSeconds) yield break;
 
-    var ratio = seconds / DurationSeconds;
-    // 고정된 timelineLength 상에서 ratio 비율에 맞춰 선의 위치(tPos)를 도출
-    var tPos = IsHorizontalView ? (ratio * timelineLength) : ((1.0 - ratio) * timelineLength);
-    
-    // ... tPos 위치에 마디/박자 선 그리기 수행 ...
+    var position = ToTimelinePosition(seconds / DurationSeconds, timelineLength);
+    // ... 격자선 생성 및 반환 ...
 }
 ```
 

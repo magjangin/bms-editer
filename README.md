@@ -3,13 +3,12 @@
 BMS(Be-Music Source) 차트를 시각적으로 확인하고 편집할 수 있는 **Avalonia UI** 기반의 리듬게임 채보 에디터입니다. 
 OGG 배경 오디오 파형(Waveform) 로딩, 온셋(Onset) 분석에 따른 그리드 씽크 시각화, 그리고 WAV 키음 미리듣기 기능을 제공합니다.
 
-> [!WARNING]
-> **커스텀 채보를 만들 수는 있지만, 지금은 작성에 시간이 너무 오래 걸립니다.**
-> 뮤즈 대시 340노트를 만드는 데 **약 4시간**이 걸렸고, 그중 절반 이상이 노트를 찍는 시간이 아니라
-> **"맞게 찍었는지 확인하는" 시간**이었습니다. 게임마다 노트의 종류를 `#WAV` 쪽에 적는데
-> 이 에디터가 그 규칙을 모르기 때문입니다(롱노트 시작·끝이 화면에서 구분되지 않습니다).
-> **개선점을 찾고 있는 중이며, 아직 확정된 설계가 아닙니다.**
-> 실측 기록·원인 분석·개선 후보 → **[⏱️ 채보 작성 시간 — 경고와 개선 과제](docs/issues/authoring_time.md)**
+> [!NOTE]
+> **v0.1.4 릴리스**: 게임 프로파일 기반 홀드/게이트/페어리 자동 페어링 및 격자 몸통(Body) 렌더링이 추가되었습니다.
+> `#WAV` 번호나 파일명 기반으로 롱노트 시작·끝이 격자에 이어 그려지며 짝 검사가 실시간 수행됩니다.
+> (※ 단, 출현 순서 전파로 작업 난이도가 극심한 *뮤즈 대시*는 공식 지원 대상에서 제외되었습니다.)
+> 상세 사양 및 검증 내역 → **[🎮 게임 프로파일 단일 표](docs/specifications/game_profiles.md)** · **[🔗 홀드 짝 맞추기 사양](docs/specifications/hold_pairing_spec.md)**
+
 
 ---
 
@@ -88,6 +87,13 @@ OGG 배경 오디오 파형(Waveform) 로딩, 온셋(Onset) 분석에 따른 그
    - **🔊 키음 소리 켜짐 / 🔇 끄기** 토글로 BGM 만 남겨 놓고 들을 수 있습니다.
    - 자세한 사용 순서는 [박자 맞추기 작업 가이드](docs/guides/beat_sync_workflow.md)에 있습니다.
 
+14. **게임 프로파일 기반 홀드/게이트/페어리 자동 페어링 및 몸통 렌더링 (v0.1.4)**
+   - 게임별 규칙(JSON 프로파일)에 따라 슬롯 키음 값(`KeyValue`) 또는 파일명 키워드(`FileNameKeyword`)로 롱노트 시작·끝과 게이트/아크를 자동 감지.
+   - 격자판(`NoteGridControl`)에 두 노트를 잇는 반투명 **몸통(Body) 및 연결선**을 렌더링하여 시작/끝을 한눈에 식별.
+   - 차트 원본 노트를 변형하지 않는 비파괴 파생 링크(`HoldLink`) 설계로 파일 저장 무결성 보장.
+   - 차트 내 `#BMSEDITER_PROFILE <id>` 헤더 또는 메인 화면 드롭다운으로 프로파일 즉시 전환.
+   - 미검증 프로파일 경고 배너 및 짝 어긋남 실시간 린팅.
+
 ---
 
 ## 🛠 빌드 및 실행 방법 (Build & Run)
@@ -128,8 +134,9 @@ dotnet publish "bms editer/bms editer.csproj" -p:PublishProfile=win-x64
 ---
 
 ## 📂 프로젝트 구조 (Project Structure)
-- **`Models`**: `BmsChart`, `BmsNote`, `LaneDefinition` 등 차트 데이터 모델.
-- **`ViewModels`**: MVVM 아키텍처 기반의 메인 윈도우 상태 관리 및 액션 흐름 제어.
+- **`Profiles`**: 게임별 레인 및 홀드/게이트/페어리 페어링 규칙 JSON 정의 파일 모음 (`startrail`, `stargazer`, `gunvolt`, `deflate`, `unbeatable` 등).
+- **`Models`**: `BmsChart`, `BmsNote`, `LaneDefinition`, `GameProfile`, `HoldModels` 등 차트 및 프로파일 데이터 모델.
+- **`ViewModels`**: MVVM 아키텍처 기반의 메인 윈도우 상태 관리 및 액션 흐름 제어 (`MainWindowViewModel.Holds.cs` 등 분할 구성).
 - **`Services`**:
   - `BmsParser`: BMS 차트 데이터 파일 분석기.
   - `BmsWriter`: `Chart` 데이터를 `.bms` 텍스트 포맷으로 직렬화하는 저장 엔진.
@@ -141,10 +148,12 @@ dotnet publish "bms editer/bms editer.csproj" -p:PublishProfile=win-x64
   - `OggDecoder`: OGG를 PCM16으로 한 번만 푸는 곳. 재생과 파형이 그 결과를 나눠 씁니다.
   - `OggAudioPlayer`: `winmm.dll` 기반의 로우 레벨 PCM 배경음 재생 엔진.
   - `OggPeakLoader`: 다운샘플링 피크 및 온셋 계산기.
+  - **`Holds`**: `GameProfileCatalog`(프로파일 카탈로그), `HoldPairingEngine`(짝 맞추기 엔진), `HoldPolicies`(매칭 정책), `HoldRoleClassifier`(키음/파일명 기반 역할 분류기).
 - **`Views/Controls`**:
   - `TimelineControlBase`: 공통 타임라인 조절 파라미터를 담당하는 베이스 클래스.
-  - `NoteGridControl`: 노트 배치 격자 렌더러.
+  - `NoteGridControl`: 채보 격자판, 단노트 및 홀드 몸통(Hold Body) 렌더러.
   - `OggWaveformControl`: 배경 파형 및 온셋 가이드 라인 렌더러.
+  - `VideoPreviewControl`: WebView2 기반 BGA 비디오 동기화 프리뷰 컨트롤.
 
 ---
 

@@ -47,79 +47,63 @@ public abstract class TimelineControlBase : Control
 
 ---
 
-### 2. 그리드 격자선 렌더링 루프 (NoteGridControl.cs)
-`NoteGridControl`의 `Render` 메커니즘에서는 `BeatSplit` 설정값만큼 마디 내부를 세분화하여 각 그리드 분할선을 화면에 그립니다.
+### 2. 그리드 격자선 생성 엔진 (TimelineControlBase.cs - EnumerateGridLines)
+예전에는 컨트롤마다 `240 / (Bpm * split)` 수식을 직접 돌려 계산했으나, 변박(`#xxx02`)과 BPM 변경(`#xxx03`/`#xxx08`)이 발생할 때 파형과 격자가 어긋나는 문제가 있었습니다.
+현재는 `TimelineControlBase`의 **`EnumerateGridLines`**가 `ChartTimeline`(`EffectiveTimeline`)을 통해 정확한 시각을 계산하고 선을 단일 공급합니다.
 
 ```csharp
-// file:///h:/source/repos/bms%20editer/bms%20editer/Views/Controls/NoteGridControl.cs
+// file:///h:/source/repos/bms%20editer/bms%20editer/Views/Controls/TimelineControlBase.cs
 
-public override void Render(DrawingContext context)
+protected IEnumerable<GridLine> EnumerateGridLines(double timelineLength)
 {
-    // ... 배경색 및 기본 레이아웃 계산 생략 ...
-
-    var split = Math.Max(1, BeatSplit); // 기본값: 16
+    var split = Math.Max(1, BeatSplit);
 
     if (DurationSeconds > 0 && Bpm > 0)
     {
-        // 배경 오디오 파일이 연동되어 전체 재생 초(Duration) 기반일 때 분할선 렌더링
-        var secondsPerStep = 240.0 / (Bpm * split);
+        // 배경 음원이 있을 때: ChartTimeline에 기반하여 각 분할선의 초(Seconds) 도출
+        var timeline = EffectiveTimeline;
         for (var index = 0; ; index++)
         {
-            var seconds = index * secondsPerStep;
+            var seconds = timeline.SecondsAt((double)index / split);
             if (seconds > DurationSeconds)
-                goto FinishedBeatLines;
+                yield break;
 
-            var ratio = seconds / DurationSeconds;
-            var tPos = IsHorizontalView ? (ratio * timelineLength) : ((1.0 - ratio) * timelineLength);
-            
-            // 박자 우선순위에 따른 브러시 펜 종류 결정
-            var pen = Mod(index, split) == 0
-                ? measurePen                              // 마디 시작 선 (흰색 선)
-                : IsMeasureBeatLine(index, split, GridMeasure)
-                    ? beatPen                             // 주요 박자 선 (밝은 회색 선)
-                    : subBeatPen;                         // 16분할 보조선 (어두운 회색 선)
+            var position = ToTimelinePosition(seconds / DurationSeconds, timelineLength);
+            if (position < -0.5 || position > timelineLength + 0.5)
+                continue;
 
-            // 가로/세로 뷰에 맞춰 선 그리기
-            if (IsHorizontalView)
-                context.DrawLine(pen, new Point(tPos, 0), new Point(tPos, totalHeight));
-            else
-                context.DrawLine(pen, new Point(0, tPos), new Point(totalWidth, tPos));
+            yield return new GridLine(
+                position,
+                ClassifyGridLine(index, split),
+                index / split,
+                seconds);
         }
     }
     else
     {
-        // 배경 음악이 없을 때 마디 갯수(MeasureCount) 기반의 분할선 렌더링
+        // 배경 음악이 없을 때: 마디 높이(RowHeight) 기반 열거
         var rowHeight = RowHeight * VerticalZoom * GetGridSpacingScale();
-        var tPos = IsHorizontalView ? 0.0 : timelineLength;
-        for (var measure = 0; measure < MeasureCount; measure++)
+        for (var measure = 0; measure <= MeasureCount; measure++)
         {
             for (var beat = 0; beat < split; beat++)
             {
-                var beatTPos = IsHorizontalView 
-                    ? (tPos + (rowHeight * beat / split))
-                    : (tPos - (rowHeight * beat / split));
+                var measurePosition = measure + (beat / (double)split);
+                var offset = measurePosition * rowHeight;
+                var position = IsHorizontalView ? offset : timelineLength - offset;
 
-                var pen = beat == 0
-                    ? measurePen
-                    : IsMeasureBeatLine(beat, split, GridMeasure)
-                        ? beatPen
-                        : subBeatPen;
+                if (position < -0.5 || position > timelineLength + 0.5)
+                    continue;
 
-                if (IsHorizontalView)
-                    context.DrawLine(pen, new Point(beatTPos, 0), new Point(beatTPos, totalHeight));
-                else
-                    context.DrawLine(pen, new Point(0, beatTPos), new Point(totalWidth, beatTPos));
+                yield return new GridLine(position, ClassifyGridLine(beat, split), measure, 0);
             }
-
-            if (IsHorizontalView) tPos += rowHeight;
-            else tPos -= rowHeight;
         }
     }
-
-FinishedBeatLines:
-    // ... 후속 노트 및 텍스트 렌더링 생략 ...
 }
 ```
+
+`NoteGridControl`과 `OggWaveformControl`은 이 열거 결과를 받아 화면에 그리기만 수행하므로 동기화 기준이 완전히 일원화되어 있습니다.
+
+---
 
 ### 3. 마우스 클릭 배치 시의 16분할 스냅 처리 (NoteGridControl.cs)
 에디터 위에서 마우스 좌클릭/우클릭으로 노트를 배치하거나 지울 때도 `BeatSplit` 기반의 16분할 격자에 스냅 보정되어 위치가 결정됩니다.

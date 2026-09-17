@@ -21,10 +21,11 @@
 | **스타트레일** | `startrail` | Solar: `11` `12` `14` `15` + `16`<br>Lunar: `11`~`15` + `16` `18` | 2 | **① KeyValue** | ✅ 실측 완료 | [sixtar_gate_startrail.md](../guides/sixtar_gate_startrail.md) |
 | **스타게이저** | `stargazer` | `16` `12` `13` `11` | 2 | **② FileNameKeyword** | ✅ 실측 완료 | [sixtar_gate_stargazer.md](../guides/sixtar_gate_stargazer.md) |
 | **건볼트** | `gunvolt` | `16` `11` `12` / `14` `15` `18` | 2 | **① KeyValue** (아크는 N:M) | ✅ 실측 완료 | [gunvolt_records_cychronicle.md](../guides/gunvolt_records_cychronicle.md) |
-| **DEFLATE** | `deflate` | `16` `11` `12` `13` + `14`(드롭) | 3 | **② FileNameKeyword** | ⬜ 키음 확인 | [deflate.md](../guides/deflate.md) |
+| **DEFLATE** | `deflate` | `16` `11` `12` `13` + `14`(드롭) | 3 | **② FileNameKeyword** | ✅ 실측 완료 | [deflate.md](../guides/deflate.md) |
+| **UNBEATABLE** | `unbeatable` | `16` `11` `12` `13` `14` `15` | 2 | **파일명 BaseName + 순서** | ✅ 실측 완료 | *(가이드 준비 중)* |
 | ~~**뮤즈 대시**~~ | `muse_dash` | `13` `14` `15` `18` | 2 | **③ OccurrenceParity** | **❌ 지원 제외** | [muse_dash.md](../guides/muse_dash.md) |
 
-`✅ 실측 완료` = 실제 게임 BMS 차트(MARENOIA, shut up, Discotic Night 등)를 읽고 짝/렌더링 검증 완료  
+`✅ 실측 완료` = 실제 게임 BMS 차트(MARENOIA, shut up, Discotic Night, どりーむもーど 등)를 읽고 짝/렌더링 검증 완료  
 `❌ 지원 제외` = 6자리 UID 체계 및 출현 순서 전파(Cascade)로 인한 극심한 난이도와 시간 소요로 **공식 지원 대상에서 제외**
 
 > [!CAUTION]
@@ -104,6 +105,18 @@
 >
 > 8방향 플릭(`03`~`0A`)은 짝이 없는 단발이므로 홀드 대상이 아닙니다.
 
+### UNBEATABLE (`unbeatable`) — 파일명 BaseName + 순서
+
+| 항목 | 값 |
+|:---|:---|
+| 인식 대상 채널 | `16`, `11`, `12`, `13`, `14`, `15` |
+| 파일명 기본명 판별 | `Hold`, `Double`, `Spam` |
+| 접미사 제거 | ` end` (공백 포함 접미사를 떼어낸 뒤 종류 판별) |
+| 정책 | `Alternate` (같은 채널, 같은 종류의 노트가 출현한 순서대로 시작→끝 짝짓기) |
+| 특이사항 | 채널 `18`은 노트가 아닌 카메라/방향 전환 연출 채널로 취급됩니다 |
+
+---
+
 ### ~~뮤즈 대시 (`muse_dash`)~~ — [지원 제외]
 
 > [!WARNING]
@@ -143,7 +156,7 @@
 1. 게임 모드의 파서 소스를 읽고 `guides/` 에 **가이드 문서** 하나를 씁니다.
 2. **이 문서 §1 표에 한 줄** 추가합니다 (검증은 `⬜` 로 시작).
 3. 전략이 ①②③ 중 무엇인지 정하고 **§2에 파라미터 절**을 씁니다. 셋 중 아무것도 아니면 [spec §2](hold_pairing_spec.md) 에 네 번째 전략을 추가해야 하므로, 먼저 그게 정말 맞는지 확인하십시오.
-4. `Assets/profiles/<id>.json` 을 추가합니다. **코드는 고치지 않습니다.**
+4. `bms editer/Profiles/<id>.json` 을 추가합니다. **코드는 고치지 않습니다.**
 5. 실제로 채보를 만들어 보고 `⬜` → `✅` 로 바꿉니다. 그때까지는 화면에 미검증 배너가 뜹니다.
 
 ---

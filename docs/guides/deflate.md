@@ -1,14 +1,12 @@
-﻿# DEFLATE BMS 작성 및 연동 가이드
+# DEFLATE BMS 작성 및 연동 가이드
 
 이 문서는 실제 모드 프로젝트 `H:\source\repos\DEFLATE custom chart`의 `Core/Bms/BmsParser.cs`, `Core/Bms/BmsLaneMapper.cs`, 그리고 `docs/bms_mapping_spec.md` 명세를 바탕으로, **DEFLATE에 주입할 커스텀 BMS 채보 작성 규칙**을 안내합니다.
 
-> [!WARNING]
-> **지금 이 에디터로 작성할 수는 있지만, 시간이 너무 오래 걸립니다.**
-> 아래 규칙대로 만들면 결과물은 정상적으로 나옵니다. 다만 뮤즈 대시 340노트 기준으로 **약 4시간**이 걸렸고,
-> 그중 절반 이상이 "맞게 찍었는지 확인하는 데" 갔습니다. 이 게임은 **아직 실제로 만들어 보지 않았습니다.** 롱노트를 파일명으로 판별하므로 같은 문제가 예상됩니다.
-> 무엇이 시간을 먹는지와 **찾고 있는 개선점**은
-> **[⏱️ 채보 작성 시간 — 경고와 개선 과제](../issues/authoring_time.md)** 에 정리해 두었습니다.
-> 개선안은 **아직 확정된 설계가 아닙니다.**
+> [!NOTE]
+> **v0.1.4 지원**: DEFLATE 전용 게임 프로파일(`deflate`)이 추가되어, `#WAV` 파일명의 `홀드 시작`/`끝` 키워드 기반으로 롱노트가 자동 페어링되며 격자에 반투명 몸통(Body)이 렌더링됩니다.
+> 차트 상단에 `#BMSEDITER_PROFILE deflate` 헤더를 넣거나 메인 화면 콤보박스에서 프로파일을 선택해 작업하십시오.
+> 프로파일 사양 상세 → **[🎮 게임 프로파일 단일 표](../specifications/game_profiles.md#deflate-deflate--②-filenamekeyword)**
+
 
 ---
 
