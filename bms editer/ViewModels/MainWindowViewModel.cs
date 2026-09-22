@@ -54,21 +54,10 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
 
     public double AudioOffsetSeconds => AudioOffsetMs / 1000.0;
 
-    // 재생 커서가 타임라인에서 차지하는 비율. 음원은 오프셋만큼 밀려 그려지므로 커서도 같이 민다.
     public double PlaybackCursorRatio =>
         OggDurationSeconds <= 0
             ? 0.0
             : Math.Clamp((PlaybackPositionSeconds + AudioOffsetSeconds) / OggDurationSeconds, 0, 1);
-
-    // 타임라인(격자) 위의 비율을 음원 안의 비율로 되돌린다. PlaybackCursorRatio 를 뒤집은 규칙이다.
-    //
-    // 격자 위를 눌러 재생 위치를 옮길 때 반드시 이걸 거쳐야 한다. 예전에는 격자에서 가운데 버튼으로
-    // 끄는 스크럽만 오프셋을 빼지 않아서, 커서가 누른 자리에서 오프셋만큼 떨어진 곳에 찍혔다.
-    // (파형 컨트롤은 TimelineControlBase.AudioSecondsAtRatio 로 같은 계산을 한다)
-    public double TimelineRatioToAudioRatio(double timelineRatio) =>
-        OggDurationSeconds <= 0
-            ? 0.0
-            : Math.Clamp(((timelineRatio * OggDurationSeconds) - AudioOffsetSeconds) / OggDurationSeconds, 0, 1);
 
     partial void OnAudioOffsetMsChanged(double value)
     {

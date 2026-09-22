@@ -8,7 +8,7 @@ using bms_editer.Models;
 namespace bms_editer.Views.Controls;
 
 // 마디/레인 그리드를 직접 그리는 커스텀 컨트롤.
-// 편집 모드의 좌클릭 배치·우클릭 삭제, 드래그 범위 선택, 홀드 몸통 표시를 맡는다.
+// 노트 배치·선택·드래그 편집은 다음 단계에서 확장.
 public sealed class NoteGridControl : TimelineControlBase
 {
     public static readonly StyledProperty<IReadOnlyList<LaneDefinition>?> LanesProperty =

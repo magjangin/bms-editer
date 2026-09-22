@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Text;
+using System.Text.RegularExpressions;
 using bms_editer.Models;
 
 namespace bms_editer.Services;
@@ -166,9 +167,9 @@ public static partial class BmsParser
 
         // 2단계: 채보 데이터(노트) 및 제어문 파싱
         var currentMeasure = 0;
-
-        // 지금 줄이 조건 블록의 어느 갈래에 속하는지. 라이터도 같은 규칙으로 블록 영역을 가린다.
-        var conditional = new ConditionalBlocks.Tracker();
+        var currentBranchId = 0;
+        var nextBranchId = 1;
+        var branchStack = new Stack<int>();
 
         for (var lineIndex = 0; lineIndex < rawLines.Length; lineIndex++)
         {
@@ -186,7 +187,7 @@ public static partial class BmsParser
                     Text = line,
                     Measure = -1,
                     Order = lineIndex,
-                    BranchId = conditional.CurrentBranchId,
+                    BranchId = currentBranchId,
                 });
                 continue;
             }
@@ -198,14 +199,30 @@ public static partial class BmsParser
                 if (ControlFlowRegex().IsMatch(line))
                 {
                     chart.HasConditionalBlocks = true;
-                    conditional.Apply(line);
+
+                    if (Regex.IsMatch(line, @"^#(?:IF|CASE|DEF)\b", RegexOptions.IgnoreCase))
+                    {
+                        currentBranchId = nextBranchId++;
+                        branchStack.Push(currentBranchId);
+                    }
+                    else if (Regex.IsMatch(line, @"^#(?:ELSEIF|ELSE)\b", RegexOptions.IgnoreCase))
+                    {
+                        if (branchStack.Count > 0) branchStack.Pop();
+                        currentBranchId = nextBranchId++;
+                        branchStack.Push(currentBranchId);
+                    }
+                    else if (Regex.IsMatch(line, @"^#(?:ENDIF|ENDSW)\b", RegexOptions.IgnoreCase))
+                    {
+                        if (branchStack.Count > 0) branchStack.Pop();
+                        currentBranchId = branchStack.Count > 0 ? branchStack.Peek() : 0;
+                    }
 
                     chart.PreservedLines.Add(new BmsRawLine
                     {
                         Text = line,
                         Measure = currentMeasure,
                         Order = lineIndex,
-                        BranchId = conditional.CurrentBranchId,
+                        BranchId = currentBranchId,
                         IsControlFlow = true,
                     });
                     continue;
@@ -220,7 +237,7 @@ public static partial class BmsParser
                         Text = line,
                         Measure = -1,
                         Order = lineIndex,
-                        BranchId = conditional.CurrentBranchId,
+                        BranchId = 0,
                     });
                 }
                 continue;
@@ -240,7 +257,7 @@ public static partial class BmsParser
                     Text = line,
                     Measure = measureNum,
                     Order = lineIndex,
-                    BranchId = conditional.CurrentBranchId,
+                    BranchId = currentBranchId,
                 });
 
                 // 건반이 없는 뒷마디까지 그리드가 이어지도록 마디 수에도 반영한다.
@@ -282,7 +299,7 @@ public static partial class BmsParser
                     Position = position,
                     WavKey = code,
                     Type = NoteType.Normal,
-                    BranchId = conditional.CurrentBranchId,
+                    BranchId = currentBranchId,
                     SourceLineOrder = lineIndex,
                 });
             }

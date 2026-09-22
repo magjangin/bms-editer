@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -73,14 +72,9 @@ public sealed unsafe partial class KeySoundPlayer : IDisposable
 
     public void PreloadAsync(IEnumerable<string> filePaths)
     {
-        // 부르는 쪽은 차트의 키음 표를 그대로 넘긴다. 그 표를 백그라운드에서 훑는 동안 UI 스레드가
-        // 키음을 추가·삭제하면 열거가 예외로 끊기고, Task 안이라 아무도 모른 채 미리 읽기가 멈춘다.
-        // 넘겨받는 순간 복사해 둔다.
-        var paths = filePaths.ToArray();
-
         Task.Run(() =>
         {
-            foreach (var path in paths)
+            foreach (var path in filePaths)
             {
                 if (_isDisposed) break;
                 Preload(path);

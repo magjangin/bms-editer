@@ -48,7 +48,7 @@ public static partial class BmsParser
     [GeneratedRegex(@"^#([0-9]{3,})([0-9a-zA-Z]{2}):(.*)", RegexOptions.IgnoreCase)]
     private static partial Regex DataRegex();
 
-    // 갈래를 나누는 제어 줄. 어느 갈래인지는 ConditionalBlocks 가 가린다.
+    // 갈래를 나누는 제어 줄. 이 에디터는 아직 해석하지 못한다. (BmsChart.HasConditionalBlocks 참고)
     [GeneratedRegex(
         @"^#(?:RANDOM|SETRANDOM|ENDRANDOM|RONDAM|IF|ELSEIF|ELSE|ENDIF|SWITCH|SETSWITCH|CASE|SKIP|DEF|ENDSW)(?:\s|$)",
         RegexOptions.IgnoreCase)]

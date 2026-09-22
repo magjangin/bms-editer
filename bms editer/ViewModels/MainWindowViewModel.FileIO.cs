@@ -67,18 +67,6 @@ public sealed partial class MainWindowViewModel
         return true;
     }
 
-    // 물려 있던 배경 음원을 뗀다. 새로 만들기와, 음원이 없는 폴더를 열 때 쓴다.
-    public void ClearOgg()
-    {
-        StopPlayback(resetCursor: true);
-        _audioPlayer?.Dispose();
-        _audioPlayer = null;
-        OggFileName = null;
-        OggPeaks = null;
-        OggOnsets = null;
-        OggDurationSeconds = 0;
-    }
-
     public void LoadVideo(string filePath)
     {
         if (!File.Exists(filePath))
@@ -101,7 +89,13 @@ public sealed partial class MainWindowViewModel
             return;
 
         // 재생 중이던 배경 음원을 먼저 정리한다.
-        ClearOgg();
+        StopPlayback(resetCursor: true);
+        _audioPlayer?.Dispose();
+        _audioPlayer = null;
+        OggFileName = null;
+        OggPeaks = null;
+        OggOnsets = null;
+        OggDurationSeconds = 0;
         ClearVideo();
 
         // 곡 길이가 0이 된 뒤에 초기화해야 UpdateMeasureCountFromAudio가 덮어쓰지 않는다.
