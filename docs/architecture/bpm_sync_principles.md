@@ -91,5 +91,6 @@ private double ComputeNoteTPos(BmsNote note, double timelineLength)
 ### 4. 음원 오프셋과의 관계
 음원 오프셋(`#BMSEDITER_OFFSET`, 오른쪽 패널의 「음원 오프셋」)은 **격자와 노트를 움직이지 않습니다.**
 음원에서 나온 것(파형 · 온셋 마커 · 재생 커서)만 그만큼 밀어 그립니다(`TimelineControlBase.AudioRatio`).
-격자 위를 눌러 재생 위치를 옮길 때는 반대로 오프셋을 빼서 음원 안의 위치로 되돌립니다(`AudioSecondsAtRatio`, `MainWindowViewModel.TimelineRatioToAudioRatio`).
+**파형**을 눌러 재생 위치를 옮길 때는 반대로 오프셋을 빼서 음원 안의 위치로 되돌립니다(`TimelineControlBase.AudioSecondsAtRatio`).
+격자에서 가운데 버튼으로 끄는 스크럽(`MainWindow.Scrubbing`)과 재생바 자동 스크롤(`MainWindow.Viewport`)은 오프셋을 빼지 않습니다. 오프셋이 0 이 아니면 그만큼 커서가 누른 자리에서 떨어집니다([known_issues](../issues/known_issues.md#-2026-09-22-점검에서-찾은-것-확인-필요)).
 오프셋은 에디터 전용 헤더라 게임은 읽지 않습니다 → [beat_sync_workflow.md](../guides/beat_sync_workflow.md).

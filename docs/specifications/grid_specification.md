@@ -135,7 +135,7 @@ if (SnapToGrid)
 }
 else
 {
-    // "격자에 맞추기(G)" 를 끄면 클릭한 자리에 그대로 찍는다(잇단음 등).
+    // "격자에 맞추기" 체크를 끄면 클릭한 자리에 그대로 찍는다(잇단음 등).
     var clamped = Math.Clamp(clickedMeasurePosition, 0, MeasureCount - (1.0 / split));
     measure = (int)Math.Floor(clamped);
     position = clamped - measure;
