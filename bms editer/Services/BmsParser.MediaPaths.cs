@@ -12,7 +12,17 @@ public static partial class BmsParser
         if (!Directory.Exists(directory))
             return index;
 
-        foreach (var path in Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories))
+        // 들어갈 수 없는 하위 폴더가 하나라도 있으면 SearchOption.AllDirectories 는 예외를 던져서
+        // 차트 열기 자체가 실패했다. 키음을 찾는 보조 색인일 뿐이니 못 들어가는 곳은 건너뛴다.
+        // 숨김·시스템 파일은 예전처럼 색인에 넣는다(기본값은 빼 버린다).
+        var options = new EnumerationOptions
+        {
+            RecurseSubdirectories = true,
+            IgnoreInaccessible = true,
+            AttributesToSkip = 0,
+        };
+
+        foreach (var path in Directory.EnumerateFiles(directory, "*", options))
         {
             var fileName = Path.GetFileName(path);
             if (!index.ContainsKey(fileName))

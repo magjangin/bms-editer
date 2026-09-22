@@ -1,11 +1,10 @@
 using System;
-using NVorbis;
 
 namespace bms_editer.Services;
 
 public sealed record OggWaveform(float[] Peaks, float[] Onsets, double DurationSeconds);
 
-// OGG Vorbis 파일을 디코딩해서 파형 표시용 피크와 박자 확인용 어택 값을 다운샘플링한다.
+// OggDecoder 가 이미 풀어 놓은 PCM 에서 파형 표시용 피크와 박자 확인용 어택(온셋) 값을 다운샘플링한다.
 public static class OggPeakLoader
 {
     // 버킷 index 가 대응하는 시각의 비율(0~1).

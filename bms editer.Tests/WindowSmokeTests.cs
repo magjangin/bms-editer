@@ -198,6 +198,24 @@ public sealed class WindowSmokeTests
         Assert.False(vm.IsPlaying);
     });
 
+    // 체크박스 이름이 "격자에 맞추기(G)" · "수직위치 고정(D)" 인데 예전에는 키가 아무 일도 안 했다.
+    [Fact]
+    public void G_와_D_키가_격자_맞추기와_수직위치_고정을_토글한다() => RunOnUiThread(() =>
+    {
+        var owner = LoadedOwner();
+        var window = new MainWindow { DataContext = owner };
+        ShowAndDraw(window);
+
+        var snap = owner.SnapToGrid;
+        var lockVertical = owner.LockVerticalPosition;
+
+        window.KeyPress(Avalonia.Input.Key.G, Avalonia.Input.RawInputModifiers.None, Avalonia.Input.PhysicalKey.G, "g");
+        window.KeyPress(Avalonia.Input.Key.D, Avalonia.Input.RawInputModifiers.None, Avalonia.Input.PhysicalKey.D, "d");
+
+        Assert.Equal(!snap, owner.SnapToGrid);
+        Assert.Equal(!lockVertical, owner.LockVerticalPosition);
+    });
+
     [Fact]
     public void 팔레트_버튼_클릭_시_연필_아이콘이_활성화된다() => RunOnUiThread(() =>
     {

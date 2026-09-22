@@ -99,6 +99,17 @@ public partial class MainWindow
                     vm.ClearNoteSelection();
                     e.Handled = true;
                     return;
+
+                // 체크박스 이름에 "(G)"·"(D)" 가 붙어 있는데 정작 키는 아무 일도 안 했다.
+                case Key.G when e.KeyModifiers == KeyModifiers.None:
+                    vm.SnapToGrid = !vm.SnapToGrid;
+                    e.Handled = true;
+                    return;
+
+                case Key.D when e.KeyModifiers == KeyModifiers.None:
+                    vm.LockVerticalPosition = !vm.LockVerticalPosition;
+                    e.Handled = true;
+                    return;
             }
 
             NoteMoveDirection? direction = e.Key switch

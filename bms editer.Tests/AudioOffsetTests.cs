@@ -91,6 +91,22 @@ public sealed class AudioOffsetTests
         Assert.Null(owner.TryDetectAudioOffsetMs());
     }
 
+    // 격자에서 가운데 버튼으로 끄는 스크럽이 오프셋을 빼지 않아, 커서가 누른 자리에서
+    // 오프셋만큼 떨어진 곳에 찍히던 문제. 누른 자리 = 커서가 그려지는 자리여야 한다.
+    [Theory]
+    [InlineData(0.0)]
+    [InlineData(120.0)]
+    [InlineData(-80.0)]
+    public void 격자에서_누른_자리에_재생_커서가_그려진다(double offsetMs)
+    {
+        var owner = new MainWindowViewModel { OggDurationSeconds = 10.0, AudioOffsetMs = offsetMs };
+
+        const double clickedTimelineRatio = 0.4;
+        owner.ScrubPreview(owner.TimelineRatioToAudioRatio(clickedTimelineRatio));
+
+        Assert.Equal(clickedTimelineRatio, owner.PlaybackCursorRatio, 9);
+    }
+
     [Fact]
     public void 오프셋이_ms_와_초로_같은_값을_가리킨다()
     {
@@ -110,10 +126,15 @@ public sealed class AudioOffsetTests
     [Fact]
     public void 오프셋이_저장되고_다시_읽힌다()
     {
-        var path = WriteTempChart("#TITLE t`r`n#BPM 141`r`n#WAV01 a.wav`r`n#00111:01`r`n");
+        var path = WriteTempChart("#TITLE t\r\n#BPM 141\r\n#WAV01 a.wav\r\n#00111:01\r\n");
 
         var owner = new MainWindowViewModel();
         Assert.True(owner.LoadBms(path), owner.LastErrorMessage);
+
+        // 예전에는 여기 줄바꿈이 PowerShell 식(`r`n)으로 적혀 있어서, 차트 전체가 제목 한 줄로 읽혔다.
+        // 테스트는 통과했지만 BPM·키음·노트가 든 차트를 검사하지 않고 있었다.
+        Assert.Equal("t", owner.Title);
+        Assert.Single(owner.Chart.Notes);
 
         owner.AudioOffsetMs = 22.9;
         var text = BmsWriter.Write(owner.Chart, owner.Title, owner.Artist, owner.Genre, owner.Bpm,

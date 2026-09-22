@@ -212,8 +212,12 @@ public partial class MainWindow
                 return;
             }
 
+            // 음원이 없는 폴더면 앞 곡의 음원을 뗀다. 영상과 같은 규칙이다.
+            // 예전에는 영상만 지우고 음원은 남겨서, 새 차트 밑에 앞 곡의 파형이 깔린 채 재생됐다.
             var oggPath = FindBestFile(folderPath, OggExtensions);
-            if (oggPath is not null && !await vm.LoadOggAsync(oggPath))
+            if (oggPath is null)
+                vm.ClearOgg();
+            else if (!await vm.LoadOggAsync(oggPath))
                 await ConfirmWindow.ShowMessageAsync(this, $"OGG를 불러오지 못했습니다.\n\n{vm.LastErrorMessage}", "OGG 로드 실패");
 
             var videoPath = FindBestFile(folderPath, VideoExtensions);

@@ -62,9 +62,12 @@ public partial class MainWindow
                 return;
 
             var position = e.GetPosition(EditorSurface);
-            var ratio = vm.IsHorizontalView
+            var timelineRatio = vm.IsHorizontalView
                 ? position.X / timelineLength
                 : 1.0 - (position.Y / timelineLength);
+
+            // 누른 자리는 격자 위의 위치다. 음원은 오프셋만큼 밀려 있으니 음원 안의 위치로 되돌린다.
+            var ratio = vm.TimelineRatioToAudioRatio(timelineRatio);
 
             if (isFinal)
                 vm.ScrubCommit(ratio);
