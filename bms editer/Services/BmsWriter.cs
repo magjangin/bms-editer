@@ -47,11 +47,15 @@ public static class BmsWriter
         if (!string.IsNullOrWhiteSpace(chart.Header.ProfileId))
             sb.Append("#BMSEDITER_PROFILE ").AppendLine(chart.Header.ProfileId);
 
+        // 조건 블록(#RANDOM·#IF·#SWITCH)이 차지하던 원문 줄 범위. 이 안의 줄은 아래에서
+        // 원래 순서 그대로 내보낸다. 헤더 블록으로 끌어올리면 갈래 밖으로 빠져나간다.
+        var conditionalRegions = ConditionalBlocks.FindRegions(chart.PreservedLines);
+
         // 에디터가 다루지 않는 헤더(#TOTAL, #STAGEFILE, #BPMxx, #STOPxx, #BMPxx 등)를
         // 읽어들인 원문 그대로 되돌려 놓는다. 없으면 저장할 때마다 사라진다.
         foreach (var raw in chart.PreservedLines)
         {
-            if (!raw.IsData)
+            if (!raw.IsData && !ConditionalBlocks.Contains(conditionalRegions, raw.Order))
                 sb.AppendLine(raw.Text);
         }
 
@@ -80,19 +84,23 @@ public static class BmsWriter
 
         var laneOrder = BuildLaneOrder(chart.Lanes);
 
-        // 편집한 건반 줄과 보존한 원문 줄을 마디 순서로 합쳐서 내보낸다.
-        // 같은 마디 안에서는 원문 줄(BGM·마디 길이·BPM 변화 등)과 조건 블록을 원래 순서대로 배치한다.
+        // 데이터 줄은 두 무리로 나눠 내보낸다.
+        //
+        //   * 조건 블록 밖의 줄: 편집한 건반 줄과 보존한 원문 줄(BGM·마디 길이·BPM 변화 등)을
+        //     마디 순으로 합친다. BMS 에서 데이터 줄의 위치는 뜻이 없으므로 다시 정렬해도 된다.
+        //   * 조건 블록 안의 줄: 제어 줄·원문 줄·갈래 노트를 **원래 줄 순서 그대로** 뒤에 붙인다.
+        //     조건 블록의 뜻은 줄의 위치에 달려 있다. 예전에는 이것까지 마디 순으로 섞어서,
+        //     블록 뒤의 무조건 줄이 #IF 안으로 끌려 들어가거나 #IF 가 닫히지 않은 파일이 나왔다.
+        //     블록끼리의 순서도 지킨다(#RANDOM 은 나올 때마다 새 난수를 뽑는다).
         var dataLines = new List<(int Measure, int Order, string Text)>();
+        var conditionalLines = new List<(int Order, int Measure, int Lane, string Text)>();
 
         foreach (var raw in chart.PreservedLines)
         {
-            if (raw.IsData)
-            {
-                var order = raw.IsControlFlow || raw.BranchId > 0
-                    ? 10000 + (raw.Order >= 0 ? raw.Order : 0)
-                    : 0;
-                dataLines.Add((raw.Measure, order, raw.Text));
-            }
+            if (ConditionalBlocks.Contains(conditionalRegions, raw.Order))
+                conditionalLines.Add((raw.Order, 0, 0, raw.Text));
+            else if (raw.IsData)
+                dataLines.Add((raw.Measure, 0, raw.Text));
         }
 
         var groups = chart.Notes
@@ -118,26 +126,25 @@ public static class BmsWriter
 
             var measureTag = group.Key.Measure.ToString("000", CultureInfo.InvariantCulture);
             var lIndex = laneOrder.TryGetValue(group.Key.LaneId, out var o) ? o + 1 : 100;
+            var text = $"#{measureTag}{group.Key.LaneId}:{string.Concat(slots)}";
 
-            int order;
             if (group.Key.BranchId > 0)
             {
-                var sourceOrder = notes.Where(n => n.SourceLineOrder > 0).Select(n => n.SourceLineOrder).DefaultIfEmpty(0).Min();
-                order = 10000 + (sourceOrder > 0 ? sourceOrder : (1000 + lIndex));
+                // 갈래 노트는 읽어 온 줄 자리로 돌아간다. 옮긴 노트도 원래 줄 번호를 들고 있어서 같은 갈래에 남는다.
+                var sourceOrder = notes.Min(n => n.SourceLineOrder);
+                conditionalLines.Add((sourceOrder, group.Key.Measure, lIndex, text));
             }
             else
             {
-                order = lIndex;
+                dataLines.Add((group.Key.Measure, lIndex, text));
             }
-
-            dataLines.Add((
-                group.Key.Measure,
-                order,
-                $"#{measureTag}{group.Key.LaneId}:{string.Concat(slots)}"));
         }
 
         // OrderBy 는 안정 정렬이라 순서 값이 같은 원문 줄끼리는 담은 순서가 유지된다.
         foreach (var line in dataLines.OrderBy(d => d.Measure).ThenBy(d => d.Order))
+            sb.AppendLine(line.Text);
+
+        foreach (var line in conditionalLines.OrderBy(d => d.Order).ThenBy(d => d.Measure).ThenBy(d => d.Lane))
             sb.AppendLine(line.Text);
 
         return sb.ToString();

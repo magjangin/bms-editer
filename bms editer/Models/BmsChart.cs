@@ -29,11 +29,9 @@ public sealed class BmsChart
 
     // #RANDOM·#IF·#SWITCH 처럼 갈래를 나누는 줄이 파일에 있었는지.
     //
-    // 이 에디터는 조건 블록을 해석하지 못한다. 블록 안의 건반 줄을 평범한 노트로 읽고,
-    // 저장할 때 같은 마디·레인이면 한 줄로 합쳐 버린다. 조건 줄 자체도 데이터 줄이 아니라
-    // 파일 맨 위 헤더 블록으로 끌려 올라간다. 그래서 열어서 저장만 해도 차트가 무너진다.
-    //
-    // 제대로 다룰 수 있을 때까지는 이 표시를 보고 저장을 막는다.
+    // 저장은 막지 않는다. 블록 안의 노트는 갈래 번호(BmsNote.BranchId)와 원래 줄 위치
+    // (SourceLineOrder)를 들고 있고, BmsWriter 가 블록 영역을 원래 순서 그대로 되돌려 쓴다.
+    // (ConditionalBlocks 참고) 이 표시는 화면에 알리거나 테스트가 확인하는 데 쓴다.
     public bool HasConditionalBlocks { get; set; }
 
     public double GetMeasureLength(int measure) =>
