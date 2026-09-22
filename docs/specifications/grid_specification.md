@@ -18,7 +18,7 @@ BMS 에디터가 처음 구동되거나 차트가 초기화될 때, **마디와 
 격자 분할 수를 담당하는 `BeatSplit` 속성의 기본값은 의존성 프로퍼티(StyledProperty) 정의 단계에서 **`16`**으로 지정되어 있습니다.
 
 ```csharp
-// file:///h:/source/repos/bms%20editer/bms%20editer/Views/Controls/TimelineControlBase.cs
+// bms editer/Views/Controls/TimelineControlBase.cs
 
 public abstract class TimelineControlBase : Control
 {
@@ -52,7 +52,7 @@ public abstract class TimelineControlBase : Control
 현재는 `TimelineControlBase`의 **`EnumerateGridLines`**가 `ChartTimeline`(`EffectiveTimeline`)을 통해 정확한 시각을 계산하고 선을 단일 공급합니다.
 
 ```csharp
-// file:///h:/source/repos/bms%20editer/bms%20editer/Views/Controls/TimelineControlBase.cs
+// bms editer/Views/Controls/TimelineControlBase.cs
 
 protected IEnumerable<GridLine> EnumerateGridLines(double timelineLength)
 {
@@ -106,48 +106,41 @@ protected IEnumerable<GridLine> EnumerateGridLines(double timelineLength)
 ---
 
 ### 3. 마우스 클릭 배치 시의 16분할 스냅 처리 (NoteGridControl.cs)
-에디터 위에서 마우스 좌클릭/우클릭으로 노트를 배치하거나 지울 때도 `BeatSplit` 기반의 16분할 격자에 스냅 보정되어 위치가 결정됩니다.
+에디터 위에서 마우스 좌클릭/우클릭으로 노트를 배치하거나 지울 때도 `BeatSplit` 기반 격자에 스냅 보정되어 위치가 결정됩니다.
+클릭한 자리를 마디 위치로 되돌리는 일은 격자를 그린 것과 **같은 시간축**(`ChartTimeline.MeasurePositionAt`)이 맡습니다.
+예전처럼 `240 / Bpm` 을 직접 쓰면 BPM 변화·변박 뒤쪽에서 클릭한 자리와 찍히는 자리가 어긋납니다.
 
 ```csharp
-// file:///h:/source/repos/bms%20editer/bms%20editer/Views/Controls/NoteGridControl.cs
+// bms editer/Views/Controls/NoteGridControl.cs — OnPointerPressed (편집 모드)
 
-private void OnPointerPressed(object? sender, Avalonia.Input.PointerPressedEventArgs e)
+var tPos = IsHorizontalView ? point.Position.X : point.Position.Y;
+var split = Math.Max(1, BeatSplit); // 기본값: 16
+
+var ratio = Math.Clamp(IsHorizontalView ? (tPos / timelineLength) : (1.0 - (tPos / timelineLength)), 0.0, 1.0);
+
+// 클릭한 자리를 마디 위치로 되돌린다. 그리는 쪽과 같은 시간축을 쓴다.
+var clickedMeasurePosition = DurationSeconds > 0
+    ? EffectiveTimeline.MeasurePositionAt(ratio * DurationSeconds)
+    : ratio * MeasureCount;
+
+if (SnapToGrid)
 {
-    // ... 레인 인덱스 계산 생략 ...
+    var totalStepIndex = (int)Math.Round(clickedMeasurePosition * split);
 
-    var tPos = IsHorizontalView ? point.Position.X : point.Position.Y;
-    var split = Math.Max(1, BeatSplit); // 기본값: 16
+    // 맨 끝을 클릭해도 곡 마지막 격자 칸에 찍히도록 당겨 준다.
+    totalStepIndex = Math.Clamp(totalStepIndex, 0, (MeasureCount * split) - 1);
 
-    int measure = 0;
-    double position = 0.0;
-
-    if (DurationSeconds > 0)
-    {
-        var ratio = IsHorizontalView ? (tPos / timelineLength) : (1.0 - (tPos / timelineLength));
-        ratio = Math.Clamp(ratio, 0.0, 1.0);
-
-        var seconds = ratio * DurationSeconds;
-        var secondsPerMeasure = 240.0 / Bpm;
-        var secondsPerStep = secondsPerMeasure / split;
-
-        // 가장 가까운 16분 격자 포인트 인덱스로 반올림하여 스냅(Snap) 수행
-        var totalStepIndex = (int)Math.Round(seconds / secondsPerStep);
-        measure = totalStepIndex / split;
-        position = (double)(totalStepIndex % split) / split;
-    }
-    else
-    {
-        // 오디오 미로드 시의 스냅 처리
-        var ratio = IsHorizontalView ? (tPos / timelineLength) : (1.0 - (tPos / timelineLength));
-        ratio = Math.Clamp(ratio, 0.0, 1.0);
-
-        var totalSteps = MeasureCount * split;
-        var totalStepIndex = (int)Math.Round(ratio * totalSteps);
-
-        measure = totalStepIndex / split;
-        position = (double)(totalStepIndex % split) / split;
-    }
-
-    // ... 스냅된 measure 및 position 정보로 노트 배치/삭제 명령 수행 ...
+    measure = totalStepIndex / split;
+    position = (double)(totalStepIndex % split) / split;
+}
+else
+{
+    // "격자에 맞추기(G)" 를 끄면 클릭한 자리에 그대로 찍는다(잇단음 등).
+    var clamped = Math.Clamp(clickedMeasurePosition, 0, MeasureCount - (1.0 / split));
+    measure = (int)Math.Floor(clamped);
+    position = clamped - measure;
 }
 ```
+
+* 우클릭 삭제는 같은 마디·레인에서 **격자 반 칸 안의 가장 가까운 노트 하나**를 지웁니다(`MainWindowViewModel.RemoveNote`).
+* 방향키 이동은 격자 한 칸만큼 **옮길 뿐 격자에 다시 붙이지 않습니다.** 12분할로 찍은 잇단음을 16분할 상태에서 옮겨도 잇단음이 유지됩니다.

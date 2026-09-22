@@ -3,9 +3,10 @@
 이 문서는 실제 모드 프로젝트 `H:\source\repos\DEFLATE custom chart`의 `Core/Bms/BmsParser.cs`, `Core/Bms/BmsLaneMapper.cs`, 그리고 `docs/bms_mapping_spec.md` 명세를 바탕으로, **DEFLATE에 주입할 커스텀 BMS 채보 작성 규칙**을 안내합니다.
 
 > [!NOTE]
-> **v0.1.4 지원**: DEFLATE 전용 게임 프로파일(`deflate`)이 추가되어, `#WAV` 파일명의 `홀드 시작`/`끝` 키워드 기반으로 롱노트가 자동 페어링되며 격자에 반투명 몸통(Body)이 렌더링됩니다.
+> **v0.1.4 지원 · 🔶 코드 확인**: DEFLATE 전용 게임 프로파일(`deflate`)이 추가되어, `#WAV` 파일명의 `홀드 시작`/`끝` 키워드 기반으로 롱노트가 자동 페어링되며 격자에 반투명 몸통(Body)이 렌더링됩니다.
+> 짝 규칙은 게임 모드 코드를 옮긴 것입니다. 개발 PC 의 실제 DEFLATE 차트(どりーむもーど 552노트)에는 홀드가 없어서, **홀드 규칙은 실제 차트로는 아직 확인되지 않았습니다.** 플레이 확인도 전입니다.
 > 차트 상단에 `#BMSEDITER_PROFILE deflate` 헤더를 넣거나 메인 화면 콤보박스에서 프로파일을 선택해 작업하십시오.
-> 프로파일 사양 상세 → **[🎮 게임 프로파일 단일 표](../specifications/game_profiles.md#deflate-deflate--②-filenamekeyword)**
+> 프로파일 사양 상세 → **[🎮 게임 프로파일 단일 표](../specifications/game_profiles.md#deflate-deflate--filenamekeyword)**
 
 
 ---
@@ -98,7 +99,7 @@ DEFLATE 파서는 1마디를 **3840틱**(`TicksPerMeasure`)으로 놓고 계산�
 
 $$\text{Time (초)} = \text{Tick} \times \frac{240}{\text{BPM} \times 3840}, \qquad \text{SamplePosition} = \text{Time} \times 44100$$
 
-* **BPM 변경**: 채널 `03`(16진수 직접 지정)과 `08`(`#BPMxx` 표 참조)을 **둘 다 지원**합니다. BMS Editer의 BPM 변경은 `#BPMxx` + `08` 채널로 저장되므로 그대로 쓰시면 됩니다.
+* **BPM 변경**: 채널 `03`(16진수 직접 지정)과 `08`(`#BPMxx` 표 참조)을 **둘 다 지원**합니다. BMS Editer에는 곡 도중 BPM 변경을 **입력하는 기능이 없습니다.** 텍스트 편집기로 `#BPMxx` + `#xxx08:` 줄을 넣으면 에디터가 읽어 격자·노트·키음에 반영하고, 저장할 때 원문 그대로 되돌려 씁니다.
 * **변박**: 마디 길이 배율 `#xxx02`를 지원합니다. 마디별 시작 틱을 누적해서 구하므로 변박 뒤쪽 노트도 밀리지 않습니다.
 * 시간은 BPM 이벤트 구간별로 누적 계산되므로, 곡 중간에 BPM이 여러 번 바뀌어도 오차가 쌓이지 않습니다.
 

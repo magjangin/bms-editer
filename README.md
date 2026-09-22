@@ -40,6 +40,7 @@ OGG 배경 오디오 파형(Waveform) 로딩, 온셋(Onset) 분석에 따른 그
    - `Space` 재생/정지 · `Delete` 선택 삭제 · `Esc` 선택 해제 · 방향키 노트 이동
    - `Ctrl+N` 새로 만들기 · `Ctrl+O` 열기 · `Ctrl+S` 저장 · `Ctrl+Shift+S` 다른 이름으로 저장
    - `Ctrl`/`Shift` + 드래그로 기존 선택에 더하기 (편집 모드에서도 됩니다)
+   - `G` 격자에 맞추기 켜기/끄기 · `D` 수직위치 고정 켜기/끄기 (글자 입력 칸에 포커스가 있을 때는 입력으로 들어갑니다)
 
 6. **키음 다중 채널(폴리포닉) 믹싱 재생**
    - 재생 위치 탐색 시 이진 탐색(Binary Search)으로 "지금 울릴 노트"를 찾으므로, 수천 개가 넘는 고밀도 채보에서도 노트를 고르는 비용은 일정합니다.
@@ -63,7 +64,8 @@ OGG 배경 오디오 파형(Waveform) 로딩, 온셋(Onset) 분석에 따른 그
    - 마디·레인별 노트 위치를 최소공배수 분할로 계산해 원본과 동일하게 복원 가능한 데이터 라인 생성.
    - 최초 저장 시 저장 대화상자를 띄우고, 이후에는 같은 경로로 즉시 저장("저장") 또는 다른 이름으로 저장 지원.
    - **원자적 저장**: 같은 폴더 임시 파일에 끝까지 쓴 뒤에만 바꿔치기합니다. 쓰다 실패해도 원본은 온전하고, 직전 내용이 `.bak` 으로 남습니다.
-   - **조건 블록(`#RANDOM`/`#IF`/`#SWITCH`) 분기 보존**: 분기 식별자(`BranchId`)와 원본 줄 순서(`Order`)를 추적하여 각 갈래별 노트를 분리 저장하므로, 조건문이 든 차트도 패턴 합쳐짐이나 헤더 이동 없이 안전하게 편집/저장 가능합니다.
+   - **조건 블록(`#RANDOM`/`#IF`/`#SWITCH`) 분기 보존**: 분기 식별자(`BranchId`)와 원본 줄 순서를 추적하고, 저장할 때 블록 영역을 **원래 줄 순서 그대로** 되돌려 씁니다. 블록 밖의 줄이 갈래 안으로 들어가거나 블록이 닫히지 않는 일이 없습니다.
+     (단, 블록 **안**에 둔 `#WAV`·`#BPM` 같은 헤더는 아직 블록 밖 헤더 영역으로 옮겨집니다 → [known_issues](docs/issues/known_issues.md))
 
 11. **노트 검색/삭제/교체**
    - 툴바의 🧰 버튼으로 여는 조건 검색 창. 결과를 격자에서 바로 보도록 모드리스로 동작합니다.
@@ -86,13 +88,16 @@ OGG 배경 오디오 파형(Waveform) 로딩, 온셋(Onset) 분석에 따른 그
      키음(`#WAV`)은 별도 믹서로 나가므로 **원래 속도·원래 음정 그대로** 울립니다.
    - **🔊 키음 소리 켜짐 / 🔇 끄기** 토글로 BGM 만 남겨 놓고 들을 수 있습니다.
    - 자세한 사용 순서는 [박자 맞추기 작업 가이드](docs/guides/beat_sync_workflow.md)에 있습니다.
+   - **음원 오프셋 (-200 ~ +200ms)과 ⚡ 오프셋 자동 맞춤**: 파형·온셋·재생 커서만 밀고 격자·노트는 그대로 둡니다. 온셋이 16분 격자에 가장 잘 붙는 값을 자동으로 찾습니다.
+     저장하면 `#BMSEDITER_OFFSET` 으로 남지만 **게임은 이 헤더를 읽지 않으므로**, 게임까지 맞추려면 음원을 자르십시오.
+   - ⚠️ 키음은 믹서 버퍼 때문에 배경음보다 조금 늦게 들릴 수 있습니다(실물 확인 중). 어긋남 판단은 배속을 낮춰서 하십시오.
 
 14. **게임 프로파일 기반 홀드/게이트/페어리 자동 페어링 및 몸통 렌더링 (v0.1.4)**
    - 게임별 규칙(JSON 프로파일)에 따라 슬롯 키음 값(`KeyValue`) 또는 파일명 키워드(`FileNameKeyword`)로 롱노트 시작·끝과 게이트/아크를 자동 감지.
    - 격자판(`NoteGridControl`)에 두 노트를 잇는 반투명 **몸통(Body) 및 연결선**을 렌더링하여 시작/끝을 한눈에 식별.
    - 차트 원본 노트를 변형하지 않는 비파괴 파생 링크(`HoldLink`) 설계로 파일 저장 무결성 보장.
    - 차트 내 `#BMSEDITER_PROFILE <id>` 헤더 또는 메인 화면 드롭다운으로 프로파일 즉시 전환.
-   - 미검증 프로파일 경고 배너 및 짝 어긋남 실시간 린팅.
+   - 프로파일마다 검증 상태(✅ 플레이 확인 · 🔶 코드 확인 · ⚠️ 가정)를 보여 주고, 가정한 규칙이면 주황색 경고를 띄웁니다. 짝 어긋남은 편집할 때마다 검사해 목록과 격자(주황 점선)로 보여 줍니다.
 
 ---
 
@@ -140,6 +145,7 @@ dotnet publish "bms editer/bms editer.csproj" -p:PublishProfile=win-x64
 - **`Services`**:
   - `BmsParser`: BMS 차트 데이터 파일 분석기.
   - `BmsWriter`: `Chart` 데이터를 `.bms` 텍스트 포맷으로 직렬화하는 저장 엔진.
+  - `ConditionalBlocks`: `#RANDOM`/`#IF`/`#SWITCH` 문법 한 곳. 파서의 갈래 추적과 라이터의 블록 영역이 같은 규칙을 씁니다.
   - `SafeFileWriter`: 임시 파일에 다 쓴 뒤에만 바꿔치기하는 원자적 저장.
   - `ChartTimeline`: 마디 위치 ↔ 시각 변환. BPM 변화와 마디 길이를 여기서만 다룹니다.
   - `WavDecoder`: WAV/OGG 파일을 44100Hz 16-bit Stereo PCM으로 통일 디코딩.
@@ -171,10 +177,10 @@ dotnet publish "bms editer/bms editer.csproj" -p:PublishProfile=win-x64
 | **모딩 가이드** | [gunvolt_records_cychronicle.md](docs/guides/gunvolt_records_cychronicle.md) | 건볼트 레코즈 사이크로니클 (Mono) 6레인 채보 및 플릭/페어리 가이드. |
 | **모딩 가이드** | [deflate.md](docs/guides/deflate.md) | DEFLATE 플레이 4레인 + 드롭 레인 채보, `#WAV` 파일명 키워드 기반 홀드 작성 가이드. |
 | **코드 설명서** | [code_explanation.md](docs/architecture/code_explanation.md) | 소스 파일별 역할, 구조 및 컴포넌트 상세 설명서. |
-| **품질/이슈** | [known_issues.md](docs/issues/known_issues.md) | **남은 일과 이미 고친 것.** 1~3차 점검에서 나온 37건 중 33건 해결. 실사용으로 확인할 항목도 여기 있습니다. |
+| **품질/이슈** | [known_issues.md](docs/issues/known_issues.md) | **남은 일과 이미 고친 것.** Undo/Redo, 키음 지연, 조건 블록 안 헤더 등 남은 과제와 커밋별 해결 기록, 실물로 확인할 항목이 여기 있습니다. |
 | **품질/이슈** | [authoring_time.md](docs/issues/authoring_time.md) | ⚠️ **작성 시간 경고.** 만들 수는 있지만 오래 걸립니다(뮤즈 대시 340노트 = 약 4시간). 실측 기록과 원인 분석, **찾고 있는 개선 후보**. |
 | **사양** | [grid_specification.md](docs/specifications/grid_specification.md) | 마디 내부 그리드 분할 규칙과 기본 동작 사양. |
-| **사양** | [hold_pairing_spec.md](docs/specifications/hold_pairing_spec.md) | 🔗 **홀드 짝 맞추기.** 판별 전략 3종, 짝 검사기, 몸통 표시. `Chart.Notes` 를 건드리지 않는 비파괴 설계와 단계별 계획·수용 조건. |
-| **사양** | [game_profiles.md](docs/specifications/game_profiles.md) | 🎮 **게임별 값 단일 표.** 레인·키 폭·홀드 판별 전략·파라미터·실측 검증 여부. 게임 추가 시 손볼 곳이 여기 한 곳입니다. |
+| **사양** | [hold_pairing_spec.md](docs/specifications/hold_pairing_spec.md) | 🔗 **홀드 짝 맞추기.** 판별 방식 4가지 × 짝 정책 5가지, 짝 검사기, 몸통 표시. `Chart.Notes` 를 건드리지 않는 비파괴 설계와 구현 현황·수용 조건. |
+| **사양** | [game_profiles.md](docs/specifications/game_profiles.md) | 🎮 **게임별 값 단일 표.** 레인·키 폭·판별 방식·짝 정책·검증 상태와 실제 게임 차트 대조 결과. 게임 추가 시 손볼 곳이 여기 한 곳입니다. |
 | **원리** | [bpm_sync_principles.md](docs/architecture/bpm_sync_principles.md) | BPM 변경에 따른 격자·파형 동기화 원리. |
 | **원리** | [video_ogg_principles.md](docs/architecture/video_ogg_principles.md) | 비디오·OGG 연동 원리. |

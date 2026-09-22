@@ -3,9 +3,10 @@
 이 문서는 실제 모드 프로젝트 `H:\source\repos\STARGAZER custom chart`의 `src/Bms/BmsChart.cs`, `HookNoteProbes.BmsInject.cs`, 그리고 `docs/REFERENCE_BMS_CONVERSION.md` 명세를 바탕으로, **스타게이저에 주입할 BMS 차트 작성 규칙**을 안내합니다.
 
 > [!NOTE]
-> **v0.1.4 실측 검증 완료**: 스타게이저 전용 프로파일(`stargazer`)이 탑재되어, 필수 키워드 `hold` 및 `시작/끝(start/end)` 기반의 4방향 롱노트 페어링이 격자에 시각화됩니다 (실측 차트 Discotic Night 555노트 검증 완료).
+> **v0.1.4 지원 · ⚠️ 가정**: 스타게이저 전용 프로파일(`stargazer`)이 탑재되어, 필수 키워드 `hold` 및 `시작/끝(start/end)` 기반의 4방향 롱노트 페어링이 격자에 시각화됩니다.
+> 시작/끝 **분류**는 모드 코드(`ClassifyNoteKind`)로 확인했지만, 모드는 표식만 넘기고 **짝은 게임 엔진이 맺어서 짝 규칙은 확인하지 못했습니다.** 에디터는 "같은 채널의 뒤에 있는 가장 가까운 끝" 으로 가정하고, 화면에 주황색 경고를 띄웁니다. (실제 차트 3곡 · 짝 6개, Discotic Night 555노트 = 홀드 4)
 > 차트 상단에 `#BMSEDITER_PROFILE stargazer` 헤더를 넣거나 메인 화면 콤보박스에서 프로파일을 선택해 작업하십시오.
-> 프로파일 사양 상세 → **[🎮 게임 프로파일 단일 표](../specifications/game_profiles.md#스타게이저-stargazer--②-filenamekeyword)**
+> 프로파일 사양 상세 → **[🎮 게임 프로파일 단일 표](../specifications/game_profiles.md#스타게이저-stargazer--filenamekeyword)**
 
 
 ---
