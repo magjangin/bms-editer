@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Threading.Tasks;
 using bms_editer.Models;
 using bms_editer.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -158,14 +159,47 @@ public sealed partial class NoteSearchViewModel : ObservableObject
             : $"{matches.Count}개를 선택했습니다.";
     }
 
+    // 이 개수 이상을 한 번에 지우거나 바꿀 때는 먼저 묻는다. (알려진 문제 S-5)
+    //
+    // 되돌리기가 없어서, 조건을 넓게 잡은 채 누르면 수백 개가 한 번에 사라졌다.
+    // 몇 개만 손볼 때까지 매번 물으면 번거로우므로 많을 때만 묻는다.
+    public const int ConfirmThreshold = 20;
+
     [RelayCommand]
-    private void DeleteMatches()
+    private async Task DeleteMatchesAsync()
     {
         var matches = FindMatches();
+
+        if (matches.Count >= ConfirmThreshold && !await ConfirmBulkAsync(
+                $"조건에 맞는 노트 {matches.Count}개를 지웁니다.\n\n" +
+                "되돌리기가 없어서 지운 노트는 되살릴 수 없습니다.\n\n" +
+                "그래도 지울까요?",
+                "지우지 않았습니다."))
+        {
+            return;
+        }
+
         var removed = _owner.DeleteNotes(matches);
         StatusMessage = removed == 0
             ? "조건에 맞는 노트가 없습니다."
             : $"{removed}개를 삭제했습니다.";
+    }
+
+    // 물어볼 길이 없으면 진행하지 않는다. 되돌릴 수 없는 쪽으로 흘러가면 안 된다.
+    // notDone 은 진행하지 않았을 때 알릴 말("지우지 않았습니다." 등)이다.
+    private async Task<bool> ConfirmBulkAsync(string message, string notDone)
+    {
+        if (_owner.ConfirmAsync is not { } confirm)
+        {
+            StatusMessage = $"확인 창을 띄울 수 없어 {notDone}";
+            return false;
+        }
+
+        if (await confirm(message))
+            return true;
+
+        StatusMessage = notDone;
+        return false;
     }
 
     // 조건에 맞는 노트를 지정한 마디 수만큼 옮긴 자리에 복제한다.
@@ -211,7 +245,7 @@ public sealed partial class NoteSearchViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void ReplaceWavKey()
+    private async Task ReplaceWavKeyAsync()
     {
         if (!TryParseBase36(ReplacementWavKey, out var parsed) || parsed == 0 || parsed > MaxKeyValue)
         {
@@ -221,6 +255,18 @@ public sealed partial class NoteSearchViewModel : ObservableObject
 
         var normalizedKey = ToBase36(parsed);
         var matches = FindMatches();
+
+        // 이미 그 번호인 노트는 바뀌지 않으므로 세지 않는다.
+        var toChange = matches.Count(note => !string.Equals(note.WavKey, normalizedKey, StringComparison.OrdinalIgnoreCase));
+        if (toChange >= ConfirmThreshold && !await ConfirmBulkAsync(
+                $"조건에 맞는 노트 {toChange}개의 키음 번호를 {normalizedKey}(으)로 바꿉니다.\n\n" +
+                "되돌리기가 없어서 원래 번호로 되돌릴 수 없습니다.\n\n" +
+                "그래도 바꿀까요?",
+                "바꾸지 않았습니다."))
+        {
+            return;
+        }
+
         var changed = _owner.ReplaceWavKey(matches, normalizedKey);
         ReplacementWavKey = normalizedKey;
 

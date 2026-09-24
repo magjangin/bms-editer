@@ -120,6 +120,7 @@ public sealed partial class MainWindowViewModel
         MeasureCount = Chart.MeasureCount;
         CurrentFilePath = null;
         DocumentEncoding = new UTF8Encoding(false);
+        ForgetLastAutoSnapshot();
 
         // 비운 문서는 게임 프로파일도 비운다. 앞 문서의 규칙으로 다음 문서의 노트를 짝짓지 않게.
         ApplyProfileForDocument(null);
@@ -150,7 +151,19 @@ public sealed partial class MainWindowViewModel
     // 실패하면 false. 예전에는 조용히 무시해서 사용자가 성공한 줄 알았다.
     public bool LoadBms(string filePath)
     {
-        if (!File.Exists(filePath))
+        if (!LoadDocument(filePath, filePath))
+            return false;
+
+        // 방금 읽어온 그대로다. 아직 고친 것이 없다.
+        MarkClean();
+        return true;
+    }
+
+    // 내용은 contentPath 에서 읽고, 문서는 documentPath 에 있는 것으로 다룬다.
+    // 보통은 둘이 같고, 자동 저장본을 되살릴 때만 다르다. (RecoverFromSnapshot 참고)
+    private bool LoadDocument(string contentPath, string documentPath)
+    {
+        if (!File.Exists(contentPath))
         {
             LastErrorMessage = "파일을 찾을 수 없습니다.";
             return false;
@@ -162,7 +175,7 @@ public sealed partial class MainWindowViewModel
         {
             // 먼저 다 읽고 나서 지운다. 파싱이 중간에 실패했을 때
             // 작업 중이던 내용까지 같이 날아가지 않도록 순서를 지킨다.
-            parsed = BmsParser.Parse(filePath);
+            parsed = BmsParser.Parse(contentPath, documentPath);
         }
         catch (Exception ex)
         {
@@ -192,20 +205,21 @@ public sealed partial class MainWindowViewModel
             SelectedWavItem = WavList[0];
         }
 
-        CurrentFilePath = filePath;
+        CurrentFilePath = documentPath;
         LastErrorMessage = null;
 
         // 파일의 #BMSEDITER_PROFILE 을 따르고, 없으면 경로로 게임을 추정한다.
         // 추정한 것은 저장할 때 파일에 적지 않는다. (ApplyProfileForDocument 참고)
-        ApplyProfileForDocument(filePath);
+        ApplyProfileForDocument(documentPath);
 
         // UI 렌더링 강제 업데이트 유도
         NotifyNotesChanged();
-
-        // 방금 읽어온 그대로다. 아직 고친 것이 없다.
-        MarkClean();
         return true;
     }
+
+    // 지금 문서를 파일에 쓸 글로 만든다. #WAV 상대 경로는 outputFilePath 의 폴더 기준이다.
+    private string BuildDocumentText(string outputFilePath) =>
+        BmsWriter.Write(Chart, Title, Artist, Genre, Bpm, Player, Rank, Level, WavList, outputFilePath);
 
     // 어떤 인코딩으로 쓸지 정한다.
     //
@@ -214,16 +228,21 @@ public sealed partial class MainWindowViewModel
     // 인코딩을 지키려다 글자를 잃는 건 본말전도라, 그때만 UTF-8 로 물러나고 사실을 알린다.
     private Encoding ChooseSaveEncoding(string content)
     {
-        LastWarningMessage = null;
+        var encoding = ResolveEncodingFor(content, out var fellBack);
 
-        if (CanEncodeWithoutLoss(DocumentEncoding, content))
-            return DocumentEncoding;
+        LastWarningMessage = fellBack
+            ? $"원본 인코딩({DocumentEncoding.WebName})으로 담을 수 없는 글자가 있어 UTF-8로 저장했습니다.\n" +
+              "그대로 뒀다면 그 글자들이 '?' 로 바뀌어 사라졌을 것입니다."
+            : null;
 
-        LastWarningMessage =
-            $"원본 인코딩({DocumentEncoding.WebName})으로 담을 수 없는 글자가 있어 UTF-8로 저장했습니다.\n" +
-            "그대로 뒀다면 그 글자들이 '?' 로 바뀌어 사라졌을 것입니다.";
+        return encoding;
+    }
 
-        return new UTF8Encoding(false);
+    // ChooseSaveEncoding 과 같은 규칙이지만 경고를 세우지 않는다. 자동 저장이 쓴다.
+    private Encoding ResolveEncodingFor(string content, out bool fellBack)
+    {
+        fellBack = !CanEncodeWithoutLoss(DocumentEncoding, content);
+        return fellBack ? new UTF8Encoding(false) : DocumentEncoding;
     }
 
     private static bool CanEncodeWithoutLoss(Encoding encoding, string content)
@@ -248,8 +267,11 @@ public sealed partial class MainWindowViewModel
     {
         try
         {
-            var content = BmsWriter.Write(Chart, Title, Artist, Genre, Bpm, Player, Rank, Level, WavList, filePath);
+            var content = BuildDocumentText(filePath);
             var encoding = ChooseSaveEncoding(content);
+
+            // 덮어쓰기 전에 지금 파일을 저장 이력으로 옮겨 둔다. 곡 폴더의 .bak 은 한 벌뿐이다.
+            KeepCopyBeforeOverwrite(filePath);
 
             // 원본을 바로 덮어쓰지 않는다. 쓰다 말면 되돌릴 방법이 없다. (SafeFileWriter 주석 참고)
             SafeFileWriter.WriteAllText(filePath, content, encoding);

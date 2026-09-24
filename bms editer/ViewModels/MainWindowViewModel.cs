@@ -331,6 +331,9 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
             _isDirty = value;
             OnPropertyChanged(nameof(IsDirty));
             OnPropertyChanged(nameof(WindowTitle));
+
+            if (!value)
+                OnDocumentBecameClean();
         }
     }
 

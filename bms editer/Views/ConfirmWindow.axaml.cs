@@ -78,6 +78,19 @@ public partial class ConfirmWindow : Window
         return await dialog.ShowDialog<ConfirmChoice>(owner);
     }
 
+    // 글자를 정한 버튼 두 개로 묻는다. 취소 버튼은 없고, 창을 그냥 닫으면 Cancel 이다.
+    // 오류 안내처럼 "계속 / 끄기" 가운데 하나를 고르게 할 때 쓴다.
+    public static async Task<ConfirmChoice> ShowChoiceAsync(
+        Window owner,
+        string message,
+        string confirmText,
+        string alternateText,
+        string title = "확인")
+    {
+        var dialog = new ConfirmWindow(message, title, confirmText, alternateText, showCancel: false);
+        return await dialog.ShowDialog<ConfirmChoice>(owner);
+    }
+
     private void OnConfirmClick(object? sender, RoutedEventArgs e) => Close(ConfirmChoice.Confirm);
 
     private void OnAlternateClick(object? sender, RoutedEventArgs e) => Close(ConfirmChoice.Alternate);

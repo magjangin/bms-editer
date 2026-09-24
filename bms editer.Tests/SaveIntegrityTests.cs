@@ -12,8 +12,8 @@ namespace bms_editer.Tests;
 // 저장이 원본을 상하게 하지 않는다는 것을 못 박아 두는 테스트.
 // (알려진 문제 1·11·16·18·20번 — 문서의 1순위 "파일 왕복 무결성" 묶음)
 //
-// 이 에디터에는 Undo 도 자동 백업도 없다. 저장 한 번이 곧 원본이라,
-// 여기서 새는 것은 사용자가 알아채기 전에 이미 되돌릴 수 없다.
+// 이 에디터에는 Undo 가 없다. 저장 이력(SafetyTests)이 생겼지만 사용자가 그걸 뒤져
+// 찾아내기 전까지는 저장 한 번이 곧 원본이라, 여기서 새는 것은 알아채기 전에 이미 퍼진다.
 public sealed class SaveIntegrityTests : IDisposable
 {
     private readonly string _directory;

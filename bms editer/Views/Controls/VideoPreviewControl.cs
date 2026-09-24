@@ -8,6 +8,7 @@ using Avalonia.Controls;
 using Avalonia.Media;
 using Avalonia.Platform;
 using Avalonia.VisualTree;
+using bms_editer.Services;
 using Microsoft.Web.WebView2.Core;
 using DrawingColorTranslator = System.Drawing.ColorTranslator;
 using DrawingRectangle = System.Drawing.Rectangle;
@@ -191,10 +192,7 @@ public sealed class VideoPreviewControl : Control, IDisposable
             if (handle is null || handle.Handle == IntPtr.Zero)
                 return;
 
-            var userDataFolder = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "bms editer",
-                "WebView2");
+            var userDataFolder = Path.Combine(AppDataPaths.Root, "WebView2");
 
             var environment = await CoreWebView2Environment.CreateAsync(null, userDataFolder);
             var controller = await environment.CreateCoreWebView2ControllerAsync(handle.Handle);

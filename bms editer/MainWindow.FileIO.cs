@@ -212,6 +212,12 @@ public partial class MainWindow
                 return;
             }
 
+            await LoadCompanionMediaAsync(vm, folderPath);
+        }
+
+        // 차트와 같은 폴더의 음원·영상을 붙인다. 폴더 열기와 자동 저장본 복구가 같이 쓴다.
+        private async Task LoadCompanionMediaAsync(MainWindowViewModel vm, string folderPath)
+        {
             var oggPath = FindBestFile(folderPath, OggExtensions);
             if (oggPath is not null && !await vm.LoadOggAsync(oggPath))
                 await ConfirmWindow.ShowMessageAsync(this, $"OGG를 불러오지 못했습니다.\n\n{vm.LastErrorMessage}", "OGG 로드 실패");

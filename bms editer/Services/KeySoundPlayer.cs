@@ -301,21 +301,25 @@ public sealed unsafe partial class KeySoundPlayer : IDisposable
         }
     }
 
+    // 믹서 스레드가 끝나기를 기다리는 최대 시간.
+    private static readonly TimeSpan MixerShutdownTimeout = TimeSpan.FromSeconds(2);
+
+    // 믹서 스레드가 끝난 **뒤에만** 네이티브 버퍼를 풀어 준다. (알려진 문제 S-7)
+    //
+    // 예전에는 300ms 만 기다리고 무조건 풀었다. 그 스레드가 드라이버 호출에 붙잡혀 있다가
+    // 돌아와 이미 풀린 버퍼에 쓰면 접근 위반으로 종료 순간 앱이 죽었다.
+    // 끝내 안 끝나면 풀지 않고 둔다. 종료 중이라 곧 운영체제가 거둬 가고, 새는 편이 죽는 것보다 낫다.
     public void Dispose()
     {
         if (_isDisposed) return;
         _isDisposed = true;
         _wakeEvent.Set();
 
-        try
-        {
-            _playbackThread?.Join(300);
-        }
-        catch
-        {
-            // 무시
-        }
+        var mixerStopped = _playbackThread is null || _playbackThread.Join(MixerShutdownTimeout);
+        if (!mixerStopped)
+            return;
 
+        // 믹서는 빠져나오면서 장치를 스스로 닫는다. 여기서는 남은 게 있을 때만 닫는다.
         CloseWaveOut();
 
         for (var i = 0; i < BufferCount; i++)

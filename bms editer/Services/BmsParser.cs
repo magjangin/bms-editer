@@ -30,7 +30,13 @@ public static partial class BmsParser
     // 예전에는 반환값 하나에 out 3개였다. 그중 BPM 과 마디 수는 차트 안에도 같은 값이
     // 들어 있어서, 호출한 쪽이 어느 쪽을 믿어야 하는지 매번 헷갈렸다.
     // 이제 차트를 다 채워서 하나로 돌려준다.
-    public static BmsParseResult Parse(string filePath)
+    public static BmsParseResult Parse(string filePath) => Parse(filePath, filePath);
+
+    // 내용은 filePath 에서 읽되, #WAV 같은 상대 경로는 documentPath 의 폴더를 기준으로 찾는다.
+    //
+    // 자동 저장본은 %LocalAppData% 에 있지만 내용은 원래 곡 폴더를 기준으로 적혀 있다.
+    // 그 자리에서 읽으면 키음을 하나도 못 찾으므로, 원래 자리에 있는 것처럼 읽는다.
+    public static BmsParseResult Parse(string filePath, string documentPath)
     {
         var chart = new BmsChart();
         var parsedBpm = 120.0;
@@ -44,7 +50,7 @@ public static partial class BmsParser
             return new BmsParseResult(chart, wavItems, DefaultEncoding);
         }
 
-        var directory = Path.GetDirectoryName(filePath) ?? "";
+        var directory = Path.GetDirectoryName(documentPath) ?? "";
         var mediaPathIndex = BuildFileNameIndex(directory);
 
         // 파일을 바이트로 한 번만 읽고 인코딩을 가려낸다. 어느 인코딩으로 읽었는지는

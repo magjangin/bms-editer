@@ -7,11 +7,12 @@ namespace bms_editer.Services;
 // 텍스트 파일을 "쓰다 말아서 원본이 잘리는 일"이 없도록 저장한다.
 //
 // File.WriteAllText 는 원본을 먼저 비우고 그 위에 쓴다. 쓰는 도중에 디스크가 차거나
-// 앱이 죽으면 원본 차트가 잘린 채 남고, 이 에디터에는 Undo 도 사본도 없어서
+// 앱이 죽으면 원본 차트가 잘린 채 남고, 이 에디터에는 Undo 가 없어서
 // 되돌릴 방법이 아예 없다.
 //
 // 그래서 항상 같은 폴더의 임시 파일에 끝까지 다 쓴 뒤에만 원본 자리로 바꿔치기한다.
 // 실패는 임시 파일 단계에서만 나므로 원본은 늘 온전하다. 덤으로 직전 내용이 .bak 로 남는다.
+// .bak 은 한 벌뿐이라, 여러 벌의 저장 이력은 DocumentSnapshotStore 가 따로 남긴다.
 public static class SafeFileWriter
 {
     public const string BackupExtension = ".bak";
