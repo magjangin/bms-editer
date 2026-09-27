@@ -106,7 +106,7 @@ OGG 배경 오디오 파형(Waveform) 로딩, 온셋(Onset) 분석에 따른 그
    - 예상하지 못한 오류가 나도 앱이 꺼지지 않습니다. 그 자리에서 비상 저장한 뒤 [계속 작업] / [끄기] 를 묻습니다.
    - [저장]할 때마다 덮어쓰기 직전의 파일을 **저장 이력**으로 남깁니다(문서마다 최근 10벌).
    - 파일은 모두 `%LocalAppData%` 의 `bms editer` 폴더(`recovery` · `logs`)에 있고, **파일 메뉴 → [자동 저장·오류 기록 폴더 열기]** 로 바로 열립니다. 스냅숏은 원래 곡 폴더 기준 경로로 적혀 있어, 곡 폴더에 복사해 넣으면 그대로 열립니다.
-   - 한계와 자세한 동작: [known_issues G. 안전장치](docs/issues/known_issues.md#-g-안전장치-해결-완료-)
+   - 자세한 동작: [resolved_issues G. 안전장치](docs/issues/resolved_issues.md#-g-안전장치) · 한계: [known_issues 🛟 안전장치의 한계](docs/issues/known_issues.md#-안전장치의-한계)
 
 ---
 
@@ -186,7 +186,8 @@ dotnet publish "bms editer/bms editer.csproj" -p:PublishProfile=win-x64
 | **모딩 가이드** | [gunvolt_records_cychronicle.md](docs/guides/gunvolt_records_cychronicle.md) | 건볼트 레코즈 사이크로니클 (Mono) 6레인 채보 및 플릭/페어리 가이드. |
 | **모딩 가이드** | [deflate.md](docs/guides/deflate.md) | DEFLATE 플레이 4레인 + 드롭 레인 채보, `#WAV` 파일명 키워드 기반 홀드 작성 가이드. |
 | **코드 설명서** | [code_explanation.md](docs/architecture/code_explanation.md) | 소스 파일별 역할, 구조 및 컴포넌트 상세 설명서. |
-| **품질/이슈** | [known_issues.md](docs/issues/known_issues.md) | **남은 일과 이미 고친 것.** 🧨 실사용에서 터지는 자리(재생 정지·키음 표시 등, 자동 저장·크래시 대비는 해결), 🎧 재생할 때 걸리는 것, Undo/Redo, 키음 지연, 커밋별 해결 기록이 여기 있습니다. |
+| **품질/이슈** | [known_issues.md](docs/issues/known_issues.md) | **남은 일.** 🧨 실사용에서 터지는 자리(재생 정지·키음 표시 등), 🎧 재생할 때 걸리는 것, Undo/Redo, 키음 지연, 점검에서 찾은 확인 필요 항목, 실물 확인 체크리스트가 여기 있습니다. |
+| **품질/이슈** | [resolved_issues.md](docs/issues/resolved_issues.md) | **해결한 것.** 조건 블록·키음 믹싱 재생·🎛️ 컨트롤 패널·🛟 안전장치 등 해결한 과제의 방식과 커밋별 고친 기록. |
 | **품질/이슈** | [authoring_time.md](docs/issues/authoring_time.md) | ⚠️ **작성 시간 경고.** 만들 수는 있지만 오래 걸립니다(뮤즈 대시 340노트 = 약 4시간). 실측 기록과 원인 분석, **찾고 있는 개선 후보**. |
 | **사양** | [grid_specification.md](docs/specifications/grid_specification.md) | 마디 내부 그리드 분할 규칙과 기본 동작 사양. |
 | **사양** | [hold_pairing_spec.md](docs/specifications/hold_pairing_spec.md) | 🔗 **홀드 짝 맞추기.** 판별 방식 4가지 × 짝 정책 5가지, 짝 검사기, 몸통 표시. `Chart.Notes` 를 건드리지 않는 비파괴 설계와 구현 현황·수용 조건. |
