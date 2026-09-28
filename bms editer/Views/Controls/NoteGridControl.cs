@@ -543,21 +543,51 @@ public sealed class NoteGridControl : TimelineControlBase
             return;
         }
 
+        if (PlacementAt(point.Position) is not { } args)
+            return;
+
+        if (point.Properties.IsLeftButtonPressed)
+        {
+            if (PlaceNoteCommand?.CanExecute(args) == true)
+            {
+                PlaceNoteCommand.Execute(args);
+                InvalidateVisual();
+                e.Handled = true;
+            }
+        }
+        else if (point.Properties.IsRightButtonPressed)
+        {
+            if (RemoveNoteCommand?.CanExecute(args) == true)
+            {
+                RemoveNoteCommand.Execute(args);
+                InvalidateVisual();
+                e.Handled = true;
+            }
+        }
+    }
+
+    // 격자 위의 한 점이 어느 레인·마디·위치인지. 찍을 수 없는 자리면 null.
+    public NotePlacementArgs? PlacementAt(Point point)
+    {
+        var lanes = Lanes;
+        if (lanes is null || lanes.Count == 0)
+            return null;
+
         var laneThickness = LaneWidth * HorizontalZoom;
         var timelineLength = GetTimelineHeight();
 
-        var thicknessPos = IsHorizontalView ? point.Position.Y : point.Position.X;
+        var thicknessPos = IsHorizontalView ? point.Y : point.X;
         var clickedLaneIndex = (int)(thicknessPos / laneThickness);
         if (clickedLaneIndex < 0 || clickedLaneIndex >= lanes.Count)
-            return;
+            return null;
 
         var clickedLaneId = lanes[clickedLaneIndex].Id;
 
-        var tPos = IsHorizontalView ? point.Position.X : point.Position.Y;
+        var tPos = IsHorizontalView ? point.X : point.Y;
         var split = Math.Max(1, BeatSplit);
 
-        int measure = 0;
-        double position = 0.0;
+        int measure;
+        double position;
 
         var ratio = Math.Clamp(IsHorizontalView ? (tPos / timelineLength) : (1.0 - (tPos / timelineLength)), 0.0, 1.0);
 
@@ -565,6 +595,13 @@ public sealed class NoteGridControl : TimelineControlBase
         var clickedMeasurePosition = DurationSeconds > 0
             ? EffectiveTimeline.MeasurePositionAt(ratio * DurationSeconds)
             : ratio * MeasureCount;
+
+        // 마디 수 밖을 누르면 찍지 않는다.
+        //
+        // 예전에는 아래 당기기가 먼 곳까지 끌어와서, 음원이 마디 수보다 긴 차트에서 곡 뒤쪽을 누르면
+        // 누른 자리가 아니라 마지막 마디 끝 칸에 노트가 생겼다. 화면 밖이라 찍힌 줄도 몰랐다.
+        if (clickedMeasurePosition - MeasureCount > 1e-6)
+            return null;
 
         if (SnapToGrid)
         {
@@ -586,28 +623,9 @@ public sealed class NoteGridControl : TimelineControlBase
         }
 
         if (measure < 0 || measure >= MeasureCount)
-            return;
+            return null;
 
-        var args = new NotePlacementArgs(clickedLaneId, measure, position);
-
-        if (point.Properties.IsLeftButtonPressed)
-        {
-            if (PlaceNoteCommand?.CanExecute(args) == true)
-            {
-                PlaceNoteCommand.Execute(args);
-                InvalidateVisual();
-                e.Handled = true;
-            }
-        }
-        else if (point.Properties.IsRightButtonPressed)
-        {
-            if (RemoveNoteCommand?.CanExecute(args) == true)
-            {
-                RemoveNoteCommand.Execute(args);
-                InvalidateVisual();
-                e.Handled = true;
-            }
-        }
+        return new NotePlacementArgs(clickedLaneId, measure, position);
     }
 
     private void OnPointerMovedForSelection(object? sender, Avalonia.Input.PointerEventArgs e)

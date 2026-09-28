@@ -193,4 +193,25 @@ public sealed class HoldDocumentTests : IDisposable
         search.IncludeLong = false;
         Assert.Equal("001", Assert.Single(search.FindMatches()).WavKey);
     });
+
+    [Fact]
+    public void 검색_창을_먼저_열어_둬도_프로파일을_고르면_롱_필터가_풀린다() => HoldTestSupport.RunOnUiThread(() =>
+    {
+        // 예전에는 창을 만들 때의 잠금이 굳어서, 창을 다시 열 때까지 "롱" 을 누를 수 없었다.
+        using var vm = Loaded(PlainPath());
+        using var search = new NoteSearchViewModel(vm);
+        Assert.False(search.AreNoteTypeFiltersUsable);
+
+        var raised = 0;
+        search.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(NoteSearchViewModel.AreNoteTypeFiltersUsable))
+                raised++;
+        };
+
+        vm.SelectedProfile = vm.Profiles.First(p => p.Id == "deflate");
+
+        Assert.True(raised > 0, "잠금이 바뀌었다고 창에 알리지 않았다");
+        Assert.True(search.AreNoteTypeFiltersUsable);
+    });
 }

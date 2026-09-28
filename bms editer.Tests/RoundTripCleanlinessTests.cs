@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using bms_editer.Models;
 using bms_editer.Services;
+using bms_editer.ViewModels;
 using Xunit;
 
 namespace bms_editer.Tests;
@@ -50,7 +51,7 @@ public sealed class RoundTripCleanlinessTests : IDisposable
             parsed.Chart.Header.Artist,
             parsed.Chart.Header.Genre,
             parsed.Bpm,
-            Math.Clamp(parsed.Chart.Header.Player - 1, 0, 2),
+            Math.Clamp(parsed.Chart.Header.Player - 1, 0, 3),
             parsed.Chart.Header.Rank,
             parsed.Chart.Header.Level,
             parsed.WavItems,
@@ -158,5 +159,23 @@ public sealed class RoundTripCleanlinessTests : IDisposable
         var comment = Assert.Single(chart.PreservedLines, l => l.Text.StartsWith("*"));
         Assert.False(comment.IsData);
         Assert.Single(chart.Notes);
+    }
+
+    // ── 2026-09-28. #PLAYER 4 · #RANK 4 가 저장하면 3 이 된다 ────────────────
+
+    [Fact]
+    public void 규격의_PLAYER_4와_RANK_4는_열었다_저장해도_그대로다()
+    {
+        // 헤더 콤보박스가 3 까지만 있어서, 뷰모델이 값을 3 으로 잘라 들고 있다가 그대로 썼다.
+        var path = WriteChart("#PLAYER 4\r\n#RANK 4\r\n#BPM 120\r\n#00111:01\r\n");
+
+        var vm = new MainWindowViewModel();
+        Assert.True(vm.LoadBms(path), vm.LastErrorMessage);
+        Assert.False(vm.IsDirty);
+        Assert.True(vm.SaveBms(path), vm.LastErrorMessage);
+
+        var saved = File.ReadAllText(path);
+        Assert.Contains("#PLAYER 4", saved);
+        Assert.Contains("#RANK 4", saved);
     }
 }

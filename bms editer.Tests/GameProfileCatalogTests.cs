@@ -69,6 +69,11 @@ public sealed class GameProfileCatalogTests : IDisposable
     [InlineData("/home/user/games/DEFLATE/hwa/song/hwa2.bms", "deflate")]
     [InlineData(@"H:\steam\steamapps\common\A Dance of Fire and Ice\hwa\hwa2.bms", "")]
     [InlineData(@"C:\charts\my song\chart.bms", "")]
+    // 곡 제목이 다른 게임 이름과 같아도 그 위의 게임 폴더를 따른다. (2026-09-28 점검)
+    [InlineData(@"H:\steam\steamapps\common\DEFLATE\hwa\Stargazer\hwa2.bms", "deflate")]
+    [InlineData(@"H:\steam\steamapps\common\Sixtar Gate STARTRAIL\hwa\UNBEATABLE [Remix]\hwa2.bms", "startrail")]
+    // 위쪽에 단서가 없을 때만 차트가 든 폴더 이름을 본다.
+    [InlineData(@"C:\charts\STARGAZER\chart.bms", "stargazer")]
     public void 경로로_게임을_추정한다(string path, string expectedId)
     {
         var detected = GameProfileCatalog.Default.DetectFromPath(path);
@@ -114,8 +119,47 @@ public sealed class GameProfileCatalogTests : IDisposable
     [InlineData("""{ "id": "x", "holdRules": [ { "role": { "type": "KeyValue", "headKeys": [ "02" ], "tailKeys": [ "03" ] }, "policy": "Alternate" } ] }""")]
     [InlineData("""{ "id": "x", "holdRules": [ { "role": { "type": "FileNameUid" }, "policy": "Alternate" } ] }""")]
     [InlineData("""{ "holdRules": [ { "role": { "type": "KeyValue", "headKeys": [ "02" ], "tailKeys": [ "03" ] } } ] }""")]
+    // 손으로 null 을 적은 경우. 예전에는 NullReferenceException 이 새어 나가 앱이 켜지지 않았다.
+    [InlineData("""{ "id": "x", "holdRules": null }""")]
+    [InlineData("""{ "id": "x", "holdRules": [ null ] }""")]
+    [InlineData("""{ "id": "x", "holdRules": [ { "kind": null, "role": { "type": "KeyValue", "headKeys": [ "02" ], "tailKeys": [ "03" ] } } ] }""")]
+    [InlineData("""{ "id": "x", "holdRules": [ { "role": null } ] }""")]
+    // 숫자로 적은, 열거형에 없는 정책. 짝 엔진이 조용히 건너뛰던 값이다.
+    [InlineData("""{ "id": "x", "holdRules": [ { "role": { "type": "KeyValue", "headKeys": [ "02" ], "tailKeys": [ "03" ] }, "policy": 99 } ] }""")]
+    // 편집할 때마다 터지던 잘못된 정규식.
+    [InlineData("""{ "id": "x", "uidTable": { "pattern": "([" }, "holdRules": [ { "role": { "type": "FileNameUid" }, "policy": "Alternate" } ] }""")]
     public void 규칙이_빠지거나_짝_방식과_맞지_않으면_읽을_때_거부한다(string json)
     {
         Assert.Throws<FormatException>(() => GameProfileCatalog.Parse(json));
+    }
+
+    [Fact]
+    public void null_로_적은_목록은_빈_목록으로_읽는다()
+    {
+        var profile = GameProfileCatalog.Parse(
+            """
+            {
+              "id": "x",
+              "pathHints": null,
+              "holdRules": [ { "kind": "Hold", "channels": null, "role": { "type": "KeyValue", "headKeys": [ "02", null ], "tailKeys": [ "03" ] } } ]
+            }
+            """);
+
+        Assert.Empty(profile.PathHints);
+        var rule = Assert.Single(profile.HoldRules);
+        Assert.Empty(rule.Channels);
+        Assert.Equal(new[] { "02" }, rule.Role.HeadKeys);
+        Assert.Equal("", rule.OrphanHeadOutcome);
+    }
+
+    [Fact]
+    public void 옆_폴더의_프로파일이_망가져도_앱은_켜진다()
+    {
+        File.WriteAllText(Path.Combine(_directory, "nulls.json"), """{ "id": "nulls", "holdRules": null }""", new UTF8Encoding(false));
+
+        var catalog = GameProfileCatalog.Load(_directory);
+
+        Assert.Contains(catalog.LoadErrors, e => e.Contains("nulls.json", StringComparison.Ordinal));
+        Assert.Equal(6, catalog.Profiles.Count);
     }
 }

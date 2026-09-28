@@ -138,7 +138,7 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
     [ObservableProperty] private string _genre = string.Empty;
     [ObservableProperty] private double _bpm = 120.0;
 
-    // 콤보박스 인덱스(0=Single, 1=Couple, 2=Double). 파일의 #PLAYER 값보다 하나 작다.
+    // 콤보박스 인덱스(0=Single, 1=Couple, 2=Double, 3=Battle). 파일의 #PLAYER 값보다 하나 작다.
     [ObservableProperty] private int _player;
     [ObservableProperty] private int _rank = 2;
     [ObservableProperty] private string _level = string.Empty;
@@ -254,13 +254,18 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
     }
 
     // 오디오 길이가 요구하는 마디 수. 음원이 없으면 0.
+    //
+    // 곡 끝이 몇 번째 마디인지는 Timeline 에 묻는다. 예전에는 첫 BPM 과 4/4 만 가정해서
+    // (길이 × BPM / 240), BPM 이 빨라지거나 짧은 마디(#xxx02)가 있는 차트는 마디 수가 모자랐다.
+    // 격자는 곡 끝까지 그려지는데 그 뒤쪽을 누르면 누른 자리 대신 마지막 마디 끝 칸에 찍혔다.
     private int GetAudioMeasureCount()
     {
         if (OggDurationSeconds <= 0 || Bpm <= 0)
             return 0;
 
-        var totalBeats = OggDurationSeconds * (Bpm / 60.0);
-        return Math.Max(1, (int)Math.Ceiling(totalBeats / 4.0));
+        // 곡 끝이 마디 경계에 딱 걸리면 부동소수 끝자리 때문에 한 마디가 더 붙지 않도록 여유를 둔다.
+        var endMeasurePosition = Timeline.MeasurePositionAt(OggDurationSeconds);
+        return Math.Max(1, (int)Math.Ceiling(endMeasurePosition - 1e-6));
     }
 
     // 차트 안의 노트와 보존줄이 요구하는 마디 수.

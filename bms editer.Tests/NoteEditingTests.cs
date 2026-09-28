@@ -2,8 +2,10 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Text;
+using Avalonia;
 using bms_editer.Models;
 using bms_editer.ViewModels;
+using bms_editer.Views.Controls;
 using Xunit;
 
 namespace bms_editer.Tests;
@@ -182,6 +184,75 @@ public sealed class NoteEditingTests : IDisposable
         vm.Chart.PreservedLines.Add(new BmsRawLine { Text = "#30001:01", Measure = 300 });
 
         Assert.Equal(301, vm.MinimumMeasureCount);
+    }
+
+    // ── 2026-09-28. 음원이 마디 수보다 길면 뒤쪽 클릭이 엉뚱한 자리에 찍힌다 ──────
+
+    [Fact]
+    public void 곡이_빨라지는_차트도_음원_끝까지_마디가_확보된다()
+    {
+        // 첫 마디는 BPM 120(2초), 그 뒤로는 BPM 240(마디당 1초). 42초짜리 음원이면 곡 끝은 41마디째다.
+        // 예전 계산(길이 × 첫 BPM / 240)은 21마디로 보고 바닥값 32에 머물렀다.
+        var path = Path.Combine(_directory, "speedup.bms");
+        File.WriteAllText(path, "#BPM 120\r\n#BPM01 240\r\n#WAV01 a.wav\r\n#00108:01\r\n#00111:01\r\n", new UTF8Encoding(false));
+
+        var vm = new MainWindowViewModel();
+        Assert.True(vm.LoadBms(path), vm.LastErrorMessage);
+
+        vm.OggDurationSeconds = 42;
+        vm.UpdateMeasureCountFromAudio();
+
+        Assert.Equal(41, vm.MinimumMeasureCount);
+        Assert.Equal(41, vm.MeasureCount);
+    }
+
+    [Fact]
+    public void 박자가_일정한_차트의_음원_마디_수는_예전_계산과_같다()
+    {
+        var vm = new MainWindowViewModel();
+        Assert.Equal(120, vm.Bpm);
+
+        // 120초 = 60마디에 딱 맞는다. 부동소수 끝자리로 61이 되면 안 된다.
+        vm.OggDurationSeconds = 120;
+        vm.UpdateMeasureCountFromAudio();
+        Assert.Equal(60, vm.MinimumMeasureCount);
+
+        vm.OggDurationSeconds = 120.5;
+        vm.UpdateMeasureCountFromAudio();
+        Assert.Equal(61, vm.MinimumMeasureCount);
+    }
+
+    [Fact]
+    public void 마디_수_밖을_누르면_찍지_않는다()
+    {
+        // 음원 8초 · BPM 120 이면 곡 끝은 4마디째인데 마디 수는 2다.
+        // 예전에는 곡 뒤쪽을 누르면 누른 자리 대신 마지막 마디의 끝 칸(1마디 15/16)에 찍혔다.
+        var grid = new NoteGridControl
+        {
+            Lanes = LaneDefinition.CreateDefault(),
+            MeasureCount = 2,
+            Bpm = 120,
+            DurationSeconds = 8,
+            RowHeight = 16,
+            VerticalZoom = 1,
+            BeatSplit = 16,
+            GridMeasure = 4,
+            LaneWidth = 40,
+            HorizontalZoom = 1,
+            IsHorizontalView = true,
+        };
+
+        // 가로 보기에서 1초 = 16 × 1 × (16/4) / 2 = 32px. 레인 11 은 두 번째 줄(y 40~80)이다.
+        const double pixelsPerSecond = 32;
+
+        // 7초 = 3.5마디. 마디 수 밖이다.
+        Assert.Null(grid.PlacementAt(new Point(7 * pixelsPerSecond, 60)));
+
+        // 3초 = 1.5마디. 그대로 찍힌다.
+        Assert.Equal(new NotePlacementArgs("11", 1, 0.5), grid.PlacementAt(new Point(3 * pixelsPerSecond, 60)));
+
+        // 마지막 칸의 뒤쪽 절반은 반올림이 마디 경계를 넘지만, 거부하지 않고 마지막 칸으로 당겨 준다.
+        Assert.Equal(new NotePlacementArgs("11", 1, 15.0 / 16), grid.PlacementAt(new Point(3.98 * pixelsPerSecond, 60)));
     }
 
     // ── 23. 키음을 지워도 그 번호를 쓰던 노트가 그대로 남는다 ─────────────────

@@ -148,6 +148,35 @@ public sealed class SafetyWindowTests : IDisposable
     });
 
     [Fact]
+    public void 비상_저장에_실패하면_변경이_없었다고_말하지_않는다() => RunOnUiThread(() =>
+    {
+        var owner = new MainWindowViewModel();
+        Assert.True(owner.LoadBms(WriteChart()));
+
+        // 저장소 자리에 파일이 있어 폴더를 만들 수 없다. 자동 저장이 실패한다.
+        var blocked = Path.Combine(_directory, "blocked");
+        File.WriteAllText(blocked, "");
+        var store = new DocumentSnapshotStore(blocked, "ui", _ => false, () => _clock = _clock.AddSeconds(1));
+
+        var window = new MainWindow { DataContext = owner };
+        window.EnableSafety(store);
+        window.Show();
+        Pump();
+
+        owner.PlaceNoteCommand.Execute(new NotePlacementArgs("12", 1, 0.0));
+        Assert.True(window.HandleUnexpectedException(new InvalidOperationException("boom"), logPath: null));
+        Pump();
+
+        // 예전에는 "저장 안 된 변경이 없어서 따로 저장하지 않았습니다" 라고 적어, 안심하고 [끄기]를 누르게 했다.
+        var dialog = Assert.Single(window.OwnedWindows.OfType<ConfirmWindow>());
+        var message = dialog.GetVisualDescendants().OfType<TextBlock>().First(t => t.Name == "MessageText").Text;
+        Assert.Contains("자동 저장에 실패", message);
+        Assert.DoesNotContain("변경이 없어서", message);
+
+        CloseDialogs(window);
+    });
+
+    [Fact]
     public void 지난번_실행이_남긴_작업을_열_때_되살린다() => RunOnUiThread(() =>
     {
         var path = WriteChart();

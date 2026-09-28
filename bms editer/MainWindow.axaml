@@ -72,6 +72,7 @@
                 <TextBlock Text="{Binding Bpm, StringFormat='BPM: {0}'}" />
                 <TextBlock Text="{Binding GridDisplay, StringFormat='Grid: {0}'}" />
                 <TextBlock Text="{Binding OggFileName, StringFormat='OGG: {0}', TargetNullValue='OGG: (없음)'}" />
+                <TextBlock Text="⏳ 음원 읽는 중…" Foreground="Orange" IsVisible="{Binding IsLoadingOgg}" />
                 <TextBlock Text="{Binding VideoFileName, StringFormat='Video: {0}', TargetNullValue='Video: (없음)'}" />
                 <TextBlock Text="{Binding HoldSummaryText}" />
             </StackPanel>
@@ -175,6 +176,7 @@
                             <ComboBoxItem Content="1 - Single" />
                             <ComboBoxItem Content="2 - Couple" />
                             <ComboBoxItem Content="3 - Double" />
+                            <ComboBoxItem Content="4 - Battle" />
                         </ComboBox>
                         <TextBlock Text="#RANK" />
                         <ComboBox SelectedIndex="{Binding Rank}" HorizontalAlignment="Stretch">
@@ -182,6 +184,7 @@
                             <ComboBoxItem Content="1 - Hard" />
                             <ComboBoxItem Content="2 - Normal" />
                             <ComboBoxItem Content="3 - Easy" />
+                            <ComboBoxItem Content="4 - VeryEasy" />
                         </ComboBox>
                         <TextBlock Text="#LEVEL" />
                         <TextBox Text="{Binding Level}" />

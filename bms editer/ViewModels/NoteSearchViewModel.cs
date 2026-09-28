@@ -30,22 +30,22 @@ public sealed partial class LaneFilterItem : ObservableObject
 // 대상 노트 필터는 세 그룹(선택 상태 / 노트 종류 / 표시 여부)으로 나뉘며,
 // 노트는 각 그룹에서 최소 하나씩 일치해야 결과에 포함된다.
 // 그룹 안의 두 항목을 모두 끄면 그 그룹은 아무것도 통과시키지 않는다.
-public sealed partial class NoteSearchViewModel : ObservableObject
+//
+// 메인 뷰모델을 구독해 홀드 짝이 바뀌면 "롱" 필터의 잠금을 다시 가린다. 예전에는 구독이 없어서,
+// 프로파일을 고르기 전에 창을 열어 두면 짝이 생겨도 창을 다시 열 때까지 잠겨 있었다.
+public sealed partial class NoteSearchViewModel : OwnerObservingViewModel
 {
-    private readonly MainWindowViewModel _owner;
-
     // BmsParser가 2자리/3자리 키음 배치를 모두 지원하므로,
     // 이 차트가 실제로 쓰는 자릿수에 맞춰 번호 범위의 기본값과 최댓값을 정한다.
     //
     // **매번 다시 본다.** 예전에는 창을 만들 때 한 번 정하고 굳혀서, 창을 띄워둔 채
     // 3자리 차트를 열면 번호 범위가 2자리에 머물러 3자리 키음을 아예 찾을 수 없었다.
-    private int KeyWidth => _owner.WavKeyWidth;
+    private int KeyWidth => Owner.WavKeyWidth;
 
     private int MaxKeyValue => WavKey.MaxValue(KeyWidth);
 
-    public NoteSearchViewModel(MainWindowViewModel owner)
+    public NoteSearchViewModel(MainWindowViewModel owner) : base(owner)
     {
-        _owner = owner;
         foreach (var lane in owner.Chart.Lanes)
         {
             Lanes.Add(new LaneFilterItem(lane));
@@ -65,11 +65,21 @@ public sealed partial class NoteSearchViewModel : ObservableObject
     // 해당되는 노트가 없을 때 눌러도 아무 일이 없는 버튼을 켜 두면
     // "조건을 잘못 넣었나" 하고 사용자만 헤매므로, 해당되는 노트가 생기기 전까지는 잠근다.
     public bool AreNoteTypeFiltersUsable =>
-        _owner.HoldLinks.Count > 0 || _owner.Chart.Notes.Any(n => n.Type != NoteType.Normal);
+        Owner.HoldLinks.Count > 0 || Owner.Chart.Notes.Any(n => n.Type != NoteType.Normal);
 
     public string NoteTypeFilterHint => AreNoteTypeFiltersUsable
         ? "노트 종류로 거릅니다 (롱 = 게임 프로파일로 짝지어진 홀드의 시작·끝)"
         : "짝지어진 홀드가 없어 잠겨 있습니다. 오른쪽 패널에서 게임 프로파일을 고르면 홀드 짝을 읽습니다";
+
+    // 짝은 프로파일을 바꾸거나 노트를 고칠 때마다 다시 읽힌다(메인 뷰모델의 RecomputeHolds).
+    protected override void OnOwnerPropertyChanged(string? propertyName)
+    {
+        if (propertyName is nameof(MainWindowViewModel.HoldLinks) or nameof(MainWindowViewModel.Notes))
+        {
+            OnPropertyChanged(nameof(AreNoteTypeFiltersUsable));
+            OnPropertyChanged(nameof(NoteTypeFilterHint));
+        }
+    }
 
     // 대상 노트 - 선택 상태
     [ObservableProperty] private bool _includeSelected = true;
@@ -116,10 +126,10 @@ public sealed partial class NoteSearchViewModel : ObservableObject
         if (keyLow > keyHigh)
             (keyLow, keyHigh) = (keyHigh, keyLow);
 
-        var selected = new HashSet<BmsNote>(_owner.SelectedNotes);
+        var selected = new HashSet<BmsNote>(Owner.SelectedNotes);
         var matches = new List<BmsNote>();
 
-        foreach (var note in _owner.Chart.Notes)
+        foreach (var note in Owner.Chart.Notes)
         {
             if (!laneIds.Contains(note.LaneId))
                 continue;
@@ -135,7 +145,7 @@ public sealed partial class NoteSearchViewModel : ObservableObject
                 continue;
 
             // 롱노트는 노트 종류가 아니라 게임 프로파일이 읽어낸 홀드 짝으로 판정한다.
-            var isLong = note.Type is NoteType.LongStart or NoteType.LongEnd || _owner.IsHoldNote(note);
+            var isLong = note.Type is NoteType.LongStart or NoteType.LongEnd || Owner.IsHoldNote(note);
             if (!(isLong ? IncludeLong : IncludeNormal))
                 continue;
 
@@ -153,7 +163,7 @@ public sealed partial class NoteSearchViewModel : ObservableObject
     private void SelectMatches()
     {
         var matches = FindMatches();
-        _owner.SetNoteSelection(matches, NoteSelectionSource.Search);
+        Owner.SetNoteSelection(matches, NoteSelectionSource.Search);
         StatusMessage = matches.Count == 0
             ? "조건에 맞는 노트가 없습니다."
             : $"{matches.Count}개를 선택했습니다.";
@@ -179,7 +189,7 @@ public sealed partial class NoteSearchViewModel : ObservableObject
             return;
         }
 
-        var removed = _owner.DeleteNotes(matches);
+        var removed = Owner.DeleteNotes(matches);
         StatusMessage = removed == 0
             ? "조건에 맞는 노트가 없습니다."
             : $"{removed}개를 삭제했습니다.";
@@ -189,7 +199,7 @@ public sealed partial class NoteSearchViewModel : ObservableObject
     // notDone 은 진행하지 않았을 때 알릴 말("지우지 않았습니다." 등)이다.
     private async Task<bool> ConfirmBulkAsync(string message, string notDone)
     {
-        if (_owner.ConfirmAsync is not { } confirm)
+        if (Owner.ConfirmAsync is not { } confirm)
         {
             StatusMessage = $"확인 창을 띄울 수 없어 {notDone}";
             return false;
@@ -220,7 +230,7 @@ public sealed partial class NoteSearchViewModel : ObservableObject
             return;
         }
 
-        var result = _owner.CopyNotesByMeasureOffset(matches, CopyMeasureOffset);
+        var result = Owner.CopyNotesByMeasureOffset(matches, CopyMeasureOffset);
 
         var skipped = new List<string>();
         if (result.Blocked > 0)
@@ -240,7 +250,7 @@ public sealed partial class NoteSearchViewModel : ObservableObject
     [RelayCommand]
     private void ClearSelection()
     {
-        _owner.ClearNoteSelection();
+        Owner.ClearNoteSelection();
         StatusMessage = "선택을 해제했습니다.";
     }
 
@@ -267,7 +277,7 @@ public sealed partial class NoteSearchViewModel : ObservableObject
             return;
         }
 
-        var changed = _owner.ReplaceWavKey(matches, normalizedKey);
+        var changed = Owner.ReplaceWavKey(matches, normalizedKey);
         ReplacementWavKey = normalizedKey;
 
         if (matches.Count == 0)
@@ -276,7 +286,7 @@ public sealed partial class NoteSearchViewModel : ObservableObject
             return;
         }
 
-        var unregistered = _owner.Chart.WavTable.ContainsKey(normalizedKey)
+        var unregistered = Owner.Chart.WavTable.ContainsKey(normalizedKey)
             ? string.Empty
             : $" (경고: #WAV{normalizedKey}가 등록돼 있지 않습니다)";
 

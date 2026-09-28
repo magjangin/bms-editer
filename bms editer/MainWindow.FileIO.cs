@@ -36,7 +36,7 @@ public partial class MainWindow
                 return;
 
             // 실패해도 이미 물려 있던 음원은 그대로 남는다. 사유만 알려준다.
-            if (!await vm.LoadOggAsync(path))
+            if (await vm.LoadOggAsync(path) == OggLoadResult.Failed)
                 await ConfirmWindow.ShowMessageAsync(this, $"OGG를 불러오지 못했습니다.\n\n{vm.LastErrorMessage}", "OGG 로드 실패");
         }
 
@@ -218,9 +218,16 @@ public partial class MainWindow
         // 차트와 같은 폴더의 음원·영상을 붙인다. 폴더 열기와 자동 저장본 복구가 같이 쓴다.
         private async Task LoadCompanionMediaAsync(MainWindowViewModel vm, string folderPath)
         {
+            var document = vm.DocumentGeneration;
+
             var oggPath = FindBestFile(folderPath, OggExtensions);
-            if (oggPath is not null && !await vm.LoadOggAsync(oggPath))
+            if (oggPath is not null && await vm.LoadOggAsync(oggPath) == OggLoadResult.Failed)
                 await ConfirmWindow.ShowMessageAsync(this, $"OGG를 불러오지 못했습니다.\n\n{vm.LastErrorMessage}", "OGG 로드 실패");
+
+            // 음원을 읽는 사이 다른 문서를 열었으면 이 폴더의 영상도 붙이지 않는다.
+            // 안 그러면 뒤에 연 폴더의 영상을 앞 폴더의 것이 덮어쓴다.
+            if (vm.DocumentGeneration != document)
+                return;
 
             var videoPath = FindBestFile(folderPath, VideoExtensions);
             if (videoPath is not null)

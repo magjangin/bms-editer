@@ -9,6 +9,18 @@ using bms_editer.Services;
 
 namespace bms_editer.ViewModels;
 
+// 음원 로딩의 결과.
+public enum OggLoadResult
+{
+    Loaded,
+
+    // 읽지 못했다. 이유는 LastErrorMessage 에 있다.
+    Failed,
+
+    // 읽는 동안 다른 문서를 열었거나 다른 음원을 골라서 결과를 버렸다. 알릴 것이 없다.
+    Superseded,
+}
+
 public sealed partial class MainWindowViewModel
 {
     // 마지막 열기/저장이 실패한 이유. 성공하면 null.
@@ -22,15 +34,31 @@ public sealed partial class MainWindowViewModel
     // 새로 만든 문서는 UTF-8(BOM 없음)로 시작한다.
     public Encoding DocumentEncoding { get; private set; } = new UTF8Encoding(false);
 
-    // 지금 음원을 읽는 중인지. 화면에 로딩 표시를 띄우는 데 쓴다.
+    // 지금 음원을 읽는 중인지. 상태 표시줄에 로딩 표시를 띄운다.
     [ObservableProperty] private bool _isLoadingOgg;
 
-    // 실패하면 false. 실패해도 이미 물려 있던 음원은 그대로 둔다.
+    // 지금 문서가 몇 번째로 연 문서인지. 열기·새로 만들기·복구마다 늘어난다.
+    // 오래 걸리는 음원 로딩이 끝났을 때, 그 사이 다른 문서로 바뀌었는지 가리는 데 쓴다.
+    public int DocumentGeneration { get; private set; }
+
+    // 마지막으로 시작한 음원 로딩의 번호. 나중에 시작한 로딩이 먼저 시작한 것을 이긴다.
+    private int _oggLoadRequest;
+
+    // OGG 를 푸는 곳. 테스트가 디코딩이 끝나는 순서를 붙잡으려고 바꿔 끼운다.
+    public Func<string, OggAudioData> DecodeOgg { get; set; } = OggDecoder.Decode;
+
+    // 실패해도 이미 물려 있던 음원은 그대로 둔다.
     //
     // 예전에는 catch 가 _audioPlayer(= 기존 플레이어)를 Dispose 하고 파형·길이를 0/null 로
     // 밀어버렸다. 새로 고른 파일이 깨졌을 뿐인데 멀쩡하던 파형과 재생이 같이 사라졌다.
-    public async Task<bool> LoadOggAsync(string filePath)
+    //
+    // 읽는 동안 다른 문서를 열거나 다른 음원을 고르면 이 결과는 버린다(Superseded).
+    // 예전에는 끝난 순서대로 붙어서, 폴더를 연달아 열면 앞 곡의 음원이 뒤 차트에 붙을 수 있었다.
+    public async Task<OggLoadResult> LoadOggAsync(string filePath)
     {
+        var request = ++_oggLoadRequest;
+        var document = DocumentGeneration;
+
         OggWaveform waveform;
         OggAudioPlayer audioPlayer;
 
@@ -39,20 +67,30 @@ public sealed partial class MainWindowViewModel
         {
             // 디코딩은 5분짜리 곡이면 수 초가 걸린다. UI 스레드에서 하면 그동안 창이 얼어붙는다.
             // 새 음원을 끝까지 다 읽고 나서야 기존 것을 건드린다.
-            var decoded = await Task.Run(() => OggDecoder.Decode(filePath));
+            var decode = DecodeOgg;
+            var decoded = await Task.Run(() => decode(filePath));
+
+            if (IsOggLoadSuperseded(request, document))
+                return OggLoadResult.Superseded;
 
             waveform = OggPeakLoader.Load(decoded);
             audioPlayer = new OggAudioPlayer(decoded);
         }
         catch (Exception ex)
         {
+            // 이미 버려진 로딩의 실패는 알릴 필요가 없다. 사용자는 그 사이 다른 것을 골랐다.
+            if (IsOggLoadSuperseded(request, document))
+                return OggLoadResult.Superseded;
+
             LastErrorMessage = ex.Message;
             System.Diagnostics.Debug.WriteLine($"OGG 로드 실패: {ex.Message}");
-            return false;
+            return OggLoadResult.Failed;
         }
         finally
         {
-            IsLoadingOgg = false;
+            // 뒤에 시작한 로딩이 아직 돌고 있으면 표시는 그쪽이 내린다.
+            if (request == _oggLoadRequest)
+                IsLoadingOgg = false;
         }
 
         StopPlayback(resetCursor: true);
@@ -64,8 +102,11 @@ public sealed partial class MainWindowViewModel
         OggFileName = Path.GetFileName(filePath);
         UpdateMeasureCountFromAudio();
         LastErrorMessage = null;
-        return true;
+        return OggLoadResult.Loaded;
     }
+
+    private bool IsOggLoadSuperseded(int request, int document) =>
+        request != _oggLoadRequest || document != DocumentGeneration;
 
     public void LoadVideo(string filePath)
     {
@@ -109,6 +150,9 @@ public sealed partial class MainWindowViewModel
     // 차트/키음/헤더 등 문서 상태를 초기 상태로 되돌린다. (배경 음원·비디오는 대상 아님)
     private void ResetDocumentState()
     {
+        // 앞 문서를 위해 읽고 있던 음원은 이제 이 문서의 것이 아니다. (LoadOggAsync 참고)
+        DocumentGeneration++;
+
         Chart.Clear();
         WavList.Clear();
         SelectedWavItem = null;
@@ -143,8 +187,12 @@ public sealed partial class MainWindowViewModel
         Genre = Chart.Header.Genre;
         Level = Chart.Header.Level;
         Bpm = Chart.Header.Bpm;
-        Player = Math.Clamp(Chart.Header.Player - 1, 0, 2);
-        Rank = Math.Clamp(Chart.Header.Rank, 0, 3);
+
+        // 콤보박스는 규격의 값을 모두 담는다(#PLAYER 1~4, #RANK 0~4). 예전에는 3 까지만 있어서
+        // #PLAYER 4(Battle)·#RANK 4(VeryEasy) 차트를 열었다 저장만 해도 3 으로 바뀌었다.
+        // 규격 밖의 값만 가까운 끝으로 붙인다.
+        Player = Math.Clamp(Chart.Header.Player - 1, 0, 3);
+        Rank = Math.Clamp(Chart.Header.Rank, 0, 4);
         AudioOffsetMs = Chart.Header.AudioOffsetMs;
     }
 

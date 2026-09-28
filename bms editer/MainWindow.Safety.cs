@@ -79,16 +79,19 @@ public partial class MainWindow
                 Log(ex, "오류 뒤 재생 정지");
             }
 
+            // 비상 저장이 null 을 돌려주는 까닭은 둘이다. 저장할 변경이 없었거나, 저장하다 실패했거나.
+            // 둘을 가르려면 저장하기 전에 봐 둬야 한다.
+            var hadUnsavedWork = vm.IsDirty;
             var snapshot = vm.EmergencySave();
 
             // 안내 창은 한 번에 하나만. 창이 떠 있는 동안 또 나면 기록만 남긴다.
             if (!_isShowingErrorDialog)
-                Dispatcher.UIThread.Post(() => ShowUnexpectedError(exception, snapshot, logPath));
+                Dispatcher.UIThread.Post(() => ShowUnexpectedError(exception, snapshot, hadUnsavedWork, logPath));
 
             return true;
         }
 
-        private async void ShowUnexpectedError(Exception exception, SnapshotInfo? snapshot, string? logPath)
+        private async void ShowUnexpectedError(Exception exception, SnapshotInfo? snapshot, bool hadUnsavedWork, string? logPath)
         {
             if (_isShowingErrorDialog)
                 return;
@@ -96,9 +99,12 @@ public partial class MainWindow
             _isShowingErrorDialog = true;
             try
             {
+                // 예전에는 비상 저장이 실패해도 "저장 안 된 변경이 없다"고 적어서, 안심하고 [끄기]를 누르게 했다.
                 var saved = snapshot is not null
                     ? $"지금까지의 작업을 자동 저장해 두었습니다.\n{snapshot.SnapshotPath}"
-                    : "저장 안 된 변경이 없어서 따로 저장하지 않았습니다.";
+                    : hadUnsavedWork
+                        ? "⚠️ 저장 안 된 변경이 있는데 자동 저장에 실패했습니다.\n[계속 작업]을 누르고 [저장]으로 직접 저장해 주세요."
+                        : "저장 안 된 변경이 없어서 따로 저장하지 않았습니다.";
                 var log = logPath is not null ? $"\n\n오류 기록: {logPath}" : string.Empty;
 
                 var choice = await ConfirmWindow.ShowChoiceAsync(
