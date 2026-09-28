@@ -339,7 +339,7 @@ HoldPairingResult Pair(IReadOnlyList<BmsNote> notes,
 |:---|:---|:---:|
 | `Header` | 파일에 `#BMSEDITER_PROFILE` 이 있고 아는 id 다 | 그대로 |
 | `UnknownHeader` | 헤더가 있지만 모르는 id 다. 짝은 읽지 않는다 | 원문 그대로 둔다 |
-| `Path` | 헤더가 없고, 차트 경로의 폴더 이름이 `pathHints` 에 걸린다(가까운 폴더부터, 긴 힌트 우선) | **안 적는다** |
+| `Path` | 헤더가 없고, 차트 경로의 폴더 이름이 `pathHints` 에 걸린다(차트가 든 곡 폴더는 맨 나중에, 그 위는 가까운 폴더부터, 한 폴더 안에서는 긴 힌트 우선) | **안 적는다** |
 | `User` | 사용자가 드롭다운에서 골랐다 | 적는다 |
 | `None` | 아무것도 없다 → 홀드 감지가 전부 꺼진다(불변식 I-2) | — |
 
