@@ -30,21 +30,9 @@ $$\text{secondsPerStep} = \frac{240.0}{\text{BPM} \times \text{BeatSplit}}$$
 
 #### [현대적 렌더링 구현: ChartTimeline 및 EnumerateGridLines]
 초기에는 `240.0 / (Bpm * split)` 단순 수식을 썼으나, 곡 중간의 BPM 변경(`#xxx03`/`#xxx08`) 및 변박(`#xxx02`)이 발생하면 뒤쪽 마디가 전부 밀리는 문제가 있었습니다.
-현재는 **`ChartTimeline` 엔진**이 곡 전체의 BPM 변화 지점과 마디 배율을 누적한 시간표를 작성하고, `TimelineControlBase.EnumerateGridLines`가 이를 조회하여 격자선을 열거합니다:
-
-```csharp
-// TimelineControlBase.cs EnumerateGridLines()
-var timeline = EffectiveTimeline; // ChartTimeline 인스턴스
-for (var index = 0; ; index++)
-{
-    // index / split 마디 위치의 절대 초(Seconds)를 ChartTimeline에서 일원화 조회
-    var seconds = timeline.SecondsAt((double)index / split);
-    if (seconds > DurationSeconds) yield break;
-
-    var position = ToTimelinePosition(seconds / DurationSeconds, timelineLength);
-    // ... 격자선 생성 및 반환 ...
-}
-```
+현재는 **[`ChartTimeline`](../../bms%20editer/Services/ChartTimeline.cs) 엔진**이 곡 전체의 BPM 변화 지점과 마디 배율을 누적한 시간표를 작성하고, [`TimelineControlBase.EnumerateGridLines`](../../bms%20editer/Views/Controls/TimelineControlBase.cs)가 이를 조회하여 격자선을 열거합니다.
+`index / split` 마디 위치의 절대 초를 `ChartTimeline.SecondsAt` 에서 일원화해 얻고, 그 시각이 음원 길이를 넘으면 열거를 멈춥니다. 화면 위치는 `시각 / 음원 길이` 비율에서 나옵니다(세로 뷰는 뒤집음).
+세부 규칙과 코드 위치는 [grid_specification.md](../specifications/grid_specification.md) 에 있습니다. 코드는 여기 복사해 두지 않습니다(복사본이 조용히 어긋나기 때문입니다).
 
 ---
 
@@ -63,24 +51,11 @@ $$\text{seconds} = (\text{Measure} + \text{Position}) \times \frac{240.0}{\text{
 
 실제 코드는 이 식을 직접 쓰지 않고 **격자와 같은 `ChartTimeline`** 에 묻습니다. 그래야 BPM 변화·변박이 있는 차트에서도 노트가 제 격자선 위에 남습니다.
 
-#### [노트 위치 계산 코드 스니펫]
-```csharp
-// NoteGridControl.cs
-private double ComputeNoteTPos(BmsNote note, double timelineLength)
-{
-    if (DurationSeconds > 0 && Bpm > 0)
-    {
-        // 노트의 시각도 격자와 같은 곳에서 구해야 둘이 어긋나지 않는다.
-        var seconds = EffectiveTimeline.SecondsAt(note.Measure + note.Position);
-        return ToTimelinePosition(seconds / DurationSeconds, timelineLength);
-    }
+#### [노트 위치 계산]
+위치는 [`NoteGridControl.ComputeNoteTPos`](../../bms%20editer/Views/Controls/NoteGridControl.cs) 한 곳에서 구합니다.
 
-    // 음원이 없으면 마디 높이가 곧 화면 높이다.
-    var rowHeight = RowHeight * VerticalZoom * GetGridSpacingScale();
-    var totalOffset = (note.Measure + note.Position) * rowHeight;
-    return IsHorizontalView ? totalOffset : (timelineLength - totalOffset);
-}
-```
+* **음원이 있으면** `EffectiveTimeline.SecondsAt(Measure + Position)` 으로 시각을 구하고, `시각 / 음원 길이` 비율을 타임라인 길이에 곱합니다. 격자선과 **같은 시간축**이라 둘이 어긋나지 않습니다.
+* **음원이 없으면** 마디 높이가 곧 화면 높이라, `(Measure + Position) × 마디 높이` 로 구합니다(세로 뷰는 뒤집음).
 
 - **상호 작용**: BPM이 커지면 `seconds`가 짧아져 노트가 화면 왼쪽(세로뷰의 경우 아래쪽)으로 수축 이동하고, 격자선도 동일한 비율로 수축하므로 **노트가 자신이 속한 격자선 위에 밀착해 함께 움직입니다.**
 - 클릭한 자리를 마디 위치로 되돌릴 때도 같은 시간축의 역함수(`ChartTimeline.MeasurePositionAt`)를 씁니다. 키음 재생 시각도 `SecondsAt` 으로 구합니다.

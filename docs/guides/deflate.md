@@ -1,6 +1,6 @@
 # DEFLATE BMS 작성 및 연동 가이드
 
-이 문서는 실제 모드 프로젝트 `H:\source\repos\DEFLATE custom chart`의 `Core/Bms/BmsParser.cs`, `Core/Bms/BmsLaneMapper.cs`, 그리고 `docs/bms_mapping_spec.md` 명세를 바탕으로, **DEFLATE에 주입할 커스텀 BMS 채보 작성 규칙**을 안내합니다.
+이 문서는 모드 프로젝트 `DEFLATE custom chart`(이 저장소 밖의 별도 저장소)의 `Core/Bms/BmsParser.cs`, `Core/Bms/BmsLaneMapper.cs`, 그리고 `docs/bms_mapping_spec.md` 명세를 바탕으로, **DEFLATE에 주입할 커스텀 BMS 채보 작성 규칙**을 안내합니다.
 
 > [!NOTE]
 > **v0.1.4 지원 · 🔶 코드 확인**: DEFLATE 전용 게임 프로파일(`deflate`)이 추가되어, `#WAV` 파일명의 `홀드 시작`/`끝` 키워드 기반으로 롱노트가 자동 페어링되며 격자에 반투명 몸통(Body)이 렌더링됩니다.

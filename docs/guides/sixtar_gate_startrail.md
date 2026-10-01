@@ -1,6 +1,6 @@
 # 식스타 게이트: 스타트레일 (sxtg2) BMS 작성 및 연동 가이드
 
-이 문서는 실제 모드 프로젝트 `H:\source\repos\sxtg2`의 `sxtg2-mod/Loaders/BmsParser.cs` 및 `02-systems/LANE_EXTRACTION.md` 구현 사양을 바탕으로, **BMS Editer에서 스타트레일 커스텀 차트를 작성하는 규칙**을 안내합니다.
+이 문서는 모드 프로젝트 `sxtg2`(이 저장소 밖의 별도 저장소)의 `sxtg2-mod/Loaders/BmsParser.cs` 및 `02-systems/LANE_EXTRACTION.md` 구현 사양을 바탕으로, **BMS Editer에서 스타트레일 커스텀 차트를 작성하는 규칙**을 안내합니다.
 
 > [!NOTE]
 > **v0.1.4 지원 · 🔶 코드 확인**: 스타트레일 전용 프로파일(`startrail`)이 탑재되어, 키음 `02`(시작)와 `03`(끝) 기반의 롱노트 및 키음 `04`/`05` 게이트 개폐 페어링이 격자에 시각화됩니다.
@@ -63,7 +63,8 @@
 $$\text{Time (초)} = \left(\text{Measure} + \frac{\text{Index}}{\text{ObjectCount}}\right) \times \frac{240}{\text{BPM}}$$
 
 * BMS 헤더 `#BPM nnn`을 기본 템포로 읽습니다.
-* BMS Editer에서 격자를 16분할(기본) 또는 12/24/32분할로 설정하고 노트를 배치하면 `ObjectCount`가 자동으로 최소공배수로 분할 직렬화되므로, 스타트레일 인게임 오디오와 1ms의 오차도 없이 완벽히 동기화됩니다.
+* BMS Editer에서 격자를 16분할(기본) 또는 12/24/32분할로 설정하고 노트를 배치하면 `ObjectCount`가 자동으로 최소공배수로 분할 직렬화되므로, 격자에 맞춰 찍은 노트(분할 수 1920 이하)의 위치는 위 공식이 요구하는 마디 안 분수 그대로 파일에 남습니다.
+* 다만 이것은 **파일에 적히는 위치**의 정확함입니다. 에디터에서 귀로 듣는 소리에는 [키음 믹서 지연](../issues/known_issues.md#-키음이-배경음보다-늦게-울릴-수-있다)과 [음원 오프셋(게임은 읽지 않음)](beat_sync_workflow.md#-참고-음원-오프셋은-에디터-화면에만-적용된다)이 끼어들 수 있으니, 게임 안에서의 실제 싱크는 게임에서 확인하십시오.
 
 ---
 

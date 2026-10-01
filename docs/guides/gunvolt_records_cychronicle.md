@@ -1,6 +1,6 @@
 # 건볼트 레코즈 사이크로니클 (GRC2) BMS 작성 및 연동 가이드
 
-이 문서는 실제 모드 프로젝트 `H:\source\repos\GRC2`의 `GRC2/Parsers/BmsNoteDataParser.cs`, `Converters/BmsNoteConverter.cs`, `GRC 리드미/bms/BMS_파싱_및_변환_로직_가이드.md` 구현 사양을 바탕으로, **건볼트 레코즈 사이크로니클(GUNVOLT RECORDS Cychronicle, Mono 기반)에 주입할 커스텀 BMS 채보 작성 규칙**을 안내합니다.
+이 문서는 모드 프로젝트 `GRC2`(이 저장소 밖의 별도 저장소)의 `GRC2/Parsers/BmsNoteDataParser.cs`, `Converters/BmsNoteConverter.cs`, `GRC 리드미/bms/BMS_파싱_및_변환_로직_가이드.md` 구현 사양을 바탕으로, **건볼트 레코즈 사이크로니클(GUNVOLT RECORDS Cychronicle, Mono 기반)에 주입할 커스텀 BMS 채보 작성 규칙**을 안내합니다.
 
 > [!NOTE]
 > **v0.1.4 지원 · 🔶 코드 확인**: 건볼트 레코즈 전용 프로파일(`gunvolt`)이 탑재되어, 키음 `02`/`19` 홀드 쌍 및 페어리 아크(`11~18` 시작, `1A/1B` 끝) N:M 페어링이 격자에 시각화됩니다.

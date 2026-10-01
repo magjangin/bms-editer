@@ -1,6 +1,6 @@
 # 식스타 게이트: 스타게이저 (STARGAZER) BMS 작성 및 연동 가이드
 
-이 문서는 실제 모드 프로젝트 `H:\source\repos\STARGAZER custom chart`의 `src/Bms/BmsChart.cs`, `HookNoteProbes.BmsInject.cs`, 그리고 `docs/REFERENCE_BMS_CONVERSION.md` 명세를 바탕으로, **스타게이저에 주입할 BMS 차트 작성 규칙**을 안내합니다.
+이 문서는 모드 프로젝트 `STARGAZER custom chart`(이 저장소 밖의 별도 저장소)의 `src/Bms/BmsChart.cs`, `HookNoteProbes.BmsInject.cs`, 그리고 `docs/REFERENCE_BMS_CONVERSION.md` 명세를 바탕으로, **스타게이저에 주입할 BMS 차트 작성 규칙**을 안내합니다.
 
 > [!NOTE]
 > **v0.1.4 지원 · ⚠️ 가정**: 스타게이저 전용 프로파일(`stargazer`)이 탑재되어, 필수 키워드 `hold` 및 `시작/끝(start/end)` 기반의 4방향 롱노트 페어링이 격자에 시각화됩니다.
