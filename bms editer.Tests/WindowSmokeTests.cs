@@ -199,6 +199,20 @@ public sealed class WindowSmokeTests
     });
 
     [Fact]
+    public void 메뉴_머리글에_액세스_키가_있다() => RunOnUiThread(() =>
+    {
+        // "파일 (F)" 처럼 글자로만 적으면 Alt+F 가 안 먹는다. Avalonia 의 액세스 키는 밑줄(_) 표기다.
+        var window = new MainWindow { DataContext = LoadedOwner() };
+        ShowAndDraw(window);
+
+        var menu = window.GetVisualDescendants().OfType<Menu>().Single();
+        var topLevel = menu.Items.OfType<MenuItem>().ToList();
+
+        Assert.Equal(4, topLevel.Count);
+        Assert.All(topLevel, item => Assert.Contains("_", (string)item.Header!));
+    });
+
+    [Fact]
     public void 팔레트_버튼_클릭_시_연필_아이콘이_활성화된다() => RunOnUiThread(() =>
     {
         var owner = LoadedOwner();

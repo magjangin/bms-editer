@@ -381,6 +381,7 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
 
         StopPlayback(resetCursor: false);
         _playbackTimer.Stop();
+        _playbackSpeedDebounceTimer.Stop();
         _gridSyncFlashTimer.Stop();
         _audioPlayer?.Dispose();
         _keySoundPlayer.Dispose();

@@ -64,12 +64,23 @@ public sealed partial class NoteSearchViewModel : OwnerObservingViewModel
     // 롱노트는 노트 종류가 아니라 게임 프로파일이 읽어낸 홀드 짝(MainWindowViewModel.HoldLinks)으로 드러난다.
     // 해당되는 노트가 없을 때 눌러도 아무 일이 없는 버튼을 켜 두면
     // "조건을 잘못 넣었나" 하고 사용자만 헤매므로, 해당되는 노트가 생기기 전까지는 잠근다.
+    //
+    // "롱" 필터만 이 값으로 잠근다. "숨기기"는 아래 IsHiddenFilterUsable 이 따로 정한다.
+    // 예전에는 둘이 같은 값을 써서, 홀드가 잡히면 "숨기기"도 켜졌지만 숨긴 노트를 만드는 곳이 없어 늘 0개였다.
     public bool AreNoteTypeFiltersUsable =>
-        Owner.HoldLinks.Count > 0 || Owner.Chart.Notes.Any(n => n.Type != NoteType.Normal);
+        Owner.HoldLinks.Count > 0
+        || Owner.Chart.Notes.Any(n => n.Type is NoteType.LongStart or NoteType.LongEnd);
 
     public string NoteTypeFilterHint => AreNoteTypeFiltersUsable
         ? "노트 종류로 거릅니다 (롱 = 게임 프로파일로 짝지어진 홀드의 시작·끝)"
         : "짝지어진 홀드가 없어 잠겨 있습니다. 오른쪽 패널에서 게임 프로파일을 고르면 홀드 짝을 읽습니다";
+
+    // 숨긴 노트(NoteType.Invisible)가 실제로 있을 때만 쓸 수 있다. 이 에디터는 숨긴 노트를 만들지 않으므로 보통은 잠겨 있다.
+    public bool IsHiddenFilterUsable => Owner.Chart.Notes.Any(n => n.Type == NoteType.Invisible);
+
+    public string HiddenFilterHint => IsHiddenFilterUsable
+        ? "숨긴 노트로 거릅니다"
+        : "숨긴 노트가 없어 잠겨 있습니다";
 
     // 짝은 프로파일을 바꾸거나 노트를 고칠 때마다 다시 읽힌다(메인 뷰모델의 RecomputeHolds).
     protected override void OnOwnerPropertyChanged(string? propertyName)
@@ -78,6 +89,8 @@ public sealed partial class NoteSearchViewModel : OwnerObservingViewModel
         {
             OnPropertyChanged(nameof(AreNoteTypeFiltersUsable));
             OnPropertyChanged(nameof(NoteTypeFilterHint));
+            OnPropertyChanged(nameof(IsHiddenFilterUsable));
+            OnPropertyChanged(nameof(HiddenFilterHint));
         }
     }
 
@@ -94,7 +107,10 @@ public sealed partial class NoteSearchViewModel : OwnerObservingViewModel
     [ObservableProperty] private bool _includeVisible = true;
 
     [ObservableProperty] private int _measureFrom;
-    [ObservableProperty] private int _measureTo = 999;
+    // 마디 수 칸의 최대(9999)와 같다. 파서가 네 자리 마디도 받으므로 1000마디 이상도 기본 조건에 든다.
+    public const int MaxMeasure = 9999;
+
+    [ObservableProperty] private int _measureTo = MaxMeasure;
 
     [ObservableProperty] private string _wavKeyFrom = string.Empty;
     [ObservableProperty] private string _wavKeyTo = string.Empty;

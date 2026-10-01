@@ -76,14 +76,14 @@ public static partial class BmsParser
 
             for (var i = 0; i < dataStr.Length; i += 2)
             {
-                var k = dataStr.Substring(i, 2).ToUpper();
+                var k = dataStr.Substring(i, 2).ToUpperInvariant();
                 if (k != "00" && wavTable.ContainsKey(k))
                     matchCount2++;
             }
 
             for (var i = 0; i < dataStr.Length; i += 3)
             {
-                var k = dataStr.Substring(i, 3).ToUpper();
+                var k = dataStr.Substring(i, 3).ToUpperInvariant();
                 if (k != "000" && wavTable.ContainsKey(k))
                     matchCount3++;
             }

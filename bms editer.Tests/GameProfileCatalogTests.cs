@@ -43,6 +43,18 @@ public sealed class GameProfileCatalogTests : IDisposable
     }
 
     [Fact]
+    public void 경로_힌트는_대소문자만_다른_중복이_없다()
+    {
+        // 비교가 대소문자를 가리지 않아 "Muse Dash" 와 "muse dash" 는 같은 힌트다. 하나만 적는다.
+        var catalog = GameProfileCatalog.Load(overrideDirectory: null);
+
+        Assert.All(catalog.Profiles, profile =>
+            Assert.Equal(
+                profile.PathHints.Count,
+                profile.PathHints.Distinct(StringComparer.OrdinalIgnoreCase).Count()));
+    }
+
+    [Fact]
     public void 규칙을_어디서_옮겼는지와_믿을_수_있는_정도가_적혀_있다()
     {
         var catalog = GameProfileCatalog.Load(overrideDirectory: null);

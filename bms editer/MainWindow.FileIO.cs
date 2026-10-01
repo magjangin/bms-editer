@@ -16,6 +16,11 @@ public partial class MainWindow
         private static readonly string[] OggExtensions = { ".ogg" };
         private static readonly string[] VideoExtensions = { ".mp4", ".webm", ".mov", ".avi", ".mkv", ".ogv" };
 
+        // 대화상자의 확장자 필터를 폴더 열기가 쓰는 확장자 목록에서 만든다.
+        // 두 군데에 따로 적었더니 .ogv 가 폴더 열기에서만 잡혔다.
+        private static string[] PickerPatterns(IEnumerable<string> extensions) =>
+            extensions.Select(extension => "*" + extension).ToArray();
+
         private async void OnLoadOggClick(object? sender, RoutedEventArgs e)
         {
             if (DataContext is not MainWindowViewModel vm)
@@ -27,7 +32,7 @@ public partial class MainWindow
                 AllowMultiple = false,
                 FileTypeFilter = new[]
                 {
-                    new FilePickerFileType("OGG 오디오") { Patterns = new[] { "*.ogg" } },
+                    new FilePickerFileType("OGG 오디오") { Patterns = PickerPatterns(OggExtensions) },
                 },
             });
 
@@ -51,7 +56,7 @@ public partial class MainWindow
                 AllowMultiple = false,
                 FileTypeFilter = new[]
                 {
-                    new FilePickerFileType("비디오 파일") { Patterns = new[] { "*.mp4", "*.webm", "*.mov", "*.avi", "*.mkv" } },
+                    new FilePickerFileType("비디오 파일") { Patterns = PickerPatterns(VideoExtensions) },
                 },
             });
 
@@ -102,7 +107,7 @@ public partial class MainWindow
                 AllowMultiple = false,
                 FileTypeFilter = new[]
                 {
-                    new FilePickerFileType("BMS 차트 파일") { Patterns = new[] { "*.bms", "*.bme", "*.bml" } },
+                    new FilePickerFileType("BMS 차트 파일") { Patterns = PickerPatterns(BmsExtensions) },
                 },
             });
 
@@ -165,7 +170,7 @@ public partial class MainWindow
                 SuggestedFileName = ToSafeFileName(vm.Title),
                 FileTypeChoices = new[]
                 {
-                    new FilePickerFileType("BMS 차트 파일") { Patterns = new[] { "*.bms", "*.bme", "*.bml" } },
+                    new FilePickerFileType("BMS 차트 파일") { Patterns = PickerPatterns(BmsExtensions) },
                 },
             });
 

@@ -1,5 +1,6 @@
 using System;
 using bms_editer.Services;
+using bms_editer.Views.Controls;
 using Xunit;
 
 namespace bms_editer.Tests;
@@ -66,10 +67,11 @@ public sealed class WaveformTimeAxisTests
     // 화면 칸 크기. OggWaveformControl.DrawBlockWaveform 의 blockLength 와 같다.
     private const double BlockLength = 2.0;
 
-    // 타임라인 길이. TimelineControlBase.GetTimelineHeight 와 같은 식이다.
+    // 타임라인 길이. 컨트롤이 쓰는 바로 그 식을 부른다(식을 여기서 다시 쓰면 어긋나도 모른다).
     // (RowHeight 16 · BeatSplit 16 / GridMeasure 4 = 기본값)
     private static double TimelineLength(double durationSeconds, double verticalZoom) =>
-        durationSeconds * 16 * verticalZoom * 4 / 2.0;
+        TimelineControlBase.ComputeTimelineLength(
+            durationSeconds, measureCount: 0, rowHeight: 16, verticalZoom, beatSplit: 16, gridMeasure: 4);
 
     private static int DisplayPointCount(double timelineLength) =>
         Math.Max(2, (int)Math.Ceiling(timelineLength / BlockLength));

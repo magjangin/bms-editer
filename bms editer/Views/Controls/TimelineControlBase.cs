@@ -182,16 +182,27 @@ public abstract class TimelineControlBase : Control
             BeatSplitProperty, GridMeasureProperty, DurationSecondsProperty, IsHorizontalViewProperty);
     }
 
-    protected double GetTimelineHeight()
-    {
-        var spacingScale = GetGridSpacingScale();
-        if (DurationSeconds > 0)
-            return Math.Max(1.0, DurationSeconds * RowHeight * VerticalZoom * spacingScale / 2.0);
+    protected double GetTimelineHeight() =>
+        ComputeTimelineLength(DurationSeconds, MeasureCount, RowHeight, VerticalZoom, BeatSplit, GridMeasure);
 
-        return MeasureCount * RowHeight * VerticalZoom * spacingScale;
+    protected double GetGridSpacingScale() => ComputeGridSpacingScale(BeatSplit, GridMeasure);
+
+    // 타임라인 길이(px)를 정하는 공식. **이 한 곳에만 둔다.**
+    //
+    // 컨트롤 밖(창의 스크롤·스크럽 좌표 계산)도 같은 값이 필요한데, 예전에는 그쪽이 식을 따로 베껴 갖고 있었다.
+    // 식이 한쪽만 바뀌면 파형·격자는 멀쩡한데 스크럽한 자리와 소리가 어긋난다(알려진 문제 32번).
+    public static double ComputeTimelineLength(
+        double durationSeconds, int measureCount, double rowHeight, double verticalZoom, int beatSplit, int gridMeasure)
+    {
+        var spacingScale = ComputeGridSpacingScale(beatSplit, gridMeasure);
+        if (durationSeconds > 0)
+            return Math.Max(1.0, durationSeconds * rowHeight * verticalZoom * spacingScale / 2.0);
+
+        return measureCount * rowHeight * verticalZoom * spacingScale;
     }
 
-    protected double GetGridSpacingScale() => Math.Max(1.0, BeatSplit / (double)Math.Max(1, GridMeasure));
+    public static double ComputeGridSpacingScale(int beatSplit, int gridMeasure) =>
+        Math.Max(1.0, beatSplit / (double)Math.Max(1, gridMeasure));
 
     protected static int Mod(int value, int divisor) => ((value % divisor) + divisor) % divisor;
 

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -313,5 +314,63 @@ public sealed class BmsRoundTripTests : IDisposable
 
         Assert.Equal(3, result.Header.Player);
         Assert.Equal("8", result.Header.Level);
+    }
+
+    // ── 2026-10-01. 터무니없는 마디 번호 한 줄이 차트 전체를 못 열게 하던 문제 ──────
+
+    [Theory]
+    [InlineData("#99999999999911:01")]   // int 범위 밖. 예전에는 int.Parse 가 던졌다
+    [InlineData("#1000011:01")]          // 마디 10000. 범위 안이지만 마디 수·시간표를 끝없이 늘린다
+    public void 터무니없는_마디_번호_줄이_있어도_차트는_열리고_그_줄은_원문으로_남는다(string line)
+    {
+        var path = WriteChart(string.Join("\r\n", "#BPM 120", "#WAV01 a.wav", "#00111:01", line));
+
+        var parsed = BmsParser.Parse(path);
+
+        Assert.Single(parsed.Chart.Notes);
+        Assert.Equal(32, parsed.MeasureCount);
+        Assert.Contains(parsed.Chart.PreservedLines, l => l.Text == line);
+
+        // 줄을 잃지 않는다. 저장하면 원문 그대로 돌아온다.
+        var text = BmsWriter.Write(parsed.Chart, "", "", "", parsed.Bpm, 0, 2, "", parsed.WavItems, path);
+        Assert.Contains(line, text);
+    }
+
+    [Fact]
+    public void 지원하는_마디_번호의_끝인_9999는_데이터_줄로_읽는다()
+    {
+        var path = WriteChart("#BPM 120\r\n#WAV01 a.wav\r\n#999911:01\r\n");
+
+        var parsed = BmsParser.Parse(path);
+
+        var note = Assert.Single(parsed.Chart.Notes);
+        Assert.Equal(9999, note.Measure);
+        Assert.Equal(10000, parsed.MeasureCount);
+    }
+
+    // ── 2026-10-01. 키를 대문자로 올릴 때 문화권을 타던 문제 ─────────────────────
+
+    [Fact]
+    public void 키는_문화권과_무관하게_대문자로_읽는다()
+    {
+        // 터키어 문화권에서 "i".ToUpper() 는 'İ' 라서 "0i" 가 "0İ" 가 되고, 노트와 키음 표가 서로 못 찾는다.
+        var previous = CultureInfo.CurrentCulture;
+        CultureInfo.CurrentCulture = new CultureInfo("tr-TR");
+
+        try
+        {
+            var path = WriteChart("#BPM 120\r\n#WAV0i a.wav\r\n#BPM0i 150\r\n#00111:0i\r\n#00208:0i\r\n");
+
+            var parsed = BmsParser.Parse(path);
+
+            Assert.Equal("0I", Assert.Single(parsed.Chart.Notes).WavKey);
+            Assert.True(parsed.Chart.WavTable.ContainsKey("0I"));
+            Assert.True(parsed.Chart.BpmTable.ContainsKey("0I"));
+            Assert.Single(parsed.Chart.BpmChanges);
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = previous;
+        }
     }
 }

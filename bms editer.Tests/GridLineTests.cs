@@ -18,6 +18,8 @@ public sealed class GridLineTests
             EnumerateGridLines(length)
                 .Select(line => (line.Position, line.Kind.ToString(), line.Measure, line.Seconds))
                 .ToList();
+
+        public double TimelineLength() => GetTimelineHeight();
     }
 
     // 음원 없이 마디 기준으로 그릴 때. 마디 높이 × 마디 수 = 타임라인 길이.
@@ -124,6 +126,45 @@ public sealed class GridLineTests
 
         Assert.Equal(new[] { 0, 1, 2 }, measureLines.Select(l => l.Measure));
         Assert.Equal(new[] { 0.0, 2.0, 4.0 }, measureLines.Select(l => l.Seconds));
+    }
+
+    // ── 타임라인 길이 공식 ─────────────────────────────────────────────────────
+    //
+    // 이 식은 컨트롤 안(GetTimelineHeight)과 밖(창의 스크롤·스크럽 좌표)이 같이 쓴다.
+    // 예전에는 밖에 복사본이 있어 한쪽만 바뀌면 스크럽한 자리와 소리가 어긋났다.
+
+    [Theory]
+    [InlineData(10.0, 0, 16.0, 8.0, 16, 4, 2560.0)]      // 음원 10초: 10 × 16 × 8 × 4 / 2
+    [InlineData(0.0, 32, 16.0, 8.0, 16, 4, 16384.0)]     // 음원 없음: 32마디 × 16 × 8 × 4
+    [InlineData(10.0, 0, 16.0, 8.0, 4, 4, 640.0)]        // 간격 배율 1
+    [InlineData(10.0, 0, 16.0, 8.0, 2, 8, 640.0)]        // 배율은 1 밑으로 내려가지 않는다
+    [InlineData(0.001, 0, 1.0, 1.0, 1, 1, 1.0)]          // 음원이 있으면 길이는 1 보다 작아지지 않는다
+    public void 타임라인_길이_공식(
+        double duration, int measureCount, double rowHeight, double zoom, int split, int gridMeasure, double expected)
+    {
+        Assert.Equal(
+            expected,
+            TimelineControlBase.ComputeTimelineLength(duration, measureCount, rowHeight, zoom, split, gridMeasure),
+            9);
+    }
+
+    [Fact]
+    public void 컨트롤이_그리는_길이와_공식이_같다()
+    {
+        var probe = new Probe
+        {
+            DurationSeconds = 183.7,
+            MeasureCount = 40,
+            RowHeight = 16,
+            VerticalZoom = 6.5,
+            BeatSplit = 24,
+            GridMeasure = 4,
+        };
+
+        Assert.Equal(
+            TimelineControlBase.ComputeTimelineLength(183.7, 40, 16, 6.5, 24, 4),
+            probe.TimelineLength(),
+            9);
     }
 
     [Fact]

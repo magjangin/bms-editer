@@ -214,4 +214,33 @@ public sealed class HoldDocumentTests : IDisposable
         Assert.True(raised > 0, "잠금이 바뀌었다고 창에 알리지 않았다");
         Assert.True(search.AreNoteTypeFiltersUsable);
     });
+
+    // ── 2026-10-01. "숨기기" 필터 ──────────────────────────────────────────────
+
+    [Fact]
+    public void 홀드가_잡혀도_숨기기_필터는_숨긴_노트가_있을_때만_풀린다() => HoldTestSupport.RunOnUiThread(() =>
+    {
+        // 예전에는 "롱" 과 같은 잠금을 써서, 홀드가 잡히면 "숨기기" 도 켜졌지만 숨긴 노트는 만들 방법이 없어 늘 0개였다.
+        using var vm = Loaded(GamePath());
+        using var search = new NoteSearchViewModel(vm);
+
+        Assert.True(search.AreNoteTypeFiltersUsable);
+        Assert.False(search.IsHiddenFilterUsable);
+
+        vm.Chart.Notes.Add(new BmsNote { LaneId = "11", Measure = 5, Position = 0, WavKey = "001", Type = NoteType.Invisible });
+
+        Assert.True(search.IsHiddenFilterUsable);
+    });
+
+    [Fact]
+    public void 기본_마디_범위가_네_자리_마디까지_덮는다() => HoldTestSupport.RunOnUiThread(() =>
+    {
+        // 파서는 4자리 마디도 받는데, 기본 범위가 999 에서 끊겨 1000마디 이상은 검색·일괄 삭제에서 빠졌다.
+        using var vm = Loaded(PlainPath());
+        vm.Chart.Notes.Add(new BmsNote { LaneId = "11", Measure = 1500, Position = 0, WavKey = "001" });
+        using var search = new NoteSearchViewModel(vm);
+
+        Assert.Equal(NoteSearchViewModel.MaxMeasure, search.MeasureTo);
+        Assert.Contains(search.FindMatches(), note => note.Measure == 1500);
+    });
 }

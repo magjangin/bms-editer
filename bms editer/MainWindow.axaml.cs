@@ -64,6 +64,11 @@ public partial class MainWindow : Window
                             this, $"저장하지 못했습니다. 창을 닫지 않았습니다.\n\n{vm.LastErrorMessage}", "저장 실패");
                         return;
                     }
+
+                    // 저장은 됐지만 알릴 것이 있으면(인코딩을 UTF-8 로 물렸다 등) 닫기 전에 보여준다.
+                    // 예전에는 이 경로에서만 경고가 조용히 사라졌다.
+                    if (vm.LastWarningMessage is { } warning)
+                        await ConfirmWindow.ShowMessageAsync(this, warning, "저장 완료");
                     break;
             }
 

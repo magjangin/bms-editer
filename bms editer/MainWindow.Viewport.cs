@@ -1,6 +1,7 @@
 using System;
 using Avalonia;
 using bms_editer.ViewModels;
+using bms_editer.Views.Controls;
 
 namespace bms_editer;
 
@@ -122,11 +123,8 @@ public partial class MainWindow
             }
         }
 
-        private static double GetTimelineLength(MainWindowViewModel vm)
-        {
-            var spacingScale = Math.Max(1.0, vm.BeatSplit / (double)Math.Max(1, vm.GridMeasure));
-            return vm.OggDurationSeconds > 0
-                ? vm.OggDurationSeconds * vm.RowHeight * vm.VerticalZoom * spacingScale / 2.0
-                : vm.MeasureCount * vm.RowHeight * vm.VerticalZoom * spacingScale;
-        }
+        // 컨트롤이 그리는 타임라인과 같은 길이. 식은 컨트롤 쪽 한 곳에만 있다.
+        private static double GetTimelineLength(MainWindowViewModel vm) =>
+            TimelineControlBase.ComputeTimelineLength(
+                vm.OggDurationSeconds, vm.MeasureCount, vm.RowHeight, vm.VerticalZoom, vm.BeatSplit, vm.GridMeasure);
     }

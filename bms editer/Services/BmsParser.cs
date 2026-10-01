@@ -27,6 +27,14 @@ public static partial class BmsParser
         "16", "11", "12", "13", "14", "15", "18"
     };
 
+    // 에디터가 다룰 수 있는 마디 번호의 위쪽 한계. 규격은 세 자리지만 네 자리 차트도 있어 여유를 둔다.
+    // 화면의 마디 수 칸(최대 9999)에 맞춘다.
+    private const int MaxSupportedMeasure = 9999;
+
+    private static bool TryParseMeasure(string text, out int measure) =>
+        int.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture, out measure)
+        && measure <= MaxSupportedMeasure;
+
     // 예전에는 반환값 하나에 out 3개였다. 그중 BPM 과 마디 수는 차트 안에도 같은 값이
     // 들어 있어서, 호출한 쪽이 어느 쪽을 믿어야 하는지 매번 헷갈렸다.
     // 이제 차트를 다 채워서 하나로 돌려준다.
@@ -96,7 +104,7 @@ public static partial class BmsParser
                 if (double.TryParse(extendedBpmMatch.Groups[2].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var tableBpm)
                     && tableBpm > 0)
                 {
-                    chart.BpmTable[extendedBpmMatch.Groups[1].Value.ToUpper()] = tableBpm;
+                    chart.BpmTable[extendedBpmMatch.Groups[1].Value.ToUpperInvariant()] = tableBpm;
                 }
                 continue;
             }
@@ -150,7 +158,7 @@ public static partial class BmsParser
             var wavMatch = WavRegex().Match(line);
             if (wavMatch.Success)
             {
-                var key = wavMatch.Groups[1].Value.ToUpper();
+                var key = wavMatch.Groups[1].Value.ToUpperInvariant();
                 var wavFile = wavMatch.Groups[2].Value.Trim();
 
                 if (key.Length == 3)
@@ -249,7 +257,21 @@ public static partial class BmsParser
                 continue;
             }
 
-            var measureNum = int.Parse(dataMatch.Groups[1].Value);
+            // 마디 번호가 int 범위를 넘거나 터무니없이 크면 데이터 줄로 읽지 않고 원문만 보관한다.
+            // 예전에는 int.Parse 가 던져서 줄 하나 때문에 차트를 아예 열지 못했고,
+            // 범위 안이라도 큰 값은 마디 수·시간표를 끝없이 늘렸다.
+            if (!TryParseMeasure(dataMatch.Groups[1].Value, out var measureNum))
+            {
+                chart.PreservedLines.Add(new BmsRawLine
+                {
+                    Text = line,
+                    Measure = -1,
+                    Order = lineIndex,
+                    BranchId = currentBranchId,
+                });
+                continue;
+            }
+
             var channel = dataMatch.Groups[2].Value; // 예: "11", "12" ...
             var dataStr = dataMatch.Groups[3].Value.Trim();
             currentMeasure = measureNum;
@@ -285,7 +307,7 @@ public static partial class BmsParser
             {
                 if (i + chunkSize <= dataStr.Length)
                 {
-                    chunks.Add(dataStr.Substring(i, chunkSize).ToUpper());
+                    chunks.Add(dataStr.Substring(i, chunkSize).ToUpperInvariant());
                 }
             }
 
