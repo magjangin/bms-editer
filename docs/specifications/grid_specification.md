@@ -24,6 +24,8 @@ BMS 에디터가 처음 구동되거나 차트가 초기화될 때, **마디와 
   * `index` 가 `BeatSplit` 의 배수면 **마디선**입니다.
   * 아니면 `IsMeasureBeatLine` — `BeatSplit` 이 `GridMeasure` 의 배수이고 `index` 가 `BeatSplit / GridMeasure` 의 배수일 때 **박자선**입니다.
   * 나머지는 **보조선**입니다.
+* 타임라인 길이(px)를 정하는 공식은 `ComputeTimelineLength` **한 곳**에만 있습니다. 컨트롤 밖(창의 스크롤·스크럽 좌표, 테스트)도 이 함수를 부르며, 식을 따로 쓰지 않습니다.
+  음원이 있으면 `음원 길이 × RowHeight × VerticalZoom × 간격 배율 / 2`(최소 1), 없으면 `마디 수 × RowHeight × VerticalZoom × 간격 배율` 입니다. 간격 배율은 `BeatSplit / GridMeasure` 이고 1 밑으로 내려가지 않습니다.
 
 ### 2. 격자선을 만드는 엔진 — `TimelineControlBase.EnumerateGridLines`
 
