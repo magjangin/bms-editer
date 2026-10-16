@@ -248,11 +248,11 @@
 | `859db1b` | **I-5** | 타임라인 길이 공식의 복사본(창·테스트) → `TimelineControlBase.ComputeTimelineLength` 한 곳 |
 | `859db1b` | **I-6~I-10** | `.ogv` 필터 누락 · 닫을 때 저장 경고 누락 · 디바운스 타이머 정리 · 메뉴 액세스 키 · `pathHints` 중복 |
 | `859db1b` | — | 테스트 14개 추가 (355 → **369개**) |
-| (미커밋) | **P-1** | 재생 중 멈추려고 누른 클릭이 노트를 찍거나 지우던 문제 → 터널 단계 `e.Handled = true` 및 ViewModel 조기 리턴 방어 |
-| (미커밋) | **S-8** | 재생 중 다른 차트를 열거나 새 문서를 만들 때 재생이 안 멈추던 문제 → `ResetDocumentState` 진입 시 `StopPlayback(resetCursor: true)` |
-| (미커밋) | **S-9** | 재생 정지 시 잔향 키음이 계속 울리던 문제 → `StopPlayback` 시 `_keySoundPlayer.StopAll()` 연동 |
-| (미커밋) | **P-8** | 곡 끝에서 재생하면 첫 틱에 바로 멈추던 문제 → `Play()` 에서 끝 지점이면 0초부터 재생 |
-| (미커밋) | — | 테스트 7개 추가 (369 → **376개**). P-1 UI/ViewModel 테스트, S-8 리셋 테스트, S-9 잔향 키음 정지 테스트, P-8 끝 재생 테스트, 실제 게임 BMS 차트 30종 ViewModel 로드 및 UI 렌더링 스모크 테스트. `AudioOffsetTests` 의 차트 문자열 백틱(`` `r`n ``)을 `\r\n` 으로 고침 |
+| `13f33bf` | **P-1** | 재생 중 멈추려고 누른 클릭이 노트를 찍거나 지우던 문제 → 터널 단계 `e.Handled = true` 및 ViewModel 조기 리턴 방어 |
+| `13f33bf` | **S-8** | 재생 중 다른 차트를 열거나 새 문서를 만들 때 재생이 안 멈추던 문제 → `ResetDocumentState` 진입 시 `StopPlayback(resetCursor: true)` |
+| `13f33bf` | **S-9** | 재생 정지 시 잔향 키음이 계속 울리던 문제 → `StopPlayback` 시 `_keySoundPlayer.StopAll()` 연동 |
+| `13f33bf` | **P-8** | 곡 끝에서 재생하면 첫 틱에 바로 멈추던 문제 → `Play()` 에서 끝 지점이면 0초부터 재생 |
+| `13f33bf` | — | 테스트 7개 추가 (369 → **376개**). P-1 UI/ViewModel 테스트, S-8 리셋 테스트, S-9 잔향 키음 정지 테스트, P-8 끝 재생 테스트, 실제 게임 BMS 차트 30종 ViewModel 로드 및 UI 렌더링 스모크 테스트. `AudioOffsetTests` 의 차트 문자열 백틱(`` `r`n ``)을 `\r\n` 으로 고침 |
 
 ---
 
