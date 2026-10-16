@@ -19,6 +19,11 @@ public sealed class GridLineTests
                 .Select(line => (line.Position, line.Kind.ToString(), line.Measure, line.Seconds))
                 .ToList();
 
+        public IReadOnlyList<(double Position, string Kind, int Measure, double Seconds)> LinesWithCulling(double length, double minPos, double maxPos) =>
+            EnumerateGridLines(length, minPos, maxPos)
+                .Select(line => (line.Position, line.Kind.ToString(), line.Measure, line.Seconds))
+                .ToList();
+
         public double TimelineLength() => GetTimelineHeight();
     }
 
@@ -176,5 +181,81 @@ public sealed class GridLineTests
         var lines = probe.Lines(20.0);
 
         Assert.All(lines, l => Assert.Equal("Measure", l.Kind));
+    }
+
+    // ── 뷰포트 컬링 (Viewport Culling) ─────────────────────────────────────────
+
+    [Fact]
+    public void 뷰포트_컬링_적용시_지정한_범위_안의_격자선만_반환한다()
+    {
+        var probe = MeasureModeProbe(measureCount: 10, beatSplit: 4);
+        var allLines = probe.Lines(100.0);
+        var culledLines = probe.LinesWithCulling(100.0, 20.0, 40.0);
+
+        Assert.True(culledLines.Count < allLines.Count);
+        Assert.All(culledLines, l => Assert.InRange(l.Position, 19.5, 40.5));
+    }
+
+    [Fact]
+    public void 음원_모드에서_뷰포트_컬링이_올바르게_동작한다()
+    {
+        var probe = new Probe
+        {
+            DurationSeconds = 10.0,
+            Bpm = 120,
+            BeatSplit = 4,
+            GridMeasure = 4,
+            IsHorizontalView = true,
+        };
+
+        var allLines = probe.Lines(1000.0);
+        var culledLines = probe.LinesWithCulling(1000.0, 200.0, 500.0);
+
+        Assert.True(culledLines.Count < allLines.Count);
+        Assert.All(culledLines, l => Assert.InRange(l.Position, 199.5, 500.5));
+    }
+
+    [Fact]
+    public void CalculateVisibleTimelineRange_가로_세로_버퍼_계산이_정확하다()
+    {
+        // 가로 뷰: X축 기준 [Left - buffer, Right + buffer]
+        var rectH = new Avalonia.Rect(200, 50, 600, 300);
+        var (minH, maxH) = TimelineControlBase.CalculateVisibleTimelineRange(rectH, 5000.0, isHorizontalView: true, buffer: 100.0);
+        Assert.Equal(100.0, minH); // 200 - 100
+        Assert.Equal(900.0, maxH); // (200 + 600) + 100
+
+        // 세로 뷰: Y축 기준 [Top - buffer, Bottom + buffer]
+        var rectV = new Avalonia.Rect(50, 400, 300, 500);
+        var (minV, maxV) = TimelineControlBase.CalculateVisibleTimelineRange(rectV, 5000.0, isHorizontalView: false, buffer: 150.0);
+        Assert.Equal(250.0, minV);  // 400 - 150
+        Assert.Equal(1050.0, maxV); // (400 + 500) + 150
+
+        // 경계 조건: 0 이하 클램프
+        var rectZero = new Avalonia.Rect(0, 50, 100, 100);
+        var (minZero, _) = TimelineControlBase.CalculateVisibleTimelineRange(rectZero, 5000.0, isHorizontalView: true, buffer: 200.0);
+        Assert.Equal(0.0, minZero);
+
+        // 비정상 Rect나 0 너비는 전체 범위 반환
+        var (minEmpty, maxEmpty) = TimelineControlBase.CalculateVisibleTimelineRange(default, 5000.0, isHorizontalView: false);
+        Assert.Equal(0.0, minEmpty);
+        Assert.Equal(5000.0, maxEmpty);
+    }
+
+    [Fact]
+    public void 대용량_차트에서_컬링_적용시_렌더_격자선_개수가_획기적으로_줄어든다_측정()
+    {
+        // 5분 곡, 200마디, 16분할 = 3,200개 격자선
+        var probe = MeasureModeProbe(measureCount: 200, beatSplit: 16);
+        var totalLength = probe.TimelineLength();
+
+        var allLines = probe.Lines(totalLength);
+        Assert.True(allLines.Count >= 3200);
+
+        // 뷰포트 높이 800px에 해당하는 구간 [3000, 3800]만 조회
+        var culledLines = probe.LinesWithCulling(totalLength, 3000.0, 3800.0);
+
+        // 전체 3200개 중 화면에 보이는 약 320개 정도만 반환되어 연산량이 대폭 감소한다
+        Assert.True(culledLines.Count < 400);
+        Assert.True(culledLines.Count < allLines.Count * 0.15);
     }
 }

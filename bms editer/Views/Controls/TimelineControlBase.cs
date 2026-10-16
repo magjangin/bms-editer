@@ -223,8 +223,76 @@ public abstract class TimelineControlBase : Control
 
     protected readonly record struct GridLine(double Position, GridLineKind Kind, int Measure, double Seconds);
 
+    public const double DefaultViewportBuffer = 400.0;
+
+    // 뷰포트 사각 영역(컨트롤 로컬 좌표계 기준)에서 현재 화면에 보이는 타임라인 축 범위 [MinPos, MaxPos]를 구한다.
+    // 뷰포트가 비정상적이거나 범위를 구할 수 없으면 전체 범위 [0, timelineLength]를 반환한다.
+    public static (double MinPos, double MaxPos) CalculateVisibleTimelineRange(
+        Rect viewportInControlCoordinates,
+        double timelineLength,
+        bool isHorizontalView,
+        double buffer = DefaultViewportBuffer)
+    {
+        if (timelineLength <= 0)
+            return (0, 0);
+
+        if (viewportInControlCoordinates.Width <= 0 ||
+            viewportInControlCoordinates.Height <= 0)
+        {
+            return (0, timelineLength);
+        }
+
+        double viewStart, viewEnd;
+        if (isHorizontalView)
+        {
+            viewStart = viewportInControlCoordinates.Left;
+            viewEnd = viewportInControlCoordinates.Right;
+        }
+        else
+        {
+            viewStart = viewportInControlCoordinates.Top;
+            viewEnd = viewportInControlCoordinates.Bottom;
+        }
+
+        var minPos = Math.Max(0.0, viewStart - buffer);
+        var maxPos = Math.Min(timelineLength, viewEnd + buffer);
+
+        if (minPos > maxPos)
+            return (0, timelineLength);
+
+        return (minPos, maxPos);
+    }
+
+    // ScrollViewer 안에서 현재 화면에 보이는 타임라인 축 범위 [MinPos, MaxPos]를 구한다.
+    protected (double MinPos, double MaxPos) GetVisibleTimelineRange(double timelineLength, double buffer = DefaultViewportBuffer)
+    {
+        if (timelineLength <= 0)
+            return (0, 0);
+
+        var scrollViewer = this.FindAncestorOfType<ScrollViewer>();
+        if (scrollViewer is not null && scrollViewer.Viewport.Width > 0 && scrollViewer.Viewport.Height > 0)
+        {
+            var p0 = scrollViewer.TranslatePoint(new Point(0, 0), this);
+            var p1 = scrollViewer.TranslatePoint(new Point(scrollViewer.Viewport.Width, scrollViewer.Viewport.Height), this);
+            if (p0.HasValue && p1.HasValue)
+            {
+                var rect = new Rect(
+                    new Point(Math.Min(p0.Value.X, p1.Value.X), Math.Min(p0.Value.Y, p1.Value.Y)),
+                    new Point(Math.Max(p0.Value.X, p1.Value.X), Math.Max(p0.Value.Y, p1.Value.Y)));
+
+                return CalculateVisibleTimelineRange(rect, timelineLength, IsHorizontalView, buffer);
+            }
+        }
+
+        return (0, timelineLength);
+    }
+
     // 타임라인에 그릴 격자선을 순서대로 내놓는다.
-    protected IEnumerable<GridLine> EnumerateGridLines(double timelineLength)
+    // minPos / maxPos 가 주어지면 보이는 영역 밖의 격자선은 건너뛴다(뷰포트 컬링).
+    protected IEnumerable<GridLine> EnumerateGridLines(
+        double timelineLength,
+        double minPos = double.NegativeInfinity,
+        double maxPos = double.PositiveInfinity)
     {
         var split = Math.Max(1, BeatSplit);
 
@@ -243,6 +311,9 @@ public abstract class TimelineControlBase : Control
 
                 var position = ToTimelinePosition(seconds / DurationSeconds, timelineLength);
                 if (position < -0.5 || position > timelineLength + 0.5)
+                    continue;
+
+                if (position < minPos - 0.5 || position > maxPos + 0.5)
                     continue;
 
                 yield return new GridLine(
@@ -270,6 +341,9 @@ public abstract class TimelineControlBase : Control
 
                     // 곱셈 순서 차이로 끝 선이 반 픽셀쯤 넘칠 수 있어 여유를 둔다.
                     if (position < -0.5 || position > timelineLength + 0.5)
+                        continue;
+
+                    if (position < minPos - 0.5 || position > maxPos + 0.5)
                         continue;
 
                     yield return new GridLine(

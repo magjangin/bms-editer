@@ -97,16 +97,19 @@ public sealed class OggWaveformControl : TimelineControlBase
 
         var maxAmplitude = (center - 8) * 0.58 * Math.Clamp(HorizontalZoom, 0.1, 4.0);
         var peaks = Peaks;
+        var (minPos, maxPos) = GetVisibleTimelineRange(timelineLength);
 
         if (peaks is { Count: > 1 })
         {
-            DrawBlockWaveform(context, peaks, timelineLength, center, maxAmplitude, WaveFillBrush, WavePen, IsHorizontalView, AudioOffsetSeconds, DurationSeconds);
-            DrawOnsetMarkers(context, waveformThickness, timelineLength, Onsets, IsHorizontalView);
+            DrawBlockWaveform(context, peaks, timelineLength, center, maxAmplitude, WaveFillBrush, WavePen, IsHorizontalView, AudioOffsetSeconds, DurationSeconds, minPos, maxPos);
+            DrawOnsetMarkers(context, waveformThickness, timelineLength, Onsets, IsHorizontalView, minPos, maxPos);
         }
         else
         {
             var rowHeight = RowHeight * VerticalZoom * GetGridSpacingScale();
-            for (var tPos = 0.0; tPos <= timelineLength; tPos += 2.0)
+            var startTPos = Math.Max(0.0, Math.Floor(minPos / 2.0) * 2.0);
+            var endTPos = Math.Min(timelineLength, Math.Ceiling(maxPos / 2.0) * 2.0);
+            for (var tPos = startTPos; tPos <= endTPos; tPos += 2.0)
             {
                 if (IsHorizontalView)
                 {
@@ -127,7 +130,7 @@ public sealed class OggWaveformControl : TimelineControlBase
             }
         }
 
-        DrawBeatGrid(context, waveformThickness, timelineLength, IsHorizontalView);
+        DrawBeatGrid(context, waveformThickness, timelineLength, IsHorizontalView, minPos, maxPos);
         DrawGridSyncFlash(context, width, height);
 
         // 재생 커서도 같은 시간축 위에 있어야 파형과 맞는다.
@@ -196,13 +199,18 @@ public sealed class OggWaveformControl : TimelineControlBase
         IPen outlinePen,
         bool isHorizontal,
         double audioOffsetSeconds,
-        double durationSeconds)
+        double durationSeconds,
+        double minPos,
+        double maxPos)
     {
         var blockLength = 2.0;
         var displayPointCount = Math.Max(2, (int)Math.Ceiling(timelineLength / blockLength));
         var offsetRatio = durationSeconds > 0 ? (audioOffsetSeconds / durationSeconds) : 0.0;
 
-        for (var i = 0; i < displayPointCount; i++)
+        var startIndex = Math.Max(0, (int)Math.Floor((minPos - 2.0) / blockLength));
+        var endIndex = Math.Min(displayPointCount, (int)Math.Ceiling((maxPos + 2.0) / blockLength));
+
+        for (var i = startIndex; i < endIndex; i++)
         {
             var tPos = i * blockLength;
 
@@ -259,7 +267,9 @@ public sealed class OggWaveformControl : TimelineControlBase
         double thickness,
         double timelineLength,
         IReadOnlyList<float>? onsets,
-        bool isHorizontal)
+        bool isHorizontal,
+        double minPos,
+        double maxPos)
     {
         if (onsets is null || onsets.Count == 0 || timelineLength <= 0 || DurationSeconds <= 0)
             return;
@@ -283,6 +293,9 @@ public sealed class OggWaveformControl : TimelineControlBase
             var tPos = ToTimelinePosition(ratio, timelineLength);
 
             if (tPos < -0.5 || tPos > timelineLength + 0.5)
+                continue;
+
+            if (tPos < minPos - 10 || tPos > maxPos + 10)
                 continue;
 
             if (alphaVal > 0.45f)
@@ -328,7 +341,9 @@ public sealed class OggWaveformControl : TimelineControlBase
         DrawingContext context,
         double thickness,
         double timelineLength,
-        bool isHorizontal)
+        bool isHorizontal,
+        double minPos,
+        double maxPos)
     {
         if (timelineLength <= 0 || Bpm <= 0)
             return;
@@ -337,7 +352,7 @@ public sealed class OggWaveformControl : TimelineControlBase
         var beatPen = new Pen(new SolidColorBrush(Color.FromArgb(120, 200, 210, 220)), 1);
         var measurePen = new Pen(new SolidColorBrush(Color.FromArgb(210, 255, 255, 255)), 1.5);
 
-        foreach (var line in EnumerateGridLines(timelineLength))
+        foreach (var line in EnumerateGridLines(timelineLength, minPos, maxPos))
         {
             var pen = line.Kind switch
             {

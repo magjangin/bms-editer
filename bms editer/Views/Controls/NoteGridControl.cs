@@ -295,7 +295,9 @@ public sealed class NoteGridControl : TimelineControlBase
                 thicknessOffset += laneThickness;
         }
 
-        foreach (var line in EnumerateGridLines(timelineLength))
+        var (minPos, maxPos) = GetVisibleTimelineRange(timelineLength);
+
+        foreach (var line in EnumerateGridLines(timelineLength, minPos, maxPos))
         {
             var pen = line.Kind switch
             {
@@ -333,7 +335,7 @@ public sealed class NoteGridControl : TimelineControlBase
         }
 
         // 홀드 몸통은 노트보다 먼저 그린다. 머리·꼬리 노트가 몸통 위에 올라와야 한다.
-        DrawHoldBodies(context, lanes, laneThickness, timelineLength);
+        DrawHoldBodies(context, lanes, laneThickness, timelineLength, minPos, maxPos);
 
         // 배치된 노트 그리기
         var notes = Notes;
@@ -354,6 +356,9 @@ public sealed class NoteGridControl : TimelineControlBase
                 if (laneIndex == -1) continue;
 
                 var noteTPos = ComputeNoteTPos(note, timelineLength);
+                if (noteTPos < minPos - 20 || noteTPos > maxPos + 20)
+                    continue;
+
                 var noteBrush = GetNoteBrush(note.LaneId);
                 var laneOffset = laneIndex * laneThickness;
                 var blackPen = NoteOutlinePen;
@@ -400,7 +405,7 @@ public sealed class NoteGridControl : TimelineControlBase
             }
         }
 
-        DrawHoldProblems(context, lanes, laneThickness, timelineLength);
+        DrawHoldProblems(context, lanes, laneThickness, timelineLength, minPos, maxPos);
 
         if (_dragStartPoint is { } dragStart && _dragCurrentPoint is { } dragEnd)
         {
@@ -417,7 +422,13 @@ public sealed class NoteGridControl : TimelineControlBase
     //
     // 양 끝 좌표를 각각 ComputeNoteTPos 로 구한다. 노트와 같은 시간축을 써야 몸통 끝이 끝 노트와 만난다.
     // 마디 단위로 선형 보간해 늘리면 BPM 변화나 변박 구간을 지나는 홀드의 끝이 끝 노트와 어긋난다.
-    private void DrawHoldBodies(DrawingContext context, IReadOnlyList<LaneDefinition> lanes, double laneThickness, double timelineLength)
+    private void DrawHoldBodies(
+        DrawingContext context,
+        IReadOnlyList<LaneDefinition> lanes,
+        double laneThickness,
+        double timelineLength,
+        double minPos,
+        double maxPos)
     {
         var links = HoldLinks;
         if (links is null || links.Count == 0)
@@ -433,6 +444,11 @@ public sealed class NoteGridControl : TimelineControlBase
 
             var headPos = ComputeNoteTPos(link.Head, timelineLength);
             var tailPos = ComputeNoteTPos(link.Tail, timelineLength);
+
+            var linkMin = Math.Min(headPos, tailPos);
+            var linkMax = Math.Max(headPos, tailPos);
+            if (linkMax < minPos - 20 || linkMin > maxPos + 20)
+                continue;
 
             if (headLane == tailLane)
             {
@@ -450,7 +466,13 @@ public sealed class NoteGridControl : TimelineControlBase
         }
     }
 
-    private void DrawHoldProblems(DrawingContext context, IReadOnlyList<LaneDefinition> lanes, double laneThickness, double timelineLength)
+    private void DrawHoldProblems(
+        DrawingContext context,
+        IReadOnlyList<LaneDefinition> lanes,
+        double laneThickness,
+        double timelineLength,
+        double minPos,
+        double maxPos)
     {
         var problems = HoldProblemNotes;
         if (problems is null || problems.Count == 0)
@@ -464,6 +486,9 @@ public sealed class NoteGridControl : TimelineControlBase
                 continue;
 
             var tPos = ComputeNoteTPos(note, timelineLength);
+            if (tPos < minPos - 20 || tPos > maxPos + 20)
+                continue;
+
             var laneOffset = laneIndex * laneThickness;
             var rect = IsHorizontalView
                 ? new Rect(tPos - 10, laneOffset - 1, 20, laneThickness + 2)
