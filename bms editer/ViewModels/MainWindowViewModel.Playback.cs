@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using CommunityToolkit.Mvvm.Input;
 using bms_editer.Models;
+using bms_editer.Services;
 
 namespace bms_editer.ViewModels;
 
@@ -10,7 +11,9 @@ public sealed partial class MainWindowViewModel
     [RelayCommand]
     private void Play()
     {
-        PlayFrom(IsPlaybackCursorVisible ? PlaybackPositionSeconds : 0);
+        // 커서가 곡 끝에 남아 있으면 첫 틱에 바로 멈추므로 처음부터 다시 튼다. (P-8)
+        var atEnd = PlaybackPositionSeconds >= OggDurationSeconds - 0.05;
+        PlayFrom(IsPlaybackCursorVisible && !atEnd ? PlaybackPositionSeconds : 0);
     }
 
     [RelayCommand]
@@ -53,6 +56,8 @@ public sealed partial class MainWindowViewModel
     }
 
     public void StopPlaybackAtCurrentPosition() => StopPlayback(resetCursor: false);
+
+    public KeySoundPlayer KeySoundPlayer => _keySoundPlayer;
 
     // 재생을 시작한다. 오디오 장치를 열 수 없으면(장치 없음·다른 앱이 독점) false.
     //
@@ -155,6 +160,7 @@ public sealed partial class MainWindowViewModel
     {
         _playbackTimer.Stop();
         _audioPlayer?.Stop();
+        _keySoundPlayer.StopAll();
         _playbackNotes = Array.Empty<BmsNote>();
         IsPlaying = false;
 

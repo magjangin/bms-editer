@@ -150,6 +150,8 @@ public sealed partial class MainWindowViewModel
     // 차트/키음/헤더 등 문서 상태를 초기 상태로 되돌린다. (배경 음원·비디오는 대상 아님)
     private void ResetDocumentState()
     {
+        StopPlayback(resetCursor: true);
+
         // 앞 문서를 위해 읽고 있던 음원은 이제 이 문서의 것이 아니다. (LoadOggAsync 참고)
         DocumentGeneration++;
 

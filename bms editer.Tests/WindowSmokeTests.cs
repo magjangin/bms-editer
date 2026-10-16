@@ -199,6 +199,31 @@ public sealed class WindowSmokeTests
     });
 
     [Fact]
+    public void 재생_중_편집_모드에서_격자_클릭_시_재생만_멈추고_노트_배치나_삭제가_발생하지_않는다() => RunOnUiThread(() =>
+    {
+        var owner = LoadedOwner();
+        var window = new MainWindow { DataContext = owner };
+        ShowAndDraw(window);
+        var vm = (MainWindowViewModel)window.DataContext!;
+
+        vm.IsEditMode = true;
+        owner.SelectedWavItem = owner.WavList.FirstOrDefault();
+        var initialNoteCount = owner.Chart.Notes.Count;
+
+        // 1) 재생 중 격자 좌클릭 시 재생만 멈추고 새 노트가 추가되지 않는다 (P-1 UI 방어)
+        vm.IsPlaying = true;
+        window.MouseDown(new Avalonia.Point(300, 100), Avalonia.Input.MouseButton.Left);
+        Assert.False(vm.IsPlaying);
+        Assert.Equal(initialNoteCount, owner.Chart.Notes.Count);
+
+        // 2) 재생 중 기존 노트 영역 우클릭 시 재생만 멈추고 기존 노트가 삭제되지 않는다 (P-1 UI 방어)
+        vm.IsPlaying = true;
+        window.MouseDown(new Avalonia.Point(260, 120), Avalonia.Input.MouseButton.Right);
+        Assert.False(vm.IsPlaying);
+        Assert.Equal(initialNoteCount, owner.Chart.Notes.Count);
+    });
+
+    [Fact]
     public void 메뉴_머리글에_액세스_키가_있다() => RunOnUiThread(() =>
     {
         // "파일 (F)" 처럼 글자로만 적으면 Alt+F 가 안 먹는다. Avalonia 의 액세스 키는 밑줄(_) 표기다.
@@ -228,5 +253,24 @@ public sealed class WindowSmokeTests
         paletteButton.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
 
         Assert.True(owner.IsEditMode);
+    });
+
+    [Fact]
+    public void 실제_게임_BMS_차트들을_MainWindowViewModel로_열고_화면에_그릴_수_있다() => RunOnUiThread(() =>
+    {
+        var charts = GameChartCorpus.Charts;
+        if (charts.Count == 0) return;
+
+        foreach (var chart in charts)
+        {
+            var vm = new MainWindowViewModel();
+            var success = vm.LoadBms(chart.Path);
+            Assert.True(success, $"{chart.Game} - {chart.Path} 로드 실패: {vm.LastErrorMessage}");
+            Assert.True(vm.Notes.Count > 0, $"{chart.Game} - {chart.Path} 에 노트가 없습니다.");
+
+            var window = new MainWindow { DataContext = vm };
+            ShowAndDraw(window);
+            window.Close();
+        }
     });
 }

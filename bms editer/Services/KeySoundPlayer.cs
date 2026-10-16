@@ -115,6 +115,15 @@ public sealed unsafe partial class KeySoundPlayer : IDisposable
         }
     }
 
+    public int ActiveVoiceCount
+    {
+        get
+        {
+            lock (_lock)
+                return _activeVoices.Count;
+        }
+    }
+
     public void StopAll()
     {
         lock (_lock)

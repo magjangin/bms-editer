@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
+using Avalonia.Media.Immutable;
 using bms_editer.Models;
 
 namespace bms_editer.Views.Controls;
@@ -125,11 +126,12 @@ public sealed class NoteGridControl : TimelineControlBase
     }
 
     // 노트 한 개마다 새로 만들면 프레임당 수천 개가 할당된다. 색이 고정이라 나눠 쓴다.
-    private static readonly Pen NoteOutlinePen = new(Brushes.Black, 1);
+    // 백그라운드 스레드에서 정적 초기화되더라도 UI 스레드에서 접근할 수 있도록 ToImmutable()을 쓴다.
+    private static readonly IPen NoteOutlinePen = new Pen(Brushes.Black, 1).ToImmutable();
 
-    private static readonly IBrush ScratchNoteBrush = new SolidColorBrush(Color.FromRgb(230, 40, 40));
-    private static readonly IBrush BlackKeyNoteBrush = new SolidColorBrush(Color.FromRgb(40, 140, 230));
-    private static readonly IBrush WhiteKeyNoteBrush = new SolidColorBrush(Color.FromRgb(240, 240, 240));
+    private static readonly IBrush ScratchNoteBrush = new SolidColorBrush(Color.FromRgb(230, 40, 40)).ToImmutable();
+    private static readonly IBrush BlackKeyNoteBrush = new SolidColorBrush(Color.FromRgb(40, 140, 230)).ToImmutable();
+    private static readonly IBrush WhiteKeyNoteBrush = new SolidColorBrush(Color.FromRgb(240, 240, 240)).ToImmutable();
 
     // 노트 채움색도 세 가지뿐이라 나눠 쓴다. 예전에는 노트마다 새로 만들었다.
     private static IBrush GetNoteBrush(string laneId) => laneId switch
@@ -140,27 +142,27 @@ public sealed class NoteGridControl : TimelineControlBase
     };
 
     // 격자 펜과 배경도 매 프레임 새로 만들 이유가 없다.
-    private static readonly IBrush GridBackgroundBrush = new SolidColorBrush(Color.FromArgb(40, 30, 60, 120));
-    private static readonly IPen LanePen = new Pen(Brushes.DimGray, 1);
-    private static readonly IPen SubBeatPen = new Pen(new SolidColorBrush(Color.FromArgb(55, 150, 160, 170)), 1);
-    private static readonly IPen BeatPen = new Pen(new SolidColorBrush(Color.FromArgb(120, 190, 200, 210)), 1);
-    private static readonly IPen MeasurePen = new Pen(Brushes.White, 1.5);
-    private static readonly IBrush LaneHeaderBrush = new SolidColorBrush(Color.FromArgb(140, 200, 200, 200));
-    private static readonly IBrush DragFillBrush = new SolidColorBrush(Color.FromArgb(60, 255, 220, 60));
-    private static readonly IPen DragOutlinePen = new Pen(Brushes.Yellow, 1);
+    private static readonly IBrush GridBackgroundBrush = new SolidColorBrush(Color.FromArgb(40, 30, 60, 120)).ToImmutable();
+    private static readonly IPen LanePen = new Pen(Brushes.DimGray, 1).ToImmutable();
+    private static readonly IPen SubBeatPen = new Pen(new SolidColorBrush(Color.FromArgb(55, 150, 160, 170)), 1).ToImmutable();
+    private static readonly IPen BeatPen = new Pen(new SolidColorBrush(Color.FromArgb(120, 190, 200, 210)), 1).ToImmutable();
+    private static readonly IPen MeasurePen = new Pen(Brushes.White, 1.5).ToImmutable();
+    private static readonly IBrush LaneHeaderBrush = new SolidColorBrush(Color.FromArgb(140, 200, 200, 200)).ToImmutable();
+    private static readonly IBrush DragFillBrush = new SolidColorBrush(Color.FromArgb(60, 255, 220, 60)).ToImmutable();
+    private static readonly IPen DragOutlinePen = new Pen(Brushes.Yellow, 1).ToImmutable();
     private static readonly Typeface LaneHeaderTypeface = new("Inter, Arial, sans-serif");
 
     // 선택한 노트를 둘러 그리는 펜.
     //
     // 노트 자체보다 넓은 사각형이라 테두리는 노트 위가 아니라 **검은 바탕 위에** 그려진다.
     // 그래서 스크래치 레인(16)의 붉은 노트(230,40,40)와 색이 가까워도 테두리는 살아 있다.
-    private static readonly Pen SelectionPen = new(Brushes.Red, 2);
+    private static readonly IPen SelectionPen = new Pen(Brushes.Red, 2).ToImmutable();
 
     // 홀드 몸통 폭. 레인 폭 전체를 채우면 몸통 위에 겹친 다른 노트가 묻힌다.
     public const double HoldBodyWidthRatio = 0.44;
 
     // 짝이 어긋난 노트의 테두리. 선택 테두리(빨강 실선)와 헷갈리지 않게 주황 점선으로 둔다.
-    private static readonly Pen HoldProblemPen = new(new SolidColorBrush(Color.FromRgb(255, 120, 0)), 2, DashStyle.Dash);
+    private static readonly IPen HoldProblemPen = new Pen(new SolidColorBrush(Color.FromRgb(255, 120, 0)), 2, DashStyle.Dash).ToImmutable();
 
     private static readonly Dictionary<string, IBrush> HoldBodyBrushes = new(StringComparer.OrdinalIgnoreCase);
     private static readonly Dictionary<string, IPen> HoldLinkPens = new(StringComparer.OrdinalIgnoreCase);
@@ -178,24 +180,30 @@ public sealed class NoteGridControl : TimelineControlBase
 
     private static IBrush GetHoldBrush(string kind)
     {
-        if (!HoldBodyBrushes.TryGetValue(kind, out var brush))
+        lock (HoldBodyBrushes)
         {
-            brush = new SolidColorBrush(GetHoldColor(kind));
-            HoldBodyBrushes[kind] = brush;
-        }
+            if (!HoldBodyBrushes.TryGetValue(kind, out var brush))
+            {
+                brush = new SolidColorBrush(GetHoldColor(kind)).ToImmutable();
+                HoldBodyBrushes[kind] = brush;
+            }
 
-        return brush;
+            return brush;
+        }
     }
 
     private static IPen GetHoldLinkPen(string kind)
     {
-        if (!HoldLinkPens.TryGetValue(kind, out var pen))
+        lock (HoldLinkPens)
         {
-            pen = new Pen(GetHoldBrush(kind), 4);
-            HoldLinkPens[kind] = pen;
-        }
+            if (!HoldLinkPens.TryGetValue(kind, out var pen))
+            {
+                pen = new Pen(GetHoldBrush(kind), 4).ToImmutable();
+                HoldLinkPens[kind] = pen;
+            }
 
-        return pen;
+            return pen;
+        }
     }
 
     static NoteGridControl()

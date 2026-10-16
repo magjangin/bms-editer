@@ -433,7 +433,10 @@ public sealed partial class MainWindowViewModel
     private void PlaceNote(NotePlacementArgs args)
     {
         if (IsPlaying)
+        {
             StopPlaybackAtCurrentPosition();
+            return;
+        }
 
         if (SelectedWavItem is null) return;
 
@@ -474,7 +477,10 @@ public sealed partial class MainWindowViewModel
     private void RemoveNote(NotePlacementArgs args)
     {
         if (IsPlaying)
+        {
             StopPlaybackAtCurrentPosition();
+            return;
+        }
 
         // 격자 한 칸의 절반. 격자로 표현 못 하는 자리(잇단음)의 노트도 집을 수 있으면서,
         // 옆 칸까지 넘어가지는 않는 폭이다.

@@ -4,6 +4,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
+using Avalonia.Media.Immutable;
 using bms_editer.Services;
 
 namespace bms_editer.Views.Controls;
@@ -67,9 +68,9 @@ public sealed class OggWaveformControl : TimelineControlBase
         }
     }
 
-    private static readonly Pen CenterLinePen = new(Brushes.DimGray, 1);
-    private static readonly Pen WavePen = new(new SolidColorBrush(Color.FromRgb(150, 170, 160)), 1);
-    private static readonly IBrush WaveFillBrush = new SolidColorBrush(Color.FromArgb(125, 120, 150, 135));
+    private static readonly IPen CenterLinePen = new Pen(Brushes.DimGray, 1).ToImmutable();
+    private static readonly IPen WavePen = new Pen(new SolidColorBrush(Color.FromRgb(150, 170, 160)), 1).ToImmutable();
+    private static readonly IBrush WaveFillBrush = new SolidColorBrush(Color.FromArgb(125, 120, 150, 135)).ToImmutable();
 
     public override void Render(DrawingContext context)
     {
@@ -247,7 +248,7 @@ public sealed class OggWaveformControl : TimelineControlBase
     {
         var pens = new IPen[146];
         for (var alpha = 25; alpha < pens.Length; alpha++)
-            pens[alpha] = new Pen(new SolidColorBrush(Color.FromArgb((byte)alpha, 230, 230, 210)), 1);
+            pens[alpha] = new Pen(new SolidColorBrush(Color.FromArgb((byte)alpha, 230, 230, 210)), 1).ToImmutable();
         return pens;
     }
 

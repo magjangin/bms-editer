@@ -99,6 +99,7 @@ public partial class MainWindow
             if (IsNonMiddleMouseButtonPressed(properties))
             {
                 vm.StopPlaybackAtCurrentPosition();
+                e.Handled = true;
             }
         }
     }

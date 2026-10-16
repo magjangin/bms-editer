@@ -12,6 +12,7 @@
 > * **G. 안전장치 (S-1~S-5·S-7)**: 예외가 나도 앱이 꺼지지 않고 비상 저장, 2분마다 자동 저장과 비정상 종료 뒤 복구, 저장 이력 10벌, 오류 기록은 `%LocalAppData%`, 검색 창의 많은 일괄 작업은 먼저 묻기 → [G](#-g-안전장치)
 > * **H. 2026-09-28 점검**: 폴더를 연달아 열 때 앞 곡 음원이 붙던 문제, 음원이 마디 수보다 길 때 클릭이 엉뚱한 자리에 찍히던 문제, `#PLAYER 4`·`#RANK 4` 가 바뀌던 문제, 곡 폴더 이름으로 게임을 잘못 추정하던 문제, 프로파일 JSON 의 `null` 하나에 앱이 안 켜지던 문제 등 7건 → [H](#-h-2026-09-28-점검에서-찾아-고친-것)
 > * **I. 2026-10-01 점검의 작은 것**: 마디 번호 한 줄 때문에 차트가 안 열리던 문제, 터키어 문화권에서 키가 어긋나던 문제, 검색 창의 마디 범위·"숨기기" 필터, 타임라인 길이 공식의 복사본, 메뉴 액세스 키 등 10건 → [I](#-i-2026-10-01-점검에서-찾아-고친-작은-것)
+> * **J. 2026-10-16 재생 및 편집 안전성 긴급 패치**: 재생 멈추는 클릭이 노트를 찍거나 지우는 문제(P-1), 새 차트 열 때 재생 정지 누락(S-8), 정지 시 키음 잔향 지속(S-9), 곡 끝에서 재생 시 처음 복귀(P-8), 정적 브러시 멀티스레드 렌더 동시성 버그 해결 → [J](#-j-재생-및-편집-안전성-긴급-패치)
 
 ---
 
@@ -247,3 +248,31 @@
 | `859db1b` | **I-5** | 타임라인 길이 공식의 복사본(창·테스트) → `TimelineControlBase.ComputeTimelineLength` 한 곳 |
 | `859db1b` | **I-6~I-10** | `.ogv` 필터 누락 · 닫을 때 저장 경고 누락 · 디바운스 타이머 정리 · 메뉴 액세스 키 · `pathHints` 중복 |
 | `859db1b` | — | 테스트 14개 추가 (355 → **369개**) |
+| (미커밋) | **P-1** | 재생 중 멈추려고 누른 클릭이 노트를 찍거나 지우던 문제 → 터널 단계 `e.Handled = true` 및 ViewModel 조기 리턴 방어 |
+| (미커밋) | **S-8** | 재생 중 다른 차트를 열거나 새 문서를 만들 때 재생이 안 멈추던 문제 → `ResetDocumentState` 진입 시 `StopPlayback(resetCursor: true)` |
+| (미커밋) | **S-9** | 재생 정지 시 잔향 키음이 계속 울리던 문제 → `StopPlayback` 시 `_keySoundPlayer.StopAll()` 연동 |
+| (미커밋) | **P-8** | 곡 끝에서 재생하면 첫 틱에 바로 멈추던 문제 → `Play()` 에서 끝 지점이면 0초부터 재생 |
+| (미커밋) | — | 테스트 7개 추가 (369 → **376개**). P-1 UI/ViewModel 테스트, S-8 리셋 테스트, S-9 잔향 키음 정지 테스트, P-8 끝 재생 테스트, 실제 게임 BMS 차트 30종 ViewModel 로드 및 UI 렌더링 스모크 테스트. `AudioOffsetTests` 의 차트 문자열 백틱(`` `r`n ``)을 `\r\n` 으로 고침 |
+
+---
+
+## 🎧 J. 재생 및 편집 안전성 긴급 패치
+
+* **P-1 (데이터 오염 방지)**:
+  - **증상**: ✏️ 편집 모드에서 재생 중 화면을 클릭해 정지시키려 할 때, 클릭이 격자 컨트롤까지 전파되어 의도치 않은 노트가 찍히거나 기존 노트가 삭제(우클릭 시)되는 문제가 있었습니다.
+  - **해결**: `MainWindow.Scrubbing.cs`의 `OnWindowPointerPressedTunnel`에서 재생 정지 시 `e.Handled = true;`를 설정해 하위 컨트롤로의 라우팅 이벤트를 완전 차단했습니다. 또한 `MainWindowViewModel.Editing.cs`의 `PlaceNote`와 `RemoveNote`에서도 `IsPlaying`일 경우 즉시 `return` 하도록 이중 방어했습니다. `WindowSmokeTests`에 헤드리스 창 이벤트 테스트를 추가해 클릭 후에도 노트 수가 변경되지 않음을 검증했습니다.
+* **S-8 (재생 정지 누락)**:
+  - **증상**: 재생 중에 `Ctrl+O`로 다른 BMS를 열거나 새 문서를 만들 때 이전 배경음과 키음 재생이 멈추지 않아 엉뚱한 소리가 지속되는 현상이 있었습니다.
+  - **해결**: 모든 문서 열기/새로 만들기 경로의 공통 초기화 함수인 `ResetDocumentState()` 진입 시점에 `StopPlayback(resetCursor: true)`를 호출하여 재생을 확실히 중단시킵니다.
+* **S-9 (키음 잔향 지속)**:
+  - **증상**: 재생 정지(또는 스크러빙) 시 배경음은 멈추지만, 이미 트리거된 긴 키음의 PCM 버퍼가 계속 울리는 문제가 있었습니다.
+  - **해결**: `MainWindowViewModel.Playback.cs`의 `StopPlayback(bool)` 내부에서 `_keySoundPlayer.StopAll();`을 호출하여 활성 보이스를 즉각 정리하도록 연동했습니다. `PlaybackSpeedAndKeySoundTests`에 합성 WAV 발음 후 정지 시 활성 보이스가 0이 됨을 검증하는 테스트를 추가했습니다.
+* **P-8 (곡 끝에서 재생 시 복귀)**:
+  - **증상**: 곡 끝까지 재생한 뒤 Space를 누르면 커서가 곡 끝에 남아 있어 첫 틱에 바로 멈추고 재생이 진행되지 않았습니다.
+  - **해결**: `MainWindowViewModel.Playback.cs`의 `Play()` 진입 시 커서가 곡 끝(-0.05초 이내)에 머물러 있으면 0초부터 재생을 시작하도록 보정했습니다. `PlaybackSpeedAndKeySoundTests`에 곡 끝 지점 재생 테스트를 추가했습니다.
+* **멀티스레드 렌더링 동시성 안정성 (Avalonia Thread Affinity)**:
+  - **증상**: 백그라운드 xUnit 테스트 스레드에서 `NoteGridControl`을 참조하여 static 브러시(`SolidColorBrush`)가 먼저 초기화될 경우, UI 스레드에서 헤드리스 렌더링 시 "The calling thread cannot access this object because a different thread owns it" 예외가 발생하여 전체 UI 테스트가 연쇄 실패하는 문제가 있었습니다.
+  - **해결**: `NoteGridControl.cs` 및 `OggWaveformControl.cs`의 모든 `static readonly` 브러시 및 펜에 `.ToImmutable()`을 적용하여 스레드 독립적인 `Immutable` 인스턴스로 동결하고 안전하게 공유하도록 수정했습니다. 모든 376개 단위/UI 테스트가 100% 통과합니다.
+* **실제 게임 차트 30종 E2E 로드 및 UI 렌더링 검증**:
+  - **내용**: 가상 테스트 데이터 외에 로컬에 설치된 실제 게임 차트 30개(Sixtar Gate STARTRAIL 15곡, GUNVOLT RECORDS Cychronicle 5곡, Sixtar Gate STARGAZER 3곡, Muse Dash 4곡, DEFLATE 1곡, UNBEATABLE/ADOFAI 2곡)를 `MainWindowViewModel.LoadBms` 및 Avalonia `MainWindow`에 바인딩하여 헤드리스 렌더링(`ShowAndDraw`)까지 예외 없이 정상 통과함을 검증했습니다 (`WindowSmokeTests.cs`).
+

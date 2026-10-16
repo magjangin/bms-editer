@@ -110,7 +110,7 @@ public sealed class AudioOffsetTests
     [Fact]
     public void 오프셋이_저장되고_다시_읽힌다()
     {
-        var path = WriteTempChart("#TITLE t`r`n#BPM 141`r`n#WAV01 a.wav`r`n#00111:01`r`n");
+        var path = WriteTempChart("#TITLE t\r\n#BPM 141\r\n#WAV01 a.wav\r\n#00111:01\r\n");
 
         var owner = new MainWindowViewModel();
         Assert.True(owner.LoadBms(path), owner.LastErrorMessage);
