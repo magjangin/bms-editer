@@ -225,6 +225,27 @@ public abstract class TimelineControlBase : Control
 
     public const double DefaultViewportBuffer = 400.0;
 
+    private ScrollViewer? _observedScrollViewer;
+
+    // 스크롤 시 자식 렌더링은 다시 호출되지 않으므로, 컬링 범위가 바뀌도록 직접 다시 그린다.
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        _observedScrollViewer = this.FindAncestorOfType<ScrollViewer>();
+        if (_observedScrollViewer is not null)
+            _observedScrollViewer.ScrollChanged += OnObservedScrollChanged;
+    }
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        if (_observedScrollViewer is not null)
+            _observedScrollViewer.ScrollChanged -= OnObservedScrollChanged;
+        _observedScrollViewer = null;
+        base.OnDetachedFromVisualTree(e);
+    }
+
+    private void OnObservedScrollChanged(object? sender, ScrollChangedEventArgs e) => InvalidateVisual();
+
     // 뷰포트 사각 영역(컨트롤 로컬 좌표계 기준)에서 현재 화면에 보이는 타임라인 축 범위 [MinPos, MaxPos]를 구한다.
     // 뷰포트가 비정상적이거나 범위를 구할 수 없으면 전체 범위 [0, timelineLength]를 반환한다.
     public static (double MinPos, double MaxPos) CalculateVisibleTimelineRange(
