@@ -106,7 +106,13 @@ public partial class MainWindow
                 return;
 
             if (!vm.LoadBms(path))
+            {
                 await ConfirmWindow.ShowMessageAsync(this, $"파일을 열지 못했습니다.\n\n{vm.LastErrorMessage}", "열기 실패");
+                return;
+            }
+
+            // 탐색기로 연 차트는 보통 곡 폴더 안에 있어서, 같은 폴더의 음원·영상도 함께 붙인다.
+            await LoadCompanionMediaAsync(vm, Path.GetDirectoryName(path)!);
         }
 
         private void OnClearVideoClick(object? sender, RoutedEventArgs e)
