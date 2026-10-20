@@ -8,6 +8,9 @@ namespace bms_editer;
 
 public partial class App : Application
 {
+    // 명령줄로 받은 첫 인자(열 파일 경로). Program.Main 이 넣는다.
+    public static string? StartupFilePath { get; set; }
+
     public override void Initialize()
     {
         AvaloniaXamlLoader.Load(this);
@@ -18,7 +21,7 @@ public partial class App : Application
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             // 자동 저장·비정상 종료 복구는 실제 앱에서만 켠다. (MainWindow.Safety 참고)
-            var window = new MainWindow();
+            var window = new MainWindow { StartupFilePath = StartupFilePath };
             window.EnableSafety(DocumentSnapshotStore.CreateDefault());
             desktop.MainWindow = window;
 

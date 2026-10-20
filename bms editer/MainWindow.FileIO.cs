@@ -12,6 +12,9 @@ namespace bms_editer;
 
 public partial class MainWindow
 {
+        // 탐색기 "연결 프로그램"으로 열 때 App 이 넘겨준 파일 경로.
+        public string? StartupFilePath { get; init; }
+
         private static readonly string[] BmsExtensions = { ".bms", ".bme", ".bml" };
         private static readonly string[] OggExtensions = { ".ogg" };
         private static readonly string[] VideoExtensions = { ".mp4", ".webm", ".mov", ".avi", ".mkv", ".ogv" };
@@ -88,6 +91,22 @@ public partial class MainWindow
                 return;
 
             await LoadFolderMediaAsync(vm, folderPath);
+        }
+
+        // 프로그램을 파일로 열었을 때(시작 인자) 그 BMS 를 연다. 창이 뜬 뒤, 복구 제안 다음에 부른다.
+        // 지원하지 않는 확장자나 없는 파일은 조용히 무시하고 빈 창으로 둔다.
+        private async Task OpenStartupFileAsync(MainWindowViewModel vm)
+        {
+            var path = StartupFilePath;
+            if (path is null || !File.Exists(path) || !BmsExtensions.Contains(Path.GetExtension(path).ToLowerInvariant()))
+                return;
+
+            // 시작 직후라 보통 물을 게 없지만, 복구한 작업이 있으면 그걸 확인한다.
+            if (!await vm.ConfirmDiscardIfNeededAsync("현재 작업 중인 내용이 모두 사라집니다.\n파일을 열까요?"))
+                return;
+
+            if (!vm.LoadBms(path))
+                await ConfirmWindow.ShowMessageAsync(this, $"파일을 열지 못했습니다.\n\n{vm.LastErrorMessage}", "열기 실패");
         }
 
         private void OnClearVideoClick(object? sender, RoutedEventArgs e)

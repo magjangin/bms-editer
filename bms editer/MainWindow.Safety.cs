@@ -136,19 +136,25 @@ public partial class MainWindow
         {
             Opened -= OnOpenedOfferRecovery;
 
-            if (_snapshots is not { } snapshots || DataContext is not MainWindowViewModel vm)
+            if (DataContext is not MainWindowViewModel vm)
                 return;
 
-            try
+            // 복구를 먼저 묻고, 탐색기에서 연 파일은 그 다음에 연다. (파일 열기는 복구 결과 위에 올라간다)
+            if (_snapshots is { } snapshots)
             {
-                var abandoned = snapshots.FindAbandonedSessions();
-                if (abandoned.Count > 0)
-                    await OfferRecoveryAsync(vm, snapshots, abandoned);
+                try
+                {
+                    var abandoned = snapshots.FindAbandonedSessions();
+                    if (abandoned.Count > 0)
+                        await OfferRecoveryAsync(vm, snapshots, abandoned);
+                }
+                catch (Exception ex)
+                {
+                    Log(ex, "작업 복구");
+                }
             }
-            catch (Exception ex)
-            {
-                Log(ex, "작업 복구");
-            }
+
+            await OpenStartupFileAsync(vm);
         }
 
         private async Task OfferRecoveryAsync(

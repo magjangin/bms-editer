@@ -26,6 +26,9 @@ internal class Program
             e.SetObserved();
         };
 
+        // 탐색기에서 .bms 를 "연결 프로그램"으로 열면 Windows 가 파일 경로를 첫 인자로 넘긴다.
+        App.StartupFilePath = args.Length > 0 ? args[0] : null;
+
         try
         {
             BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
