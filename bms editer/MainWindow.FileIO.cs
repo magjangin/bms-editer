@@ -115,6 +115,12 @@ public partial class MainWindow
             await LoadCompanionMediaAsync(vm, Path.GetDirectoryName(path)!);
         }
 
+        private void OnClearOggClick(object? sender, RoutedEventArgs e)
+        {
+            if (DataContext is MainWindowViewModel vm)
+                vm.ClearOgg();
+        }
+
         private void OnClearVideoClick(object? sender, RoutedEventArgs e)
         {
             if (DataContext is MainWindowViewModel vm)
@@ -251,8 +257,15 @@ public partial class MainWindow
             var document = vm.DocumentGeneration;
 
             var oggPath = FindBestFile(folderPath, OggExtensions);
-            if (oggPath is not null && await vm.LoadOggAsync(oggPath) == OggLoadResult.Failed)
-                await ConfirmWindow.ShowMessageAsync(this, $"OGG를 불러오지 못했습니다.\n\n{vm.LastErrorMessage}", "OGG 로드 실패");
+            if (oggPath is not null)
+            {
+                if (await vm.LoadOggAsync(oggPath) == OggLoadResult.Failed)
+                    await ConfirmWindow.ShowMessageAsync(this, $"OGG를 불러오지 못했습니다.\n\n{vm.LastErrorMessage}", "OGG 로드 실패");
+            }
+            else
+            {
+                vm.ClearOgg();
+            }
 
             // 음원을 읽는 사이 다른 문서를 열었으면 이 폴더의 영상도 붙이지 않는다.
             // 안 그러면 뒤에 연 폴더의 영상을 앞 폴더의 것이 덮어쓴다.

@@ -44,6 +44,7 @@
             </MenuItem>
             <MenuItem Header="미디어(_M)">
                 <MenuItem Header="OGG 열기..." Click="OnLoadOggClick" />
+                <MenuItem Header="OGG 제거" Click="OnClearOggClick" />
                 <MenuItem Header="비디오 열기..." Click="OnLoadVideoClick" />
                 <MenuItem Header="비디오 제거" Click="OnClearVideoClick" />
             </MenuItem>
@@ -51,19 +52,19 @@
 
         <Border DockPanel.Dock="Top" Padding="6,4" BorderThickness="0,0,0,1" BorderBrush="Gray">
             <StackPanel Orientation="Horizontal" Spacing="4">
-                <Button Content="새로" Command="{Binding NewFileCommand}" />
-                <Button Content="열기" Click="OnOpenFileClick" />
-                <Button Content="저장" Click="OnSaveFileClick" />
+                <Button Content="새로" Command="{Binding NewFileCommand}" Focusable="False" />
+                <Button Content="열기" Click="OnOpenFileClick" Focusable="False" />
+                <Button Content="저장" Click="OnSaveFileClick" Focusable="False" />
                 <Separator />
-                <Button Content="📊" Click="OnShowStatsClick" ToolTip.Tip="노트 통계 (보기 전용)" />
-                <ToggleButton Content="✏️" IsChecked="{Binding IsEditMode}" />
-                <Button Content="🧰" Click="OnShowNoteSearchClick" ToolTip.Tip="검색/삭제/교체" />
-                <Button Content="🎨" Click="OnShowWavPaletteClick" ToolTip.Tip="키음 팔레트 (별도 창)" />
-                <Button Content="🎛️" Click="OnShowControlPanelClick" ToolTip.Tip="컨트롤 패널 (레인/키음별 일괄 선택 · 포커스 · 미리듣기 · 일괄 교체)" />
+                <Button Content="📊" Click="OnShowStatsClick" ToolTip.Tip="노트 통계 (보기 전용)" Focusable="False" />
+                <ToggleButton Content="✏️" IsChecked="{Binding IsEditMode}" Focusable="False" />
+                <Button Content="🧰" Click="OnShowNoteSearchClick" ToolTip.Tip="검색/삭제/교체" Focusable="False" />
+                <Button Content="🎨" Click="OnShowWavPaletteClick" ToolTip.Tip="키음 팔레트 (별도 창)" Focusable="False" />
+                <Button Content="🎛️" Click="OnShowControlPanelClick" ToolTip.Tip="컨트롤 패널 (레인/키음별 일괄 선택 · 포커스 · 미리듣기 · 일괄 교체)" Focusable="False" />
                 <Separator />
-                <Button Content="OGG 열기" Click="OnLoadOggClick" />
-                <Button Content="비디오 열기" Click="OnLoadVideoClick" />
-                <Button Content="폴더 열기" Click="OnOpenFolderClick" />
+                <Button Content="OGG 열기" Click="OnLoadOggClick" Focusable="False" />
+                <Button Content="비디오 열기" Click="OnLoadVideoClick" Focusable="False" />
+                <Button Content="폴더 열기" Click="OnOpenFolderClick" Focusable="False" />
             </StackPanel>
         </Border>
 
@@ -157,8 +158,8 @@
                                TextTrimming="CharacterEllipsis"
                                Opacity="0.75" />
                     <StackPanel Orientation="Horizontal" Spacing="4">
-                        <Button Content="비디오 열기" Click="OnLoadVideoClick" />
-                        <Button Content="제거" Click="OnClearVideoClick" />
+                        <Button Content="비디오 열기" Click="OnLoadVideoClick" Focusable="False" />
+                        <Button Content="제거" Click="OnClearVideoClick" Focusable="False" />
                     </StackPanel>
 
                     <TextBlock Text="HEADER" FontWeight="Bold" />
@@ -264,28 +265,28 @@
                             <TextBlock Text="{Binding AudioOffsetMs, StringFormat={}{0:0.0}ms}" VerticalAlignment="Center" />
                         </StackPanel>
                         <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Stretch" Margin="0,2,0,4">
-                            <Button Content="⚡ 오프셋 자동 맞춤"
+                            <Button Content="⚡ 오프셋 자동 맞춤" Focusable="False"
                                     Command="{Binding DetectAudioOffsetCommand}"
                                     HorizontalAlignment="Stretch"
                                     HorizontalContentAlignment="Center"
                                     ToolTip.Tip="음원의 어택(온셋)을 분석하여 16분 격자에 가장 잘 맞는 오프셋을 자동 계산합니다" />
-                            <Button Content="0 초기화"
+                            <Button Content="0 초기화" Focusable="False"
                                     Command="{Binding ResetAudioOffsetCommand}"
                                     ToolTip.Tip="오프셋을 0ms로 되돌립니다" />
                         </StackPanel>
-                        <ToggleButton Content="{Binding KeySoundToggleText}"
+                        <ToggleButton Content="{Binding KeySoundToggleText}" Focusable="False"
                                       IsChecked="{Binding IsKeySoundEnabled}"
                                       HorizontalAlignment="Stretch"
                                       HorizontalContentAlignment="Center"
                                       Margin="0,4"
                                       ToolTip.Tip="체크 해제 시 BGM만 재생되고 채보 노트의 키음 소리를 끕니다" />
-                        <CheckBox Content="재생바 따라가기" IsChecked="{Binding FollowPlaybackCursor}" />
-                        <CheckBox Content="격자에 맞추기(G)" IsChecked="{Binding SnapToGrid}"
+                        <CheckBox Content="재생바 따라가기" IsChecked="{Binding FollowPlaybackCursor}" Focusable="False" />
+                        <CheckBox Content="격자에 맞추기(G)" IsChecked="{Binding SnapToGrid}" Focusable="False"
                                   ToolTip.Tip="끄면 클릭한 자리에 그대로 찍습니다 (잇단음 등)" />
-                        <CheckBox Content="수직위치 고정(D)" IsChecked="{Binding LockVerticalPosition}"
+                        <CheckBox Content="수직위치 고정(D)" IsChecked="{Binding LockVerticalPosition}" Focusable="False"
                                   ToolTip.Tip="켜면 방향키로 시간 위치를 바꾸지 않습니다. 레인만 옮깁니다" />
-                        <CheckBox Content="가로 뷰로 돌리기" IsChecked="{Binding IsHorizontalView}" />
-                        <CheckBox Content="네모를 동그라미로 바꾸기" IsChecked="{Binding IsCircleNoteShape}" />
+                        <CheckBox Content="가로 뷰로 돌리기" IsChecked="{Binding IsHorizontalView}" Focusable="False" />
+                        <CheckBox Content="네모를 동그라미로 바꾸기" IsChecked="{Binding IsCircleNoteShape}" Focusable="False" />
                     </StackPanel>
 
                     <TextBlock Text="키음 (#WAV)" FontWeight="Bold" Margin="0,12,0,0" />
@@ -298,9 +299,9 @@
                             </ListBox.ItemTemplate>
                         </ListBox>
                         <StackPanel Orientation="Horizontal" Spacing="4">
-                            <Button Content="키음 추가" Click="OnAddWavClick" />
-                            <Button Content="키음 삭제" Command="{Binding RemoveWavCommand}" />
-                            <Button Content="재생 테스트" Command="{Binding TestPlayWavCommand}" />
+                            <Button Content="키음 추가" Click="OnAddWavClick" Focusable="False" />
+                            <Button Content="키음 삭제" Command="{Binding RemoveWavCommand}" Focusable="False" />
+                            <Button Content="재생 테스트" Command="{Binding TestPlayWavCommand}" Focusable="False" />
                         </StackPanel>
                     </StackPanel>
                 </StackPanel>

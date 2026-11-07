@@ -16,6 +16,29 @@ public partial class ControlPanelWindow : Window
         InitializeComponent();
     }
 
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        if (e.Key == Key.Escape)
+        {
+            Close();
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key == Key.Space && DataContext is ControlPanelViewModel vm)
+        {
+            var focused = FocusManager?.GetFocusedElement();
+            if (focused is not TextBox && focused is not NumericUpDown)
+            {
+                vm.Owner.TogglePlaybackCommand.Execute(null);
+                e.Handled = true;
+                return;
+            }
+        }
+
+        base.OnKeyDown(e);
+    }
+
     public ControlPanelWindow(ControlPanelViewModel viewModel) : this()
     {
         DataContext = viewModel;

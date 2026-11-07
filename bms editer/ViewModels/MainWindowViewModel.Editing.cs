@@ -34,6 +34,10 @@ public sealed partial class MainWindowViewModel
     {
         _sortedNotesCache = null;
         _notesCache = Chart.Notes.ToArray();
+        if (IsPlaying)
+        {
+            _playbackNotes = GetSortedNotes();
+        }
         MarkDirty();
 
         // 모든 편집 경로가 여기를 지난다. 홀드 짝도 여기서 한 번에 다시 읽는다.

@@ -64,6 +64,8 @@ public sealed unsafe partial class KeySoundPlayer : IDisposable
         StartAudioWorker();
     }
 
+    public void ClearCache() => _cache.Clear();
+
     public void Preload(string filePath)
     {
         if (string.IsNullOrWhiteSpace(filePath)) return;

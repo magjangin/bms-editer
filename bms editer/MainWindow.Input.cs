@@ -27,8 +27,8 @@ public partial class MainWindow
 
             var focused = FocusManager?.GetFocusedElement();
 
-            // 글자를 치는 중이면 단축키가 아니라 입력이다.
-            if (IsWithin<TextBox>(focused))
+            // 글자를 치거나 숫자를 입력하는 중이면 단축키가 아니라 입력이다.
+            if (IsWithin<TextBox>(focused) || IsWithin<NumericUpDown>(focused))
                 return;
 
             if (e.KeyModifiers.HasFlag(KeyModifiers.Control))
@@ -39,10 +39,6 @@ public partial class MainWindow
 
             if (e.Key == Key.Space)
             {
-                // 스페이스는 포커스가 잡힌 버튼·체크박스를 누르는 키이기도 하다. 그쪽이 우선이다.
-                if (IsWithin<Button>(focused) || IsWithin<ToggleButton>(focused))
-                    return;
-
                 vm.TogglePlaybackCommand.Execute(null);
                 e.Handled = true;
                 return;
@@ -90,6 +86,16 @@ public partial class MainWindow
 
             switch (e.Key)
             {
+                case Key.G:
+                    vm.SnapToGrid = !vm.SnapToGrid;
+                    e.Handled = true;
+                    return;
+
+                case Key.D:
+                    vm.LockVerticalPosition = !vm.LockVerticalPosition;
+                    e.Handled = true;
+                    return;
+
                 case Key.Delete:
                     vm.DeleteSelectedNotesCommand.Execute(null);
                     e.Handled = true;

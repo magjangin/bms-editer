@@ -140,4 +140,22 @@ public sealed class OggLoadingTests : IDisposable
         Assert.Equal("good.ogg", owner.OggFileName);
         Assert.False(owner.IsLoadingOgg);
     }
+
+    [Fact]
+    public async Task ClearOgg_가_모든_오디오_상태를_정리한다()
+    {
+        var owner = Owner();
+        var load = owner.LoadOggAsync("test.ogg");
+        Decode("test.ogg").SetResult(Silence(15));
+        Assert.Equal(OggLoadResult.Loaded, await load);
+        Assert.Equal("test.ogg", owner.OggFileName);
+        Assert.True(owner.OggDurationSeconds > 0);
+
+        owner.ClearOgg();
+
+        Assert.Null(owner.OggFileName);
+        Assert.Null(owner.OggPeaks);
+        Assert.Null(owner.OggOnsets);
+        Assert.Equal(0, owner.OggDurationSeconds);
+    }
 }

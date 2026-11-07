@@ -152,4 +152,24 @@ public sealed class KeySoundPlayerTests
             if (File.Exists(path2)) File.Delete(path2);
         }
     }
+
+    [Fact]
+    public void KeySoundPlayer_ClearCache_비우기가_정상_동작한다()
+    {
+        using var player = new KeySoundPlayer();
+        var path = CreateSyntheticWavFile(44100, 2, 16, 1, 500);
+
+        try
+        {
+            player.Preload(path);
+            player.ClearCache();
+            // 캐시를 비운 뒤 다시 재생해도 예외 없이 정상 동작
+            player.Play(path);
+            player.StopAll();
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
 }

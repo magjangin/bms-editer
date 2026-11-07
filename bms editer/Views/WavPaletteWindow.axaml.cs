@@ -30,6 +30,17 @@ public partial class WavPaletteWindow : Window
             return;
         }
 
+        if (e.Key == Key.Space && DataContext is WavPaletteViewModel vm)
+        {
+            var focused = FocusManager?.GetFocusedElement();
+            if (focused is not TextBox && focused is not NumericUpDown)
+            {
+                vm.Owner.TogglePlaybackCommand.Execute(null);
+                e.Handled = true;
+                return;
+            }
+        }
+
         base.OnKeyDown(e);
     }
 

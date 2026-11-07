@@ -5,7 +5,7 @@ namespace bms_editer.Services;
 
 public sealed record OggWaveform(float[] Peaks, float[] Onsets, double DurationSeconds);
 
-// OGG Vorbis 파일을 디코딩해서 파형 표시용 피크와 박자 확인용 어택 값을 다운샘플링한다.
+// 디코딩된 PCM16 오디오 데이터에서 파형 표시용 피크와 박자 확인용 어택(온셋) 값을 다운샘플링한다.
 public static class OggPeakLoader
 {
     // 버킷 index 가 대응하는 시각의 비율(0~1).

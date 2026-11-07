@@ -14,6 +14,8 @@
     <Product>bms editer</Product>
     <Company>magjangin</Company>
     <Description>BMS Chart Editor for Rhythm Games</Description>
+    <NoWarn>$(NoWarn);MSB3277</NoWarn>
+    <MSBuildWarningsAsMessages>$(MSBuildWarningsAsMessages);MSB3277</MSBuildWarningsAsMessages>
   </PropertyGroup>
 
   <ItemGroup>

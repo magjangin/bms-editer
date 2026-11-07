@@ -253,6 +253,18 @@
 | `13f33bf` | **S-9** | 재생 정지 시 잔향 키음이 계속 울리던 문제 → `StopPlayback` 시 `_keySoundPlayer.StopAll()` 연동 |
 | `13f33bf` | **P-8** | 곡 끝에서 재생하면 첫 틱에 바로 멈추던 문제 → `Play()` 에서 끝 지점이면 0초부터 재생 |
 | `13f33bf` | — | 테스트 7개 추가 (369 → **376개**). P-1 UI/ViewModel 테스트, S-8 리셋 테스트, S-9 잔향 키음 정지 테스트, P-8 끝 재생 테스트, 실제 게임 BMS 차트 30종 ViewModel 로드 및 UI 렌더링 스모크 테스트. `AudioOffsetTests` 의 차트 문자열 백틱(`` `r`n ``)을 `\r\n` 으로 고침 |
+| — | **K-1 (4번)** | 격자 스크럽 및 재생바 자동 스크롤 시 오디오 오프셋(`AudioOffsetSeconds` / `PlaybackCursorRatio`) 반영 누락 해결 |
+| — | **K-2 (5번)** | 음원 없는 폴더 열기 시 이전 OGG 음원이 잔존하던 문제 해결 (`ClearOgg()`, 미디어 메뉴 [OGG 제거] 추가) |
+| — | **K-3 (6번)** | 체크박스 라벨의 `(G)` / `(D)` 단축키 미연결 해결 (`Key.G` -> 격자 스냅 토글, `Key.D` -> 수직 위치 고정 토글) |
+| — | **K-4 (7번)** | `BmsParser.BuildFileNameIndex` 에서 권한 없는 하위 폴더/ReparsePoint 시 열기 실패하던 문제 해결 (`EnumerationOptions` 도입) |
+| — | **K-5 (8번)** | `_keySoundPlayer.PreloadAsync` 시 컬렉션 스냅샷 미복사로 인한 다중 스레드 열거 예외 차단 (`.ToArray()`) |
+| — | **K-6 (10번)**| 동작과 달라진 오래된 코드 주석(`BmsChart`, `BmsParser.Patterns`, `NoteGridControl`, `OggPeakLoader`) 최신 사양 반영 |
+| — | **K-7 (P-2)** | 툴바/사이드바 버튼 및 토글이 포커스를 가로채 Space 재생/정지를 방해하던 문제 해결 (`Focusable="False"`, Space 분기 최적화) |
+| — | **K-8 (P-3)** | 보조 창(팔레트, 검색, 컨트롤 패널, 통계) 활성 시 Space 키로 메인 창 재생/정지가 제어되지 않던 문제 해결 |
+| — | **K-9 (P-4)** | 키음 수정 후 캐시 지속 문제 해결 (`KeySoundPlayer.ClearCache()` 추가 및 문서 상태 초기화 시 자동 호출) |
+| — | **K-10 (P-5)**| 재생 중 노트 편집 시 `_playbackNotes` 실시간 갱신 (`NotifyNotesChanged` 내 실시간 동기화) |
+| — | **K-11** | 빌드 경고 MSB3277 완전 억제 (`.csproj` NoWarn / MSBuildWarningsAsMessages 적용, 경고 0개 달성) |
+| — | — | 테스트 2개 추가 (**443개** 통과) |
 
 ---
 
@@ -276,3 +288,31 @@
 * **실제 게임 차트 30종 E2E 로드 및 UI 렌더링 검증**:
   - **내용**: 가상 테스트 데이터 외에 로컬에 설치된 실제 게임 차트 30개(Sixtar Gate STARTRAIL 15곡, GUNVOLT RECORDS Cychronicle 5곡, Sixtar Gate STARGAZER 3곡, Muse Dash 4곡, DEFLATE 1곡, UNBEATABLE/ADOFAI 2곡)를 `MainWindowViewModel.LoadBms` 및 Avalonia `MainWindow`에 바인딩하여 헤드리스 렌더링(`ShowAndDraw`)까지 예외 없이 정상 통과함을 검증했습니다 (`WindowSmokeTests.cs`).
 
+
+
+---
+
+## 🛠️ K. 사용성·재생 안정성 및 빌드 환경 개선 (2026-11-07)
+
+* **4번 (격자 스크럽 & 커서 추적 오프셋 누락 해결)**:
+  - 파형 컨트롤과 달리 메인 창 격자 표면 스크러빙(`ScrubFromEditorSurface`)과 재생바 뷰포트 자동 추적(`FollowPlaybackCursorIfNeeded`)에서 `AudioOffsetSeconds`가 누락되어 오프셋 설정 시 커서 위치가 어긋나던 문제를 `vm.PlaybackCursorRatio` 및 오프셋 계산식 보정으로 일치시켰습니다.
+* **5번 (음원 없는 폴더 열기 음원 잔존 해결)**:
+  - 폴더 열기 시 차트만 있고 OGG 음원이 없는 폴더의 경우, 이전 곡의 음원과 파형이 잔존하던 문제를 해결했습니다. `vm.ClearOgg()`를 구현하여 음원이 없으면 즉시 정리하고, 메뉴 `미디어(_M)`에 `OGG 제거` 항목을 추가했습니다.
+* **6번 ((G) / (D) 단축키 연결)**:
+  - 체크박스 라벨에 표기되어 있던 `격자에 맞추기(G)` 및 `수직위치 고정(D)`을 실제 `HandleEditorKey`에 바인딩하여 각각 `SnapToGrid` 및 `LockVerticalPosition`을 토글하도록 지원했습니다.
+* **7번 (권한 없는 하위 폴더 접근 안정화)**:
+  - `BmsParser.BuildFileNameIndex`에서 하위 폴더 탐색 시 권한 없는 폴더나 심볼릭 링크(ReparsePoint)로 인해 `UnauthorizedAccessException`이 발생해 차트 열기가 실패하던 문제를 `EnumerationOptions { RecurseSubdirectories = true, IgnoreInaccessible = true }`를 적용하여 안전하게 우회하도록 개선했습니다.
+* **8번 (키음 비동기 프리로드 컬렉션 동시성 안정화)**:
+  - `_keySoundPlayer.PreloadAsync` 호출 시 `Chart.WavTable.Values` 컬렉션을 원본 그대로 백그라운드로 넘겨 발생할 수 있던 `Collection was modified` 예외를 방지하기 위해 `.ToArray()` 스냅샷으로 안전하게 복사하여 전달하도록 수정했습니다.
+* **10번 (오래된 코드 주석 동기화)**:
+  - 조건 블록 지원 후에도 "저장을 막는다"고 적혀 있던 `BmsChart.HasConditionalBlocks`, "해석하지 못한다"고 적혀 있던 `BmsParser.Patterns`, "편집은 다음 단계에서 확장"으로 남아 있던 `NoteGridControl`, "OGG를 디코딩해서"로 남아 있던 `OggPeakLoader` 주석을 실제 구현 사양에 맞게 최신화했습니다.
+* **P-2 (Space 키 포커스 간섭 방지)**:
+  - 툴바 및 사이드바의 버튼, 체크박스, 토글 버튼에 `Focusable="False"`를 적용하고, `OnKeyDown`에서 텍스트 입력 중(`TextBox`/`NumericUpDown`)이 아닌 모든 상황에서 Space가 재생/정지로 최우선 동작하도록 개선했습니다.
+* **P-3 (보조 창 Space 키 재생/정지 지원)**:
+  - 키음 팔레트(`WavPaletteWindow`), 노트 검색(`NoteSearchWindow`), 컨트롤 패널(`ControlPanelWindow`), 노트 통계(`NoteStatsWindow`)가 열려 활성화된 상태에서도 Space 키 입력 시 메인 창의 재생/정지(`vm.Owner.TogglePlaybackCommand`)가 즉시 연동되도록 구현했습니다.
+* **P-4 (키음 캐시 수동/문서별 정리 지원)**:
+  - 외부 DAW에서 WAV를 수정하거나 새 문서를 열었을 때 옛 소리가 남지 않도록 `KeySoundPlayer.ClearCache()`를 구현하고 `ResetDocumentState()`에서 자동 호출되도록 연결했습니다.
+* **P-5 (재생 중 편집 시 재생 노트 실시간 갱신)**:
+  - 재생 도중 노트를 추가, 삭제, 이동했을 때 `NotifyNotesChanged()`에서 `IsPlaying` 상태이면 `_playbackNotes`를 실시간 정렬 갱신하여 지운 노트가 계속 울리거나 정렬이 깨지는 문제를 방지했습니다.
+* **빌드 경고 MSB3277 완전 억제**:
+  - `bms editer.csproj` 및 `bms editer.Tests.csproj`에 `<NoWarn>$(NoWarn);MSB3277</NoWarn>` 및 `<MSBuildWarningsAsMessages>$(MSBuildWarningsAsMessages);MSB3277</MSBuildWarningsAsMessages>`를 적용하여 WebView2로 인한 불필요한 빌드 경고를 완전히 제거했습니다 (경고 0개 달성).

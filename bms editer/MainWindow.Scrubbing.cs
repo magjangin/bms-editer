@@ -1,3 +1,4 @@
+using System;
 using Avalonia.Input;
 using bms_editer.ViewModels;
 using bms_editer.Views.Controls;
@@ -62,9 +63,11 @@ public partial class MainWindow
                 return;
 
             var position = e.GetPosition(EditorSurface);
-            var ratio = vm.IsHorizontalView
-                ? position.X / timelineLength
-                : 1.0 - (position.Y / timelineLength);
+            var timelineRatio = vm.IsHorizontalView
+                ? Math.Clamp(position.X / timelineLength, 0, 1)
+                : Math.Clamp(1.0 - (position.Y / timelineLength), 0, 1);
+            var audioSeconds = (timelineRatio * vm.OggDurationSeconds) - vm.AudioOffsetSeconds;
+            var ratio = Math.Clamp(audioSeconds / vm.OggDurationSeconds, 0, 1);
 
             if (isFinal)
                 vm.ScrubCommit(ratio);

@@ -18,7 +18,7 @@
 
 > ✅ **해결된 핵심 과제**(A 조건 블록 1차 해결 · B 키음 믹싱 재생 · D 렌더링 할당 줄이기 · F 🎛️ 컨트롤 패널 · v0.1.4 홀드 자동 페어링 · G 🛟 안전장치 · J 재생 및 편집 안전성)는 **[resolved_issues.md](resolved_issues.md)** 에 있습니다.
 >
-> 단위 테스트는 107개 → 114개 → 125개 → 306개 → 334개 → 355개 → 369개 → 374개 → 375개 → **376개**이고, 모두 통과합니다.
+> 단위 테스트는 107개 → 114개 → 125개 → 306개 → 334개 → 355개 → 369개 → 374개 → 376개 → **443개**이고, 모두 통과합니다.
 > 이 중 `RealGameChartTests` 및 `WindowSmokeTests` 의 실제 차트 스모크 테스트는 PC 에 설치된 게임 차트가 있을 때만 실제로 검사하고, 없으면 지나갑니다.
 
 ---
@@ -128,13 +128,13 @@
 | 1 | 🔴 조건 블록 저장 순서 | 제어 줄이 "직전 데이터 줄의 마디"로 정렬돼, 블록 뒤 같은 마디의 무조건 줄이 `#IF` 안으로 들어가거나, 블록을 파일 끝에 둔 차트는 `#IF` 가 닫히지 않은 순서로 저장된다 (임시 프로그램으로 재현) | `#00101` 뒤에 `#RANDOM`/`#IF 1`/`#00211`/`#ENDIF`/`#ENDRANDOM`, 그 뒤에 `#00201` 이 오는 차트를 열었다 저장해 줄 순서를 본다 | `BmsWriter.Write` 의 데이터 줄 정렬, `BmsParser.Parse` 의 제어 줄 `Measure = currentMeasure` |
 | 2 | 🔴 `#SWITCH` 뒤 노트의 갈래 | `#CASE`·`#DEF` 마다 갈래를 쌓기만 하고 닫지 않아, `#ENDSW` 뒤의 평범한 노트가 마지막 CASE 의 갈래 번호로 읽힌다 (임시 프로그램으로 재현). 홀드 짝은 갈래가 다르면 짝짓지 않는다 | CASE 가 둘 이상인 `#SWITCH` 뒤에 노트를 둔 차트를 연다 | `BmsParser.Parse` 의 제어 줄 처리 |
 | 3 | 🟡 조건 블록 안의 헤더 | 1단계에서 읽어 가는 헤더(`#WAV`·`#BPM`·`#TITLE` 등)는 저장할 때 헤더 영역에 새로 써서, 블록 안에 있던 것도 블록 밖(무조건)으로 옮겨진다. 같은 키가 두 번이면 마지막 값만 남는다 | 갈래마다 다른 `#WAV01` 을 둔 차트를 열었다 저장한다 | `BmsParser.IsConsumedHeader`, `BmsWriter.Write` |
-| 4 | 🟠 격자 스크럽의 오프셋 | 파형을 누를 때는 오프셋을 빼는데, 격자에서 가운데 버튼으로 끌 때와 재생바 자동 스크롤은 오프셋을 빼지 않는다. 오프셋이 0 이 아니면 커서가 누른 자리에서 그만큼 떨어진다 | 오프셋을 +100ms 로 두고 격자를 가운데 버튼으로 끌어 커서 위치를 본다 | `MainWindow.Scrubbing.ScrubFromEditorSurface`, `MainWindow.Viewport.FollowPlaybackCursorIfNeeded` |
-| 5 | 🟠 음원 없는 폴더 열기 | 폴더 열기에서 영상이 없으면 영상은 떼지만, 음원이 없으면 앞 곡 음원이 그대로 남는다 | OGG 가 있는 폴더를 연 뒤 OGG 없는 폴더를 연다 | `MainWindow.LoadFolderMediaAsync` |
-| 6 | 🟠 `(G)`·`(D)` 표시 | 체크박스 이름에 "격자에 맞추기(G)" · "수직위치 고정(D)" 이라고 적혀 있지만 G·D 키에 연결된 동작이 없다 | 격자를 누른 뒤 G·D 를 눌러 본다 | `MainWindow.axaml`, `MainWindow.Input.HandleEditorKey` |
-| 7 | 🟡 접근 불가 하위 폴더 | 키음 색인을 만들 때 차트 폴더를 `SearchOption.AllDirectories` 로 훑어서, 들어갈 수 없는 하위 폴더가 있으면 예외로 열기가 실패한다. 파일이 아주 많은 폴더에서는 열기가 느려진다 | 권한 없는 하위 폴더가 있는 폴더의 차트를 연다 | `BmsParser.BuildFileNameIndex` |
-| 8 | 🟡 키음 미리 읽기 | 차트의 키음 표(`WavTable.Values`)를 그대로 백그라운드로 넘겨 훑는다. 그동안 키음을 추가·삭제하면 열거가 예외로 끊겨 미리 읽기가 조용히 멈출 수 있다 | 키음이 많은 차트를 연 직후 키음을 추가한다 | `MainWindowViewModel.LoadBms`, `KeySoundPlayer.PreloadAsync` |
+| 4 | ~~**격자 스크럽의 오프셋**~~ (✅ K-1 해결) | 파형을 누를 때는 오프셋을 빼는데, 격자에서 가운데 버튼으로 끌 때와 재생바 자동 스크롤은 오프셋을 빼지 않는다. 오프셋이 0 이 아니면 커서가 누른 자리에서 그만큼 떨어진다 | 오프셋을 +100ms 로 두고 격자를 가운데 버튼으로 끌어 커서 위치를 본다 | `MainWindow.Scrubbing.ScrubFromEditorSurface`, `MainWindow.Viewport.FollowPlaybackCursorIfNeeded` |
+| 5 | ~~**음원 없는 폴더 열기**~~ (✅ K-2 해결) | 폴더 열기에서 영상이 없으면 영상은 떼지만, 음원이 없으면 앞 곡 음원이 그대로 남는다 | OGG 가 있는 폴더를 연 뒤 OGG 없는 폴더를 연다 | `MainWindow.LoadFolderMediaAsync` |
+| 6 | ~~**`(G)`·`(D)` 표시**~~ (✅ K-3 해결) | 체크박스 이름에 "격자에 맞추기(G)" · "수직위치 고정(D)" 이라고 적혀 있지만 G·D 키에 연결된 동작이 없다 | 격자를 누른 뒤 G·D 를 눌러 본다 | `MainWindow.axaml`, `MainWindow.Input.HandleEditorKey` |
+| 7 | ~~**접근 불가 하위 폴더**~~ (✅ K-4 해결) | 키음 색인을 만들 때 차트 폴더를 `SearchOption.AllDirectories` 로 훑어서, 들어갈 수 없는 하위 폴더가 있으면 예외로 열기가 실패한다. 파일이 아주 많은 폴더에서는 열기가 느려진다 | 권한 없는 하위 폴더가 있는 폴더의 차트를 연다 | `BmsParser.BuildFileNameIndex` |
+| 8 | ~~**키음 미리 읽기**~~ (✅ K-5 해결) | 차트의 키음 표(`WavTable.Values`)를 그대로 백그라운드로 넘겨 훑는다. 그동안 키음을 추가·삭제하면 열거가 예외로 끊겨 미리 읽기가 조용히 멈출 수 있다 | 키음이 많은 차트를 연 직후 키음을 추가한다 | `MainWindowViewModel.LoadBms`, `KeySoundPlayer.PreloadAsync` |
 | 9 | 🟠 테스트 문자열 | `AudioOffsetTests.cs` 113줄의 차트 문자열 줄바꿈이 PowerShell 식(`` `r`n ``)이라 C# 에서는 줄바꿈이 아니다. 차트 전체가 제목 한 줄로 읽힌다. 테스트는 통과하지만 의도한 차트를 검사하지 않는다 | 해당 줄을 본다 | `bms editer.Tests/AudioOffsetTests.cs` |
-| 10 | 🟠 코드 주석 | 동작과 다른 주석: `BmsChart.HasConditionalBlocks`("이 표시를 보고 저장을 막는다" — 막는 곳 없음), `BmsParser.Patterns.ControlFlowRegex`("아직 해석하지 못한다"), `NoteGridControl` 머리 주석("편집은 다음 단계에서 확장"), `OggPeakLoader` 머리 주석("디코딩해서" — 지금은 디코딩된 PCM 을 받음) | — | 각 파일 |
+| 10 | ~~**코드 주석**~~ (✅ K-6 해결) | 동작과 다른 주석: `BmsChart.HasConditionalBlocks`("이 표시를 보고 저장을 막는다" — 막는 곳 없음), `BmsParser.Patterns.ControlFlowRegex`("아직 해석하지 못한다"), `NoteGridControl` 머리 주석("편집은 다음 단계에서 확장"), `OggPeakLoader` 머리 주석("디코딩해서" — 지금은 디코딩된 PCM 을 받음) | — | 각 파일 |
 
 ---
 
@@ -178,10 +178,10 @@ S-1~S-5·S-7 은 `aa685e4` 에서 고쳐 표에서 뺐습니다. 점검 때 적�
 | # | 증상 | 왜 | 확인 방법 | 고칠 방향 |
 |:--:|:---|:---|:---|:---|
 | P-1 | ~~**편집 모드에서 재생을 멈추려고 격자를 누르면 노트가 찍히거나 지워진다**~~ | ✅ `MainWindow.Scrubbing` 터널 단계에서 `e.Handled = true` 처리 및 `PlaceNote`/`RemoveNote` 가드로 해결 → [resolved_issues J](resolved_issues.md#-j-재생-및-편집-안전성-긴급-패치) | — | — |
-| P-2 | 🟠 **Space 가 재생/정지 대신 방금 누른 버튼·체크박스를 다시 누른다** | 포커스가 `Button`·`ToggleButton`(체크박스 포함) 안이면 Space 를 그쪽에 넘기고, `TextBox` 안이면 글자로 둔다(`MainWindow.Input.OnKeyDown` 의 `IsWithin<TextBox>`·`IsWithin<Button>` 검사). 버튼이 눌린 뒤에도 포커스를 쥐고 있어서, 🔊 키음 토글·✏️·"가로 뷰로 돌리기"·"재생바 따라가기"를 누른 뒤 Space 를 치면 그것이 다시 토글된다. **BPM 칸을 고친 뒤 Space** 는 아무 일도 안 한다 | 🔊 토글을 누른 뒤 Space / BPM 을 고친 뒤 Space | 툴바·사이드바 버튼을 `Focusable="False"` 로. 입력 칸은 Enter 로 확정하면 격자로 포커스 넘기기 |
-| P-3 | 🟠 **보조 창이 앞에 있으면 Space 가 안 먹는다** | Space 는 메인 창의 `OnKeyDown` 만 받는다. 🎨 팔레트·🧰 검색·🎛️ 컨트롤 패널은 따로 뜬 창이라 Esc 만 처리한다(`WavPaletteWindow.OnKeyDown`). 팔레트에서 키음을 고른 직후가 가장 흔하다. 재생 중 클릭 정지도 메인 창에서만 된다 | 팔레트에서 키음을 고른 뒤 Space | 보조 창의 Space 를 메인 창 명령으로 넘기기 |
-| P-4 | 🟠 **키음 파일을 고쳐도 앱을 다시 켜기 전엔 옛 소리가 난다** | 키음 디코딩 캐시(`KeySoundPlayer._cache`, 파일 경로가 키)를 비우는 곳이 `Dispose` 뿐이다. DAW 에서 같은 이름으로 다시 뽑아도, 차트를 다시 열어도 옛 소리가 난다. 열 때 없던 파일은 `null` 로 기억돼, 나중에 파일을 넣어도 믹서로는 안 나온다(WAV 는 `PlaySound` 폴백으로 한 번에 한 소리만, OGG 는 무음). 곡을 열 때마다 메모리도 쌓인다 | 차트를 연 뒤 키음 WAV 를 다른 소리로 덮어쓰고 차트를 다시 연다 | 문서를 열 때 캐시 비우기(또는 파일 수정 시각을 키에 넣기) |
-| P-5 | 🟠 **재생 중에 한 편집이 재생에 반영되지 않는다** | 울릴 노트 목록은 `PlayFrom` 때 찍어 둔 배열이다(`MainWindowViewModel.Playback.PlayFrom` 의 `_playbackNotes = GetSortedNotes()`). 격자 클릭은 재생을 멈추지만 **Delete·방향키·검색 창 삭제는 안 멈춘다.** 지운 노트가 계속 울리고, 방향키 이동은 노트를 제자리에서 고쳐(`MainWindowViewModel.Editing.MoveSelectedNotes` 의 마지막 단계) 배열의 정렬이 깨진다. 그러면 이진 탐색이 옛 자리 근처의 다른 노트를 건너뛸 수 있다. 멈췄다 다시 재생하면 정상이다 | 재생 중 노트를 골라 Delete 한다 | 노트가 바뀌면(`NotifyNotesChanged`) 재생 목록도 새로 만들기 |
+| P-2 | ~~**Space 가 재생/정지 대신 방금 누른 버튼·체크박스를 다시 누른다** | 포커스가 `Button`·`ToggleButton`(체크박스 포함) 안이면 Space 를 그쪽에 넘기고, `TextBox` 안이면 글자로 둔다(`MainWindow.Input.OnKeyDown` 의 `IsWithin<TextBox>`·`IsWithin<Button>` 검사). 버튼이 눌린 뒤에도 포커스를 쥐고 있어서, 🔊 키음 토글·✏️·"가로 뷰로 돌리기"·"재생바 따라가기"를 누른 뒤 Space 를 치면 그것이 다시 토글된다. **BPM 칸을 고친 뒤 Space** 는 아무 일도 안 한다 | 🔊 토글을 누른 뒤 Space / BPM 을 고친 뒤 Space | 툴바·사이드바 버튼을 `Focusable="False"` 로. 입력 칸은 Enter 로 확정하면 격자로 포커스 넘기기 |
+| P-3 | ~~**보조 창이 앞에 있으면 Space 가 안 먹는다**~~ (✅ K-8 해결) | Space 는 메인 창의 `OnKeyDown` 만 받는다. 🎨 팔레트·🧰 검색·🎛️ 컨트롤 패널은 따로 뜬 창이라 Esc 만 처리한다(`WavPaletteWindow.OnKeyDown`). 팔레트에서 키음을 고른 직후가 가장 흔하다. 재생 중 클릭 정지도 메인 창에서만 된다 | 팔레트에서 키음을 고른 뒤 Space | 보조 창의 Space 를 메인 창 명령으로 넘기기 |
+| P-4 | ~~**키음 파일을 고쳐도 앱을 다시 켜기 전엔 옛 소리가 난다**~~ (✅ K-9 해결) | 키음 디코딩 캐시(`KeySoundPlayer._cache`, 파일 경로가 키)를 비우는 곳이 `Dispose` 뿐이다. DAW 에서 같은 이름으로 다시 뽑아도, 차트를 다시 열어도 옛 소리가 난다. 열 때 없던 파일은 `null` 로 기억돼, 나중에 파일을 넣어도 믹서로는 안 나온다(WAV 는 `PlaySound` 폴백으로 한 번에 한 소리만, OGG 는 무음). 곡을 열 때마다 메모리도 쌓인다 | 차트를 연 뒤 키음 WAV 를 다른 소리로 덮어쓰고 차트를 다시 연다 | 문서를 열 때 캐시 비우기(또는 파일 수정 시각을 키에 넣기) |
+| P-5 | ~~**재생 중에 한 편집이 재생에 반영되지 않는다**~~ (✅ K-10 해결) | 울릴 노트 목록은 `PlayFrom` 때 찍어 둔 배열이다(`MainWindowViewModel.Playback.PlayFrom` 의 `_playbackNotes = GetSortedNotes()`). 격자 클릭은 재생을 멈추지만 **Delete·방향키·검색 창 삭제는 안 멈춘다.** 지운 노트가 계속 울리고, 방향키 이동은 노트를 제자리에서 고쳐(`MainWindowViewModel.Editing.MoveSelectedNotes` 의 마지막 단계) 배열의 정렬이 깨진다. 그러면 이진 탐색이 옛 자리 근처의 다른 노트를 건너뛸 수 있다. 멈췄다 다시 재생하면 정상이다 | 재생 중 노트를 골라 Delete 한다 | 노트가 바뀌면(`NotifyNotesChanged`) 재생 목록도 새로 만들기 |
 | P-6 | 🟠 **음원보다 긴 차트는 뒷부분이 안 보이고 안 들린다** | 음원이 있으면 격자 길이 = 음원 길이다(`TimelineControlBase.GetTimelineHeight`). 음원 끝 뒤 노트는 격자 밖이라 안 그려지고, 클릭 배치도 음원 끝까지만 된다. 재생은 음원 끝에서 멈추므로 그 노트의 키음은 들을 방법이 없다. 마디 수를 늘려도 격자는 늘지 않는다 | 긴 차트에 짧은 OGG 를 얹는다 | 격자 길이를 "음원 끝"과 "마지막 마디 끝" 중 긴 쪽으로 |
 | P-7 | 🟠 **재생이 실패해도 아무 말이 없다** | 다른 앱이 장치를 독점하는 등으로 `PlayFrom` 이 실패하면 사유를 `LastErrorMessage` 에 넣기만 하고 띄우는 곳이 없다(`MainWindowViewModel.Playback.PlayFrom` 의 `catch`. `Play` 는 반환값을 버린다). 음원을 안 열었을 때도 Space 는 무반응이라 키음만 들어 볼 방법이 없다 | 음원 없이 Space 를 누른다 | 실패 사유를 메시지로 띄우기 |
 | P-8 | ~~**끝까지 재생한 뒤 Space 를 누르면 처음으로 안 돌아간다**~~ | ✅ `Play()` 에서 커서가 곡 끝(−0.05초 이내)에 있으면 0초부터 재생하도록 고쳐 해결 → [resolved_issues J](resolved_issues.md#-j-재생-및-편집-안전성-긴급-패치) | — | — |

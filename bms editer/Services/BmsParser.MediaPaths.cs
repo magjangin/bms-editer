@@ -12,11 +12,25 @@ public static partial class BmsParser
         if (!Directory.Exists(directory))
             return index;
 
-        foreach (var path in Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories))
+        var options = new EnumerationOptions
         {
-            var fileName = Path.GetFileName(path);
-            if (!index.ContainsKey(fileName))
-                index[fileName] = path;
+            RecurseSubdirectories = true,
+            IgnoreInaccessible = true,
+            AttributesToSkip = FileAttributes.ReparsePoint
+        };
+
+        try
+        {
+            foreach (var path in Directory.EnumerateFiles(directory, "*", options))
+            {
+                var fileName = Path.GetFileName(path);
+                if (!index.ContainsKey(fileName))
+                    index[fileName] = path;
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"색인 생성 중 오류: {ex.Message}");
         }
 
         return index;

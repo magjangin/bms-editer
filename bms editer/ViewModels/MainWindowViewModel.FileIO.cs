@@ -1,3 +1,4 @@
+using System.Linq;
 using System;
 using System.IO;
 using System.Text;
@@ -129,14 +130,8 @@ public sealed partial class MainWindowViewModel
         if (!await ConfirmDiscardIfNeededAsync("현재 작업 중인 내용이 모두 사라집니다.\n새로 만들까요?"))
             return;
 
-        // 재생 중이던 배경 음원을 먼저 정리한다.
-        StopPlayback(resetCursor: true);
-        _audioPlayer?.Dispose();
-        _audioPlayer = null;
-        OggFileName = null;
-        OggPeaks = null;
-        OggOnsets = null;
-        OggDurationSeconds = 0;
+        // 재생 중이던 배경 음원 및 비디오를 먼저 정리한다.
+        ClearOgg();
         ClearVideo();
 
         // 곡 길이가 0이 된 뒤에 초기화해야 UpdateMeasureCountFromAudio가 덮어쓰지 않는다.
@@ -147,10 +142,23 @@ public sealed partial class MainWindowViewModel
         GridMeasure = 4;
     }
 
+    public void ClearOgg()
+    {
+        StopPlayback(resetCursor: true);
+        _audioPlayer?.Dispose();
+        _audioPlayer = null;
+        OggFileName = null;
+        OggPeaks = null;
+        OggOnsets = null;
+        OggDurationSeconds = 0;
+        UpdateMeasureCountFromAudio();
+    }
+
     // 차트/키음/헤더 등 문서 상태를 초기 상태로 되돌린다. (배경 음원·비디오는 대상 아님)
     private void ResetDocumentState()
     {
         StopPlayback(resetCursor: true);
+        _keySoundPlayer.ClearCache();
 
         // 앞 문서를 위해 읽고 있던 음원은 이제 이 문서의 것이 아니다. (LoadOggAsync 참고)
         DocumentGeneration++;
@@ -248,7 +256,7 @@ public sealed partial class MainWindowViewModel
         // 한 번에 갈아끼운다. 하나씩 Add 하면 항목마다 알림이 나가고,
         // 통계·팔레트 창이 그때마다 전체 재집계를 돈다. (BulkObservableCollection 주석 참고)
         WavList.ReplaceAll(parsed.WavItems);
-        _keySoundPlayer.PreloadAsync(Chart.WavTable.Values);
+        _keySoundPlayer.PreloadAsync(Chart.WavTable.Values.ToArray());
 
         if (WavList.Count > 0)
         {
