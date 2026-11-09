@@ -77,6 +77,32 @@ public partial class MainWindow : Window
             Close();
         }
 
+        // 재생 커서를 화면 프레임마다 옮긴다.
+        //
+        // 타이머만 쓰면 실측 30ms(33Hz) 간격이라 고주사율 화면에서는 프레임 대부분에서 커서가 멈춰 있었다.
+        private bool _isPlaybackFrameLoopRunning;
+
+        private void StartPlaybackFrameLoop()
+        {
+            if (_isPlaybackFrameLoopRunning)
+                return;
+
+            _isPlaybackFrameLoopRunning = true;
+            RequestAnimationFrame(OnPlaybackFrame);
+        }
+
+        private void OnPlaybackFrame(TimeSpan _)
+        {
+            if (DataContext is MainWindowViewModel { IsPlaying: true } vm)
+            {
+                vm.RefreshPlaybackPosition();
+                RequestAnimationFrame(OnPlaybackFrame);
+                return;
+            }
+
+            _isPlaybackFrameLoopRunning = false;
+        }
+
         private void UpdateWindowTitle()
         {
             if (DataContext is MainWindowViewModel vm)
@@ -105,9 +131,14 @@ public partial class MainWindow : Window
                     return;
 
                 if (vm.IsPlaying)
+                {
                     VideoPreview.PlayFrom(vm.PlaybackPositionSeconds);
+                    StartPlaybackFrameLoop();
+                }
                 else
+                {
                     VideoPreview.PauseAt(vm.PlaybackPositionSeconds);
+                }
             }
             else if (e.PropertyName == nameof(MainWindowViewModel.VideoFilePath))
             {

@@ -36,7 +36,7 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
     private OggAudioPlayer? _audioPlayer;
     private DateTimeOffset _playbackStartedAt;
     private double _playbackStartSeconds;
-    private double _lastPlaybackPositionSeconds;
+    private double _keySoundsScheduledUntil;
     private BmsNote[] _playbackNotes = Array.Empty<BmsNote>();
     private readonly KeySoundPlayer _keySoundPlayer = new();
 
