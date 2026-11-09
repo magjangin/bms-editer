@@ -1,10 +1,13 @@
-# BMS Editer (BMS 에디터)
+# rhythm bms editer
 
 BMS(Be-Music Source) 차트를 시각적으로 확인하고 편집할 수 있는 **Avalonia UI** 기반의 리듬게임 채보 에디터입니다. 
 OGG 배경 오디오 파형(Waveform) 로딩, 온셋(Onset) 분석에 따른 그리드 씽크 시각화, 그리고 WAV 키음 미리듣기 기능을 제공합니다.
 
 > [!NOTE]
-> **v0.1.5 릴리스**: 재생 및 편집 안전성 긴급 패치(재생 정지 클릭 시 노트 오염 방지 P-1, 차트 전환 시 재생 정지 누락 S-8, 정지 시 키음 잔향 정지 S-9, 곡 끝에서 Space 시 처음 복귀 P-8, 렌더 브러시 스레드 동시성 안정화) 및 전체 점검에서 찾은 10건(마디 번호 한 줄 파싱 오류, 터키어 문화권 키 어긋남, 검색 창 마디 범위·숨기기 필터, 메뉴 Alt 키 등)을 고쳤습니다. → [resolved_issues J](docs/issues/resolved_issues.md#-j-재생-및-편집-안전성-긴급-패치) · [resolved_issues I](docs/issues/resolved_issues.md#-i-2026-10-01-점검에서-찾아-고친-작은-것)
+> **v0.1.6 릴리스**: **rhythm bms editer** 리브랜딩 및 앱 아이콘 전면 개편(1024x1024 PNG / 16~256px 멀티사이즈 ICO). BGM & 키음 독립 볼륨 조절 슬라이더, 키음 목록 누락(⚠️)/추측 경로(🔍) 상태 뱃지, 파일/폴더 드래그 앤 드롭 및 대화상자 마지막 폴더 기억, `#SWITCH`/`#CASE` 분기문 격리 버그 해결, AppData 자동 마이그레이션 적용 (총 480개 단위/스모크 테스트 100% 통과). → [resolved_issues M](docs/issues/resolved_issues.md#-m-2026-11-rhythm-bms-editer-리브랜딩-아이콘-및-전면-감사-버그-수정)
+>
+> > [!NOTE]
+> > **v0.1.5 릴리스**: 재생 및 편집 안전성 긴급 패치(재생 정지 클릭 시 노트 오염 방지 P-1, 차트 전환 시 재생 정지 누락 S-8, 정지 시 키음 잔향 정지 S-9, 곡 끝에서 Space 시 처음 복귀 P-8, 렌더 브러시 스레드 동시성 안정화) 및 전체 점검에서 찾은 10건(마디 번호 한 줄 파싱 오류, 터키어 문화권 키 어긋남, 검색 창 마디 범위·숨기기 필터, 메뉴 Alt 키 등)을 고쳤습니다. → [resolved_issues J](docs/issues/resolved_issues.md#-j-재생-및-편집-안전성-긴급-패치) · [resolved_issues I](docs/issues/resolved_issues.md#-i-2026-10-01-점검에서-찾아-고친-작은-것)
 
 > [!NOTE]
 > **v0.1.4 릴리스**: 게임 프로파일 기반 홀드/게이트/페어리 자동 페어링 및 격자 몸통(Body) 렌더링이 추가되었습니다.

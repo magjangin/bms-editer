@@ -9,8 +9,29 @@ namespace bms_editer.Services;
 // 사용자마다 늘 쓸 수 있는 %LocalAppData% 아래로 모은다.
 public static class AppDataPaths
 {
-    public static string Root =>
+    private static readonly string LegacyRoot =
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "bms editer");
+
+    public static string Root
+    {
+        get
+        {
+            var newRoot = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "rhythm bms editer");
+            // 기존 bms editer 폴더가 있고 새 rhythm bms editer 폴더가 없으면 마이그레이션
+            if (!Directory.Exists(newRoot) && Directory.Exists(LegacyRoot))
+            {
+                try
+                {
+                    Directory.Move(LegacyRoot, newRoot);
+                }
+                catch
+                {
+                    return LegacyRoot;
+                }
+            }
+            return newRoot;
+        }
+    }
 
     public static string Logs => Path.Combine(Root, "logs");
 

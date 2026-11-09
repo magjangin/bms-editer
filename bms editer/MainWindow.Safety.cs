@@ -179,7 +179,7 @@ public partial class MainWindow
 
             var choice = await ConfirmWindow.ShowThreeWayAsync(
                 this,
-                "지난번에 bms editer 가 제대로 닫히지 않았습니다.\n" +
+                "지난번에 rhythm bms editer 가 제대로 닫히지 않았습니다.\n" +
                 "저장하지 않은 작업이 자동 저장돼 있습니다.\n\n" +
                 $"파일: {name}\n" +
                 $"자동 저장 시각: {snapshot.SavedAtUtc.ToLocalTime():yyyy-MM-dd HH:mm:ss}\n\n" +

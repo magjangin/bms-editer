@@ -19,5 +19,7 @@ public sealed class BmsWavItem
     public bool IsPathGuessed { get; set; }
 
     public string FileName => Path.GetFileName(FilePath);
-    public string DisplayText => $"#{Key}: {FileName}";
+    public bool IsMissing => !string.IsNullOrEmpty(FilePath) && !File.Exists(FilePath);
+    public string StatusBadge => IsMissing ? " ⚠️ (파일 없음)" : (IsPathGuessed ? " 🔍 (추측된 경로)" : "");
+    public string DisplayText => $"#{Key}: {FileName}{StatusBadge}";
 }

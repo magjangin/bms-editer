@@ -46,6 +46,34 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
     [ObservableProperty] private IReadOnlyList<float>? _oggOnsets;
     [ObservableProperty] private double _oggDurationSeconds;
 
+    private double _bgmVolume = 1.0;
+    public double BgmVolume
+    {
+        get => _bgmVolume;
+        set
+        {
+            var clamped = Math.Clamp(value, 0.0, 1.0);
+            if (SetProperty(ref _bgmVolume, clamped))
+            {
+                _audioPlayer?.SetVolume(clamped);
+            }
+        }
+    }
+
+    private double _keySoundVolume = 1.0;
+    public double KeySoundVolume
+    {
+        get => _keySoundVolume;
+        set
+        {
+            var clamped = Math.Clamp(value, 0.0, 1.0);
+            if (SetProperty(ref _keySoundVolume, clamped))
+            {
+                _keySoundPlayer.Volume = clamped;
+            }
+        }
+    }
+
     // 음원을 타임라인에서 뒤로 미는 양(ms).
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(AudioOffsetSeconds))]
@@ -352,7 +380,7 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
         get
         {
             var name = CurrentFilePath is { } path ? System.IO.Path.GetFileName(path) : "제목 없음";
-            return $"{(IsDirty ? "*" : "")}{name} - bms editer";
+            return $"{(IsDirty ? "*" : "")}{name} - rhythm bms editer";
         }
     }
 

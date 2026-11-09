@@ -281,4 +281,30 @@ public sealed class SaveIntegrityTests : IDisposable
 
         Assert.Contains(@"#WAV01 sounds\kick.wav", text);
     }
+
+    [Fact]
+    public void 스위치_분기문_종료_후_노트는_분기_ID가_0으로_복귀한다()
+    {
+        var chartContent = "#TITLE SwitchTest\r\n#BPM 120\r\n#WAV01 a.wav\r\n#WAV02 b.wav\r\n#WAV03 c.wav\r\n#WAV04 d.wav\r\n#RANDOM 3\r\n#SWITCH 1\r\n#CASE 1\r\n#00111:01\r\n#CASE 2\r\n#00111:02\r\n#DEF\r\n#00111:03\r\n#ENDSW\r\n#00211:04\r\n";
+        var path = WriteChart(chartContent);
+        var parsed = BmsParser.Parse(path);
+
+        var notes = parsed.Chart.Notes
+            .OrderBy(n => n.Measure)
+            .ThenBy(n => n.Position)
+            .ToList();
+
+        Assert.Equal(4, notes.Count);
+        Assert.Equal("01", notes[0].WavKey);
+        Assert.Equal(1, notes[0].BranchId);
+
+        Assert.Equal("02", notes[1].WavKey);
+        Assert.Equal(2, notes[1].BranchId);
+
+        Assert.Equal("03", notes[2].WavKey);
+        Assert.Equal(3, notes[2].BranchId);
+
+        Assert.Equal("04", notes[3].WavKey);
+        Assert.Equal(0, notes[3].BranchId);
+    }
 }

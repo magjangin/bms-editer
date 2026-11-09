@@ -187,4 +187,74 @@ public sealed class PlaybackSpeedAndKeySoundTests
                 File.Delete(tempWav);
         }
     }
+
+    [Fact]
+    public void 볼륨_조절이_기본값_1이며_설정시_클램핑과_연동이_동작한다()
+    {
+        using var vm = new MainWindowViewModel();
+
+        Assert.Equal(1.0, vm.BgmVolume);
+        Assert.Equal(1.0, vm.KeySoundVolume);
+
+        vm.BgmVolume = 0.6;
+        Assert.Equal(0.6, vm.BgmVolume);
+
+        vm.KeySoundVolume = 0.4;
+        Assert.Equal(0.4, vm.KeySoundVolume);
+        Assert.Equal(0.4, vm.KeySoundPlayer.Volume, 3);
+
+        // 클램핑 검증
+        vm.BgmVolume = 1.5;
+        Assert.Equal(1.0, vm.BgmVolume);
+        vm.BgmVolume = -0.5;
+        Assert.Equal(0.0, vm.BgmVolume);
+
+        vm.KeySoundVolume = 2.0;
+        Assert.Equal(1.0, vm.KeySoundVolume);
+        vm.KeySoundVolume = -1.0;
+        Assert.Equal(0.0, vm.KeySoundVolume);
+    }
+
+    [Fact]
+    public void BmsWavItem의_상태_뱃지와_누락_표시가_정상_동작한다()
+    {
+        var missingItem = new bms_editer.Models.BmsWavItem
+        {
+            Key = "01",
+            FilePath = "C:\\non_existent_file_path_12345.wav",
+            SourceText = "missing.wav"
+        };
+        Assert.True(missingItem.IsMissing);
+        Assert.Contains("⚠️", missingItem.StatusBadge);
+        Assert.Contains("⚠️", missingItem.DisplayText);
+
+        var tempFile = Path.GetTempFileName();
+        try
+        {
+            var normalItem = new bms_editer.Models.BmsWavItem
+            {
+                Key = "02",
+                FilePath = tempFile,
+                SourceText = Path.GetFileName(tempFile)
+            };
+            Assert.False(normalItem.IsMissing);
+            Assert.Empty(normalItem.StatusBadge);
+
+            var guessedItem = new bms_editer.Models.BmsWavItem
+            {
+                Key = "03",
+                FilePath = tempFile,
+                SourceText = "other_folder/test.wav",
+                IsPathGuessed = true
+            };
+            Assert.False(guessedItem.IsMissing);
+            Assert.Contains("🔍", guessedItem.StatusBadge);
+            Assert.Contains("🔍", guessedItem.DisplayText);
+        }
+        finally
+        {
+            if (File.Exists(tempFile))
+                File.Delete(tempFile);
+        }
+    }
 }

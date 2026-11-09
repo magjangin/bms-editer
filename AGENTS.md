@@ -1,6 +1,6 @@
-# BMS Editor (`bms editer`) - Agent Guidelines & Project Handover
+# rhythm bms editer - Agent Guidelines & Project Handover
 
-이 문서는 BMS 에디터 프로젝트(`bms editer`)의 설계 의도, 구조적 원칙, 알려진 함정 및 빌드/테스트 규칙을 기술합니다.
+이 문서는 BMS 에디터 프로젝트(`rhythm bms editer`, 이전 명칭 `bms editer`)의 설계 의도, 구조적 원칙, 알려진 함정 및 빌드/테스트 규칙을 기술합니다.
 
 ---
 
@@ -30,6 +30,7 @@
   - `KeySoundPlayer`: Win32 `waveOut` 네이티브 헤더 직접 제어 + 무잠금 사전 디코딩 버퍼 믹싱
   - `OggAudioPlayer`: `NVorbis` 기반 PCM16 스트리밍
   - `VideoPreviewControl`: `Microsoft.Web.WebView2` (Chromium HWND) 가상 호스트 매핑 비디오 렌더러
+- **데이터 저장소**: `%LocalAppData%\rhythm bms editer` (`AppDataPaths.cs`에서 구버전 `bms editer` 자동 마이그레이션)
 
 ### 2) 설계 의도 및 Rationale (왜 일반적인 방법 대신 이 우회 방식을 택했는가)
 1. **단일 파일 배포 및 프로파일 포함 (`EmbeddedResource`)**:
@@ -50,6 +51,10 @@
    - 믹서는 40ms 버퍼 3개를 앞서 채웁니다. 재생 중 노트를 그냥 넣으면 대기열 뒤에 붙어 배경음보다 늦습니다. `waveOutGetPosition`으로 얻은 재생 프레임에 남은 시간을 더해 시작 프레임을 정하고, 믹서가 그 프레임에 섞습니다. 앞서 보는 양은 `KeySoundLookaheadSeconds`(0.25초, 실제 시간)이고 대기열보다 커야 합니다. 두 장치의 시계가 돌기 전의 위치 값은 믿을 수 없으므로 그동안은 예약하지 않습니다. 시작 지점 바로 뒤의 노트를 위해 `OggAudioPlayer.Play`의 `leadInSeconds`로 곡 앞에 0.2초 무음을 넣으며, 무음 동안 `GetPlayedSeconds`는 음수입니다.
 9. **재생 관련 변경은 실제 출력으로 측정**:
    - 무음 PCM이나 단위 테스트로는 키음 타이밍·음량을 알 수 없습니다. 실제로 `d7775f9`는 테스트를 전부 통과하면서 키음을 37ms에서 111ms로 늦췄습니다. 왼쪽 채널 배경음 클릭과 오른쪽 채널 키음 클릭을 프로세스 루프백(`VAD\\Process_Loopback`)으로 녹음해 시차를 재십시오. 시스템 전체 루프백은 다른 앱 소리가 섞입니다. 곡 중간만 재지 말고 재생 시작 직후, 40ms 미만의 짧은 소리, 곡 끝 경계를 함께 재십시오.
+10. **스위치/케이스 분기 스택 격리 (`switchStack`)**:
+    - `#SWITCH` 구문 안의 다중 `#CASE`/`#DEF`는 내부에서 새 `branchId`를 할당받지만, 구문이 종료되는 `#ENDSW`에서는 반드시 부모 분기 ID(최상위는 0)로 복구되어야 합니다. `switchStack`(`Stack<bool>`)을 도입하여 분기 내 케이스 교체 및 블록 종료 시 정상 중립 분기로 복원하도록 보장합니다.
+11. **마지막 작업 폴더 기억 (`RememberFolder`) 및 드래그 앤 드롭**:
+    - 파일 열기 대화상자에서 매번 루트로 돌아가는 사용성 불편을 방지하기 위해 파일/폴더를 열거나 저장할 때마다 마지막 경로를 메모리에 보존하여 다음 탐색기의 `SuggestedStartLocation`으로 사용합니다.
 
 ---
 
@@ -64,6 +69,10 @@
   - 무음 버퍼가 대기열에 항상 차서 지연이 37ms에서 111ms로 늘었습니다. 장치 유지는 예약(Rationale 8)과 함께여야 합니다.
 * ❌ **재생 정지 클릭 시 포커스 전파 방치**:
   - 재생 중 정지하려고 에디터 화면을 누를 때 클릭 이벤트가 격자로 흘러들어가 노트를 덮어쓰거나 우클릭 삭제되는 현상 발생. 터널링 단계에서 `e.Handled = true`로 차단하고 ViewModel 차원에서 `IsPlaying` 시 노트 배치/삭제를 가드해야 합니다.
+* ❌ **Avalonia 12 `DragEventArgs.Data` 구형 API 직접 접근 시도**:
+  - Avalonia 12.0.5에서는 `e.Data`가 `e.DataTransfer`(`IDataTransfer`)로 개편되었으며, `DataFormats.Files` 대신 `DataFormat.File`과 `TryGetFiles()`, `IStorageItem.TryGetLocalPath()`를 사용하는 현대적 API로 구현해야 합니다.
+* ❌ **`CommunityToolkit.Mvvm` `OnPropertyChanging(ref T)` 부분 메서드 시도**:
+  - 소스 생성기가 `ref` 형태의 부분 메서드를 지원하지 않으므로, 유효성 검사 및 클램핑이 필요한 프로퍼티는 수동 getter/setter와 `SetProperty`를 사용하는 것이 가장 안정적입니다.
 
 ---
 
@@ -77,7 +86,7 @@
   ```powershell
   dotnet test
   ```
-  *(현재 476개 단위/스모크 테스트 100% 통과 필수)*
+  *(현재 480개 단위/스모크 테스트 100% 통과 필수)*
 * **배포 산출물 빌드**:
   ```powershell
   dotnet publish -c Release -p:PublishProfile=win-x64

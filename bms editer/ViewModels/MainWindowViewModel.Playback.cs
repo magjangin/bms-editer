@@ -58,6 +58,7 @@ public sealed partial class MainWindowViewModel
     public void StopPlaybackAtCurrentPosition() => StopPlayback(resetCursor: false);
 
     public KeySoundPlayer KeySoundPlayer => _keySoundPlayer;
+    public OggAudioPlayer? AudioPlayer => _audioPlayer;
 
     // 재생을 시작하지 못했을 때. 창이 사유를 띄운다. (P-7)
     public event Action<string>? PlaybackFailed;
