@@ -15,6 +15,11 @@ public sealed partial class OggAudioPlayer : IDisposable
     private GCHandle _headerHandle;
     private WaveHeader _header;
     private bool _prepared;
+    private GCHandle _leadInDataHandle;
+    private GCHandle _leadInHeaderHandle;
+    private WaveHeader _leadInHeader;
+    private bool _leadInPrepared;
+    private double _leadInSeconds;
 
     // 디코딩은 OggDecoder 가 한 번만 한다. 파형 계산도 같은 결과를 나눠 쓴다.
     public OggAudioPlayer(OggAudioData data)
@@ -36,6 +41,8 @@ public sealed partial class OggAudioPlayer : IDisposable
     // 돌아온 뒤에도 실제 출력까지 드라이버 버퍼링 지연이 있어서 커서가 그만큼
     // 앞서 나가고, 둘째로 사운드 장치는 시스템 시계와 다른 크리스털로 돌아가
     // 시간이 갈수록 미세하게 벌어진다. 장치에 직접 물어보면 둘 다 사라진다.
+    //
+    // 앞에 넣은 무음(LeadInSeconds)을 재생하는 동안은 음수다. 0 이 곡의 시작 지점이다.
     public double? GetPlayedSeconds()
     {
         if (_waveOut == IntPtr.Zero || _sampleRate <= 0)
@@ -46,13 +53,18 @@ public sealed partial class OggAudioPlayer : IDisposable
             return null;
 
         // 요청한 단위를 장치가 못 맞추면 실제로 채워준 단위가 Type 에 담겨 온다.
-        return mmTime.Type switch
+        double? played = mmTime.Type switch
         {
             TIME_SAMPLES => mmTime.Value / (double)_sampleRate,
             TIME_BYTES => mmTime.Value / (double)(_sampleRate * Math.Max(1, BlockAlign)),
             _ => null,
         };
+
+        return played - _leadInSeconds;
     }
+
+    // 이번 재생에서 곡 앞에 넣은 무음의 길이(곡 시각, 초).
+    public double LeadInSeconds => _leadInSeconds;
 
     // 장치가 넘겨준 PCM 을 끝까지 다 재생했는지.
     //
@@ -70,7 +82,11 @@ public sealed partial class OggAudioPlayer : IDisposable
         }
     }
 
-    public void Play(double startSeconds, double speed = 1.0)
+    // leadInSeconds: 곡 앞에 넣을 무음의 길이(곡 시각, 초).
+    //
+    // 시작 지점 바로 뒤의 키음은 미리 예약할 시간이 없다. 무음이 흐르는 동안 장치 시계가 먼저 돌아
+    // 첫 음까지 정확한 자리에 예약할 수 있다. 같은 스트림에 이어 붙이므로 무음과 곡 사이에 틈이 없다.
+    public void Play(double startSeconds, double speed = 1.0, double leadInSeconds = 0)
     {
         Stop();
 
@@ -97,6 +113,24 @@ public sealed partial class OggAudioPlayer : IDisposable
         if (byteCount <= 0)
             return;
 
+        var leadInFrames = (int)Math.Round(Math.Max(0, leadInSeconds) * _sampleRate);
+        if (leadInFrames > 0)
+        {
+            var silence = new byte[leadInFrames * format.BlockAlign];
+            _leadInDataHandle = GCHandle.Alloc(silence, GCHandleType.Pinned);
+            _leadInHeader = new WaveHeader
+            {
+                Data = _leadInDataHandle.AddrOfPinnedObject(),
+                BufferLength = silence.Length,
+            };
+            _leadInHeaderHandle = GCHandle.Alloc(_leadInHeader, GCHandleType.Pinned);
+
+            ThrowIfFailed(WaveOutPrepareHeader(_waveOut, _leadInHeaderHandle.AddrOfPinnedObject(), Marshal.SizeOf<WaveHeader>()));
+            _leadInPrepared = true;
+            ThrowIfFailed(WaveOutWrite(_waveOut, _leadInHeaderHandle.AddrOfPinnedObject(), Marshal.SizeOf<WaveHeader>()));
+            _leadInSeconds = leadInFrames / (double)_sampleRate;
+        }
+
         _dataHandle = GCHandle.Alloc(_pcmBytes, GCHandleType.Pinned);
         _header = new WaveHeader
         {
@@ -120,15 +154,26 @@ public sealed partial class OggAudioPlayer : IDisposable
         if (_prepared && _headerHandle.IsAllocated)
             WaveOutUnprepareHeader(_waveOut, _headerHandle.AddrOfPinnedObject(), Marshal.SizeOf<WaveHeader>());
 
+        if (_leadInPrepared && _leadInHeaderHandle.IsAllocated)
+            WaveOutUnprepareHeader(_waveOut, _leadInHeaderHandle.AddrOfPinnedObject(), Marshal.SizeOf<WaveHeader>());
+
         WaveOutClose(_waveOut);
         _waveOut = IntPtr.Zero;
         _prepared = false;
+        _leadInPrepared = false;
+        _leadInSeconds = 0;
 
         if (_headerHandle.IsAllocated)
             _headerHandle.Free();
 
         if (_dataHandle.IsAllocated)
             _dataHandle.Free();
+
+        if (_leadInHeaderHandle.IsAllocated)
+            _leadInHeaderHandle.Free();
+
+        if (_leadInDataHandle.IsAllocated)
+            _leadInDataHandle.Free();
     }
 
     public void Dispose() => Stop();

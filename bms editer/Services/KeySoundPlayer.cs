@@ -21,10 +21,14 @@ public sealed unsafe partial class KeySoundPlayer : IDisposable
         public short[] Samples { get; }
         public int Position { get; set; }
 
-        public Voice(short[] samples)
+        // 장치에 써 넣은 프레임 기준으로 소리가 시작될 자리. 음수면 다음 버퍼에 바로 넣는다.
+        public long StartFrame { get; }
+
+        public Voice(short[] samples, long startFrame = -1)
         {
             Samples = samples;
             Position = 0;
+            StartFrame = startFrame;
         }
     }
 
@@ -40,11 +44,17 @@ public sealed unsafe partial class KeySoundPlayer : IDisposable
     private const short BitsPerSample = 16;
     private const int BlockAlign = Channels * (BitsPerSample / 8);
 
-    // 키음이 끊긴 뒤에도 이만큼(약 3초)은 장치를 무음으로 열어 둔다.
+    // 재생 중이 아닐 때는 마지막 소리가 실제로 다 나간 뒤에 장치를 닫는다.
     //
-    // 예전에는 빈 버퍼 3개를 큐에 넣자마자 장치를 닫았다. 그 시점에는 아직 마지막 소리가 재생 중이라
-    // 키음의 꼬리가 최대 40ms 잘렸고, 듬성한 구간마다 waveOutOpen 비용만큼 키음이 늦게 났다. (P-9)
-    private const int IdleBuffersBeforeClose = 75;
+    // 빈 버퍼 3개를 큐에 넣자마자 닫으면 마지막 소리가 아직 재생 중이라 꼬리가 최대 40ms 잘린다.
+    // 네 번째 빈 버퍼를 쓸 수 있다는 것은 마지막 소리가 든 버퍼가 끝났다는 뜻이다.
+    // 오래 열어 두지 않는 이유는, 무음이 큐에 차 있으면 미리듣기가 그 뒤에 붙어 120ms 늦게 나기 때문이다.
+    private const int IdleBuffersBeforeClose = BufferCount + 2;
+
+    private readonly object _deviceLock = new();
+
+    // 장치를 연 뒤 믹서가 써 넣은 프레임 수. 믹서 스레드만 고친다.
+    private long _framesWritten;
 
     private IntPtr _waveOut = IntPtr.Zero;
     private readonly IntPtr[] _buffers = new IntPtr[BufferCount];
@@ -161,18 +171,75 @@ public sealed unsafe partial class KeySoundPlayer : IDisposable
         });
     }
 
-    // 재생 중인 노트의 소리. 아직 안 풀렸으면 이번 소리는 건너뛰고 다음을 위해 풀어 둔다.
+    // 재생 중인 노트의 소리를 지금부터 delaySeconds 뒤에 정확히 울리도록 예약한다.
+    //
+    // 믹서는 버퍼 3개(120ms)를 앞서 채워 두므로, 그냥 넣으면 대기열 뒤에 붙어 배경음보다 늦게 난다.
+    // 실측으로 100~120ms 였다. 장치의 재생 위치를 기준으로 미리 자리를 잡아 대기열 지연을 없앤다.
+    //
+    // 아직 안 풀렸으면 이번 소리는 건너뛰고 다음을 위해 풀어 둔다.
     // 늦게 풀린 소리를 뒤늦게 내면 박자가 어긋나 차트가 틀린 것처럼 들린다.
-    public void PlayIfDecoded(string? filePath)
+    public void ScheduleIfDecoded(string? filePath, double delaySeconds)
     {
         if (string.IsNullOrWhiteSpace(filePath) || _isDisposed)
             return;
 
         var entry = GetCacheEntry(filePath);
-        if (entry.IsValueCreated)
-            StartVoice(filePath, entry.Value);
-        else
+        if (!entry.IsValueCreated)
+        {
             Task.Run(() => _ = entry.Value);
+            return;
+        }
+
+        var pcm = entry.Value;
+        if (pcm is null || pcm.Samples.Length == 0)
+        {
+            StartVoice(filePath, pcm);
+            return;
+        }
+
+        var startFrame = GetPlayedFrames() is { } played
+            ? played + (long)Math.Round(Math.Max(0, delaySeconds) * SampleRate)
+            : -1;
+
+        lock (_lock)
+        {
+            _activeVoices.Add(new Voice(pcm.Samples, startFrame));
+        }
+
+        WakeMixer();
+    }
+
+    // 예약만 되고 아직 울리기 시작하지 않은 소리를 지운다. 재생 위치를 옮길 때 쓴다.
+    public void CancelScheduled()
+    {
+        lock (_lock)
+        {
+            _activeVoices.RemoveAll(voice => voice.StartFrame >= 0 && voice.Position == 0);
+        }
+    }
+
+    // 장치가 열려 있고 재생 위치가 나아가기 시작했는지. 이때부터 앞서 예약할 수 있다.
+    public bool IsClockRunning => GetPlayedFrames() is > 0;
+
+    // 장치가 지금까지 실제로 재생한 프레임. 장치가 닫혀 있거나 조회가 안 되면 null.
+    private long? GetPlayedFrames()
+    {
+        lock (_deviceLock)
+        {
+            if (_waveOut == IntPtr.Zero)
+                return null;
+
+            var time = new MmTime { Type = TIME_SAMPLES };
+            if (WaveOutGetPosition(_waveOut, ref time, sizeof(MmTime)) != 0)
+                return null;
+
+            return time.Type switch
+            {
+                TIME_SAMPLES => time.Value,
+                TIME_BYTES => time.Value / BlockAlign,
+                _ => null,
+            };
+        }
     }
 
     // requiredGeneration 이 있으면 그 사이 StopAll 이 불리지 않았을 때만 낸다.
@@ -303,17 +370,26 @@ public sealed unsafe partial class KeySoundPlayer : IDisposable
             Array.Clear(mixBuffer);
             var mixedAny = false;
 
+            var bufferStartFrame = _framesWritten;
+
             lock (_lock)
             {
                 for (var v = _activeVoices.Count - 1; v >= 0; v--)
                 {
                     var voice = _activeVoices[v];
+
+                    // 예약된 자리가 이 버퍼보다 뒤면 다음 버퍼에서 다시 본다. 이미 지났으면 맨 앞에 넣는다.
+                    var startOffset = Math.Max(0, voice.StartFrame - bufferStartFrame);
+                    if (startOffset >= BufferFrames)
+                        continue;
+
+                    var writeOffset = (int)startOffset * Channels;
                     var source = voice.Samples;
                     var position = voice.Position;
-                    var samplesToCopy = Math.Min(source.Length - position, mixBuffer.Length);
+                    var samplesToCopy = Math.Min(source.Length - position, mixBuffer.Length - writeOffset);
 
                     for (var i = 0; i < samplesToCopy; i++)
-                        mixBuffer[i] += source[position + i];
+                        mixBuffer[writeOffset + i] += source[position + i];
 
                     mixedAny |= samplesToCopy > 0;
                     voice.Position = position + samplesToCopy;
@@ -325,7 +401,9 @@ public sealed unsafe partial class KeySoundPlayer : IDisposable
                 hasVoices = _activeVoices.Count > 0;
             }
 
-            silentBuffersCount = hasVoices ? 0 : silentBuffersCount + 1;
+            // 이번 버퍼에 소리를 넣었으면 그 소리가 다 나갈 때까지는 조용한 게 아니다.
+            // hasVoices 만 보면 40ms 보다 짧은 소리는 넣자마자 장치가 닫혀 아예 안 들린다.
+            silentBuffersCount = hasVoices || mixedAny ? 0 : silentBuffersCount + 1;
 
             // 네이티브 버퍼에 바로 쓴다. 합산을 다 끝낸 뒤에 한 번만 제한해야 겹치는 순서와 무관한 결과가 나온다.
             var output = new Span<short>((void*)_buffers[currentBufferIndex], mixBuffer.Length);
@@ -353,6 +431,7 @@ public sealed unsafe partial class KeySoundPlayer : IDisposable
             WaveOutPrepareHeader(_waveOut, _headerPtrs[currentBufferIndex], sizeof(WaveHeader));
             WaveOutWrite(_waveOut, _headerPtrs[currentBufferIndex], sizeof(WaveHeader));
 
+            _framesWritten += BufferFrames;
             currentBufferIndex = (currentBufferIndex + 1) % BufferCount;
         }
 
@@ -396,9 +475,14 @@ public sealed unsafe partial class KeySoundPlayer : IDisposable
                 Size = 0,
             };
 
-            var res = WaveOutOpen(out _waveOut, -1, ref format, IntPtr.Zero, IntPtr.Zero, 0);
-            if (res != 0 || _waveOut == IntPtr.Zero)
-                return false;
+            lock (_deviceLock)
+            {
+                var res = WaveOutOpen(out _waveOut, -1, ref format, IntPtr.Zero, IntPtr.Zero, 0);
+                if (res != 0 || _waveOut == IntPtr.Zero)
+                    return false;
+
+                _framesWritten = 0;
+            }
 
             for (var i = 0; i < BufferCount; i++)
             {
@@ -417,31 +501,34 @@ public sealed unsafe partial class KeySoundPlayer : IDisposable
 
     private void CloseWaveOut()
     {
-        if (_waveOut == IntPtr.Zero)
-            return;
-
-        try
+        lock (_deviceLock)
         {
-            WaveOutReset(_waveOut);
+            if (_waveOut == IntPtr.Zero)
+                return;
 
-            for (var i = 0; i < BufferCount; i++)
+            try
             {
-                var hdr = (WaveHeader*)_headerPtrs[i];
-                if ((hdr->Flags & WHDR_PREPARED) != 0)
-                {
-                    WaveOutUnprepareHeader(_waveOut, _headerPtrs[i], sizeof(WaveHeader));
-                }
-            }
+                WaveOutReset(_waveOut);
 
-            WaveOutClose(_waveOut);
-        }
-        catch
-        {
-            // 무시
-        }
-        finally
-        {
-            _waveOut = IntPtr.Zero;
+                for (var i = 0; i < BufferCount; i++)
+                {
+                    var hdr = (WaveHeader*)_headerPtrs[i];
+                    if ((hdr->Flags & WHDR_PREPARED) != 0)
+                    {
+                        WaveOutUnprepareHeader(_waveOut, _headerPtrs[i], sizeof(WaveHeader));
+                    }
+                }
+
+                WaveOutClose(_waveOut);
+            }
+            catch
+            {
+                // 무시
+            }
+            finally
+            {
+                _waveOut = IntPtr.Zero;
+            }
         }
     }
 
@@ -492,6 +579,17 @@ public sealed unsafe partial class KeySoundPlayer : IDisposable
     private const int SND_NODEFAULT = 0x0002;
     private const int SND_FILENAME = 0x00020000;
 
+    private const uint TIME_SAMPLES = 0x0002;
+    private const uint TIME_BYTES = 0x0004;
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MmTime
+    {
+        public uint Type;
+        public uint Value;
+        public uint UnionTail;
+    }
+
     [StructLayout(LayoutKind.Sequential)]
     private struct WaveFormat
     {
@@ -534,6 +632,9 @@ public sealed unsafe partial class KeySoundPlayer : IDisposable
 
     [LibraryImport("winmm.dll", EntryPoint = "waveOutClose")]
     private static partial int WaveOutClose(IntPtr hWaveOut);
+
+    [LibraryImport("winmm.dll", EntryPoint = "waveOutGetPosition")]
+    private static partial int WaveOutGetPosition(IntPtr hWaveOut, ref MmTime mmTime, int size);
 
     [LibraryImport("winmm.dll", EntryPoint = "PlaySoundW", StringMarshalling = StringMarshalling.Utf16)]
     private static partial int PlaySound(string pszSound, IntPtr hmod, int fdwSound);

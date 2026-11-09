@@ -229,11 +229,59 @@ public sealed class RenderingPerformanceRegressionTests
         {
             using var player = new KeySoundPlayer();
 
-            player.PlayIfDecoded(path);
+            player.ScheduleIfDecoded(path, 0);
             Assert.Equal(0, player.ActiveVoiceCount);
 
             player.Preload(path);
-            player.PlayIfDecoded(path);
+            player.ScheduleIfDecoded(path, 0);
+            Assert.Equal(1, player.ActiveVoiceCount);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void 곡_앞_무음을_재생하는_동안_위치는_시작_지점보다_앞선다()
+    {
+        var audio = new OggAudioData(new byte[44100 * 4], 44100, 2, 1.0);
+        using var player = new OggAudioPlayer(audio);
+
+        player.Play(0.5, 1.0, 0.2);
+
+        Assert.Equal(0.2, player.LeadInSeconds, 3);
+        Assert.True(player.GetPlayedSeconds() < 0);
+
+        player.Stop();
+        Assert.Equal(0, player.LeadInSeconds);
+        Assert.Null(player.GetPlayedSeconds());
+    }
+
+    [Fact]
+    public void 재생_위치를_옮기면_아직_시작하지_않은_예약만_지운다()
+    {
+        var path = WriteLongWav();
+        try
+        {
+            using var player = new KeySoundPlayer();
+            player.Preload(path);
+            player.HoldDeviceOpen = true;
+
+            var deadline = DateTime.UtcNow.AddSeconds(5);
+            do
+            {
+                player.StopAll();
+                player.ScheduleIfDecoded(path, 60);
+                player.CancelScheduled();
+                Thread.Sleep(10);
+            }
+            while (player.ActiveVoiceCount != 0 && DateTime.UtcNow < deadline);
+
+            Assert.Equal(0, player.ActiveVoiceCount);
+
+            player.Play(path);
+            player.CancelScheduled();
             Assert.Equal(1, player.ActiveVoiceCount);
         }
         finally
