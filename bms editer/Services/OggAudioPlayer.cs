@@ -54,6 +54,22 @@ public sealed partial class OggAudioPlayer : IDisposable
         };
     }
 
+    // 장치가 넘겨준 PCM 을 끝까지 다 재생했는지.
+    //
+    // 재생 위치만 보면 부동소수 끝자리 차이나 장치가 마지막 조각을 보고하지 않는 일로
+    // 곡 길이에 영영 못 닿을 수 있다. 그러면 곡이 끝났는데도 재생 중 상태로 남는다.
+    public bool HasReachedEnd
+    {
+        get
+        {
+            if (_waveOut == IntPtr.Zero || !_headerHandle.IsAllocated)
+                return false;
+
+            var flags = Marshal.ReadInt32(_headerHandle.AddrOfPinnedObject(), HeaderFlagsOffset);
+            return (flags & WHDR_DONE) != 0;
+        }
+    }
+
     public void Play(double startSeconds, double speed = 1.0)
     {
         Stop();
@@ -150,6 +166,9 @@ public sealed partial class OggAudioPlayer : IDisposable
 
     [LibraryImport("winmm.dll", EntryPoint = "waveOutGetPosition")]
     private static partial int WaveOutGetPosition(IntPtr hWaveOut, ref MmTime mmTime, int size);
+
+    private const int WHDR_DONE = 0x00000001;
+    private static readonly int HeaderFlagsOffset = (int)Marshal.OffsetOf<WaveHeader>(nameof(WaveHeader.Flags));
 
     private const uint TIME_SAMPLES = 0x0002;
     private const uint TIME_BYTES = 0x0004;

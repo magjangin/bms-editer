@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
+using Avalonia.Media.Immutable;
 using Avalonia.VisualTree;
 using bms_editer.Services;
 
@@ -169,10 +170,11 @@ public abstract class TimelineControlBase : Control
 
     static TimelineControlBase()
     {
+        // PlaybackPositionSeconds 와 IsPlaybackCursorVisible 은 일부러 뺐다. 커서는 PlaybackCursorLayer 가 그린다.
         AffectsRender<TimelineControlBase>(
             RowHeightProperty, VerticalZoomProperty, HorizontalZoomProperty, MeasureCountProperty,
             BeatSplitProperty, GridMeasureProperty, BpmProperty, DurationSecondsProperty,
-            PlaybackPositionSecondsProperty, IsPlaybackCursorVisibleProperty, IsGridSyncFlashVisibleProperty,
+            IsGridSyncFlashVisibleProperty,
             IsHorizontalViewProperty, TimelineProperty, AudioOffsetSecondsProperty);
 
         // HorizontalZoom 이 여기 빠져 있어서, 가로 줌을 바꾸면 다시 그려지기만 하고
@@ -227,6 +229,10 @@ public abstract class TimelineControlBase : Control
 
     private ScrollViewer? _observedScrollViewer;
 
+    // 마지막 Render 가 실제로 그려 둔 타임라인 구간. 처음에는 비어 있어서 무조건 그리게 된다.
+    private double _renderedMinPos = 1.0;
+    private double _renderedMaxPos;
+
     // 스크롤 시 자식 렌더링은 다시 호출되지 않으므로, 컬링 범위가 바뀌도록 직접 다시 그린다.
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
@@ -244,7 +250,41 @@ public abstract class TimelineControlBase : Control
         base.OnDetachedFromVisualTree(e);
     }
 
-    private void OnObservedScrollChanged(object? sender, ScrollChangedEventArgs e) => InvalidateVisual();
+    // 지금 보이는 구간이 이미 그려 둔 구간(뷰포트 + 버퍼) 안이면 다시 그릴 게 없다.
+    //
+    // 예전에는 스크롤 이벤트마다 노트·격자·파형을 전부 다시 기록했다. 휠을 굴리거나
+    // 재생바를 따라가는 동안 프레임이 밀리는 주된 원인이었다. 버퍼를 벗어날 때만 다시 그린다.
+    private void OnObservedScrollChanged(object? sender, ScrollChangedEventArgs e)
+    {
+        var timelineLength = GetTimelineHeight();
+        if (TryGetViewportInControl(out var viewport))
+        {
+            var (viewStart, viewEnd) = CalculateVisibleTimelineRange(viewport, timelineLength, IsHorizontalView, buffer: 0);
+            if (viewStart >= _renderedMinPos && viewEnd <= _renderedMaxPos)
+                return;
+        }
+
+        InvalidateVisual();
+    }
+
+    private bool TryGetViewportInControl(out Rect viewport)
+    {
+        viewport = default;
+
+        var scrollViewer = _observedScrollViewer;
+        if (scrollViewer is null || scrollViewer.Viewport.Width <= 0 || scrollViewer.Viewport.Height <= 0)
+            return false;
+
+        var p0 = scrollViewer.TranslatePoint(new Point(0, 0), this);
+        var p1 = scrollViewer.TranslatePoint(new Point(scrollViewer.Viewport.Width, scrollViewer.Viewport.Height), this);
+        if (!p0.HasValue || !p1.HasValue)
+            return false;
+
+        viewport = new Rect(
+            new Point(Math.Min(p0.Value.X, p1.Value.X), Math.Min(p0.Value.Y, p1.Value.Y)),
+            new Point(Math.Max(p0.Value.X, p1.Value.X), Math.Max(p0.Value.Y, p1.Value.Y)));
+        return true;
+    }
 
     // 뷰포트 사각 영역(컨트롤 로컬 좌표계 기준)에서 현재 화면에 보이는 타임라인 축 범위 [MinPos, MaxPos]를 구한다.
     // 뷰포트가 비정상적이거나 범위를 구할 수 없으면 전체 범위 [0, timelineLength]를 반환한다.
@@ -285,27 +325,19 @@ public abstract class TimelineControlBase : Control
     }
 
     // ScrollViewer 안에서 현재 화면에 보이는 타임라인 축 범위 [MinPos, MaxPos]를 구한다.
+    // Render 가 부르는 자리라, 어디까지 그렸는지 여기서 기억해 둔다. (OnObservedScrollChanged 참고)
     protected (double MinPos, double MaxPos) GetVisibleTimelineRange(double timelineLength, double buffer = DefaultViewportBuffer)
     {
         if (timelineLength <= 0)
             return (0, 0);
 
-        var scrollViewer = this.FindAncestorOfType<ScrollViewer>();
-        if (scrollViewer is not null && scrollViewer.Viewport.Width > 0 && scrollViewer.Viewport.Height > 0)
-        {
-            var p0 = scrollViewer.TranslatePoint(new Point(0, 0), this);
-            var p1 = scrollViewer.TranslatePoint(new Point(scrollViewer.Viewport.Width, scrollViewer.Viewport.Height), this);
-            if (p0.HasValue && p1.HasValue)
-            {
-                var rect = new Rect(
-                    new Point(Math.Min(p0.Value.X, p1.Value.X), Math.Min(p0.Value.Y, p1.Value.Y)),
-                    new Point(Math.Max(p0.Value.X, p1.Value.X), Math.Max(p0.Value.Y, p1.Value.Y)));
+        var range = TryGetViewportInControl(out var viewport)
+            ? CalculateVisibleTimelineRange(viewport, timelineLength, IsHorizontalView, buffer)
+            : (0.0, timelineLength);
 
-                return CalculateVisibleTimelineRange(rect, timelineLength, IsHorizontalView, buffer);
-            }
-        }
-
-        return (0, timelineLength);
+        _renderedMinPos = range.Item1;
+        _renderedMaxPos = range.Item2;
+        return range;
     }
 
     // 타임라인에 그릴 격자선을 순서대로 내놓는다.
@@ -323,14 +355,22 @@ public abstract class TimelineControlBase : Control
             // 격자 칸의 시각은 Timeline 이 정한다. 예전에는 여기서 240/(BPM*split) 을
             // 직접 써서, BPM 이 바뀌거나 4/4가 아닌 마디가 있으면 그 뒤로 전부 어긋났다.
             var timeline = EffectiveTimeline;
+            var horizontal = IsHorizontalView;
 
-            for (var index = 0; ; index++)
+            // 예전에는 0번부터 곡 끝까지 전부 돌며 화면 밖을 건너뛰었다. 192분할이면 매 프레임
+            // 수만 번의 시각 계산이 나갔다. 화면에 들어오는 첫 칸부터 시작해 화면을 지나면 멈춘다.
+            for (var index = FirstVisibleGridIndex(timeline, timelineLength, minPos, maxPos, split); ; index++)
             {
                 var seconds = timeline.SecondsAt((double)index / split);
                 if (seconds > DurationSeconds)
                     yield break;
 
                 var position = ToTimelinePosition(seconds / DurationSeconds, timelineLength);
+
+                // 뒤 칸일수록 가로 뷰는 오른쪽, 세로 뷰는 위쪽으로 간다.
+                if (horizontal ? position > maxPos + 0.5 : position < minPos - 0.5)
+                    yield break;
+
                 if (position < -0.5 || position > timelineLength + 0.5)
                     continue;
 
@@ -349,10 +389,11 @@ public abstract class TimelineControlBase : Control
             // 음원이 없으면 마디 높이가 곧 화면 높이다.
             var rowHeight = RowHeight * VerticalZoom * GetGridSpacingScale();
             var measureTimeline = EffectiveTimeline;
+            var (firstMeasure, lastMeasure) = VisibleMeasureSpan(timelineLength, minPos, maxPos, rowHeight);
 
             // 마지막 마디의 닫는 선까지 그리려고 MeasureCount 까지 돈다.
             // 범위를 벗어나는 보조선은 아래 검사에서 걸러진다.
-            for (var measure = 0; measure <= MeasureCount; measure++)
+            for (var measure = firstMeasure; measure <= lastMeasure; measure++)
             {
                 for (var beat = 0; beat < split; beat++)
                 {
@@ -377,6 +418,43 @@ public abstract class TimelineControlBase : Control
         }
     }
 
+    // 화면에 들어오는 가장 이른 격자 칸. 부동소수 오차에 대비해 한 칸 앞에서 시작한다.
+    private int FirstVisibleGridIndex(ChartTimeline timeline, double timelineLength, double minPos, double maxPos, int split)
+    {
+        if (timelineLength <= 0 || DurationSeconds <= 0)
+            return 0;
+
+        var ratio = IsHorizontalView
+            ? (minPos - 0.5) / timelineLength
+            : 1.0 - ((maxPos + 0.5) / timelineLength);
+
+        if (double.IsNaN(ratio) || ratio <= 0)
+            return 0;
+
+        var measurePosition = timeline.MeasurePositionAt(ratio * DurationSeconds);
+        return Math.Max(0, (int)Math.Floor(measurePosition * split) - 1);
+    }
+
+    // 음원이 없을 때 화면에 걸치는 마디 범위. 앞뒤로 한 마디씩 여유를 둔다.
+    private (int First, int Last) VisibleMeasureSpan(double timelineLength, double minPos, double maxPos, double rowHeight)
+    {
+        var measureCount = MeasureCount;
+        if (rowHeight <= 0)
+            return (0, measureCount);
+
+        var earlyOffset = IsHorizontalView ? minPos - 0.5 : timelineLength - (maxPos + 0.5);
+        var lateOffset = IsHorizontalView ? maxPos + 0.5 : timelineLength - (minPos - 0.5);
+
+        var first = double.IsInfinity(earlyOffset)
+            ? 0
+            : (int)Math.Clamp(Math.Floor(earlyOffset / rowHeight) - 1, 0, measureCount);
+        var last = double.IsInfinity(lateOffset)
+            ? measureCount
+            : (int)Math.Clamp(Math.Ceiling(lateOffset / rowHeight) + 1, 0, measureCount);
+
+        return (first, last);
+    }
+
     private GridLineKind ClassifyGridLine(int index, int split) =>
         Mod(index, split) == 0
             ? GridLineKind.Measure
@@ -388,35 +466,133 @@ public abstract class TimelineControlBase : Control
     protected double ToTimelinePosition(double ratio, double timelineLength) =>
         IsHorizontalView ? ratio * timelineLength : (1.0 - ratio) * timelineLength;
 
-    protected void DrawPlaybackCursor(DrawingContext context, double width, double height)
+    // ── 재생 커서 ────────────────────────────────────────────────────────────
+    //
+    // 커서는 얇은 자식 층 하나에 그리고, 재생 중에는 그 층만 옮긴다.
+    //
+    // 예전에는 커서 위치가 AffectsRender 라서 재생 틱마다 노트·격자·파형·라벨을 전부 다시 기록했다.
+    // 커서 선 두 줄을 옮기려고 수천 번의 그리기 호출을 다시 낸 셈이고, 곡이 빽빽할수록 재생이 끊겼다.
+    // 층이 얇으니 화면에서 다시 칠할 영역도 커서가 지나간 띠뿐이다.
+    private const double CursorLayerThickness = 8.0;
+
+    private static readonly IPen CursorGlowPen = new Pen(new SolidColorBrush(Color.FromArgb(90, 50, 255, 120)), 5).ToImmutable();
+    private static readonly IPen CursorPen = new Pen(new SolidColorBrush(Color.FromRgb(40, 255, 90)), 2).ToImmutable();
+
+    private sealed class PlaybackCursorLayer : Control
     {
-        if (!IsPlaybackCursorVisible || DurationSeconds <= 0)
-            return;
+        private bool _isHorizontal;
 
-        var ratio = Math.Clamp(AudioRatio(PlaybackPositionSeconds), 0, 1);
-        var glowPen = new Pen(new SolidColorBrush(Color.FromArgb(90, 50, 255, 120)), 5);
-        var cursorPen = new Pen(new SolidColorBrush(Color.FromRgb(40, 255, 90)), 2);
-
-        if (IsHorizontalView)
+        public bool IsHorizontal
         {
-            var x = ratio * width;
-            context.DrawLine(glowPen, new Point(x, 0), new Point(x, height));
-            context.DrawLine(cursorPen, new Point(x, 0), new Point(x, height));
+            get => _isHorizontal;
+            set
+            {
+                if (_isHorizontal == value)
+                    return;
+
+                _isHorizontal = value;
+                InvalidateVisual();
+            }
         }
-        else
+
+        public override void Render(DrawingContext context)
         {
-            var y = (1.0 - ratio) * height;
-            context.DrawLine(glowPen, new Point(0, y), new Point(width, y));
-            context.DrawLine(cursorPen, new Point(0, y), new Point(width, y));
+            var middle = CursorLayerThickness / 2;
+            var (from, to) = IsHorizontal
+                ? (new Point(middle, 0), new Point(middle, Bounds.Height))
+                : (new Point(0, middle), new Point(Bounds.Width, middle));
+
+            context.DrawLine(CursorGlowPen, from, to);
+            context.DrawLine(CursorPen, from, to);
         }
     }
+
+    private PlaybackCursorLayer? _cursorLayer;
+    private TranslateTransform? _cursorTransform;
+
+    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+    {
+        base.OnPropertyChanged(change);
+
+        if (change.Property == PlaybackPositionSecondsProperty
+            || change.Property == IsPlaybackCursorVisibleProperty
+            || change.Property == AudioOffsetSecondsProperty
+            || change.Property == DurationSecondsProperty
+            || change.Property == RowHeightProperty
+            || change.Property == VerticalZoomProperty
+            || change.Property == MeasureCountProperty
+            || change.Property == BeatSplitProperty
+            || change.Property == GridMeasureProperty
+            || change.Property == IsHorizontalViewProperty)
+        {
+            UpdatePlaybackCursorLayer();
+        }
+    }
+
+    // 커서가 처음 보일 때 층을 만든다. 재생하지 않는 컨트롤(테스트의 격자 계산용 등)은 층이 없다.
+    private void UpdatePlaybackCursorLayer()
+    {
+        if (!IsPlaybackCursorVisible || DurationSeconds <= 0)
+        {
+            if (_cursorLayer is not null)
+                _cursorLayer.IsVisible = false;
+            return;
+        }
+
+        if (_cursorLayer is null || _cursorTransform is null)
+        {
+            _cursorTransform = new TranslateTransform();
+            _cursorLayer = new PlaybackCursorLayer
+            {
+                IsHitTestVisible = false,
+                RenderTransform = _cursorTransform,
+                RenderTransformOrigin = RelativePoint.TopLeft,
+            };
+
+            VisualChildren.Add(_cursorLayer);
+            InvalidateArrange();
+        }
+
+        var horizontal = IsHorizontalView;
+        if (_cursorLayer.IsHorizontal != horizontal)
+        {
+            _cursorLayer.IsHorizontal = horizontal;
+            InvalidateArrange();
+        }
+
+        // 재생 커서도 격자와 같은 타임라인 길이 위에 놓아야 파형·노트와 맞는다.
+        var ratio = Math.Clamp(AudioRatio(PlaybackPositionSeconds), 0, 1);
+        var position = ToTimelinePosition(ratio, GetTimelineHeight()) - (CursorLayerThickness / 2);
+
+        _cursorTransform.X = horizontal ? position : 0;
+        _cursorTransform.Y = horizontal ? 0 : position;
+        _cursorLayer.IsVisible = true;
+    }
+
+    protected override Size ArrangeOverride(Size finalSize)
+    {
+        if (_cursorLayer is { } layer)
+        {
+            var size = layer.IsHorizontal
+                ? new Size(CursorLayerThickness, finalSize.Height)
+                : new Size(finalSize.Width, CursorLayerThickness);
+
+            layer.Measure(size);
+            layer.Arrange(new Rect(size));
+        }
+
+        return finalSize;
+    }
+
+    private static readonly IBrush SyncFlashBrush = new SolidColorBrush(Color.FromArgb(36, 80, 255, 140)).ToImmutable();
+    private static readonly IPen SyncFlashPen = new Pen(new SolidColorBrush(Color.FromArgb(190, 90, 255, 150)), 2).ToImmutable();
 
     protected void DrawGridSyncFlash(DrawingContext context, double width, double height)
     {
         if (!IsGridSyncFlashVisible)
             return;
 
-        context.FillRectangle(new SolidColorBrush(Color.FromArgb(36, 80, 255, 140)), new Rect(0, 0, width, height));
-        context.DrawRectangle(null, new Pen(new SolidColorBrush(Color.FromArgb(190, 90, 255, 150)), 2), new Rect(1, 1, width - 2, height - 2));
+        context.FillRectangle(SyncFlashBrush, new Rect(0, 0, width, height));
+        context.DrawRectangle(null, SyncFlashPen, new Rect(1, 1, width - 2, height - 2));
     }
 }

@@ -67,14 +67,19 @@ public sealed partial class MainWindowViewModel
         try
         {
             // 디코딩은 5분짜리 곡이면 수 초가 걸린다. UI 스레드에서 하면 그동안 창이 얼어붙는다.
+            // 파형 계산도 곡 전체 표본을 도는 일이라 같이 백그라운드에서 끝낸다.
             // 새 음원을 끝까지 다 읽고 나서야 기존 것을 건드린다.
             var decode = DecodeOgg;
-            var decoded = await Task.Run(() => decode(filePath));
+            var (decoded, peaks) = await Task.Run(() =>
+            {
+                var data = decode(filePath);
+                return (data, OggPeakLoader.Load(data));
+            });
 
             if (IsOggLoadSuperseded(request, document))
                 return OggLoadResult.Superseded;
 
-            waveform = OggPeakLoader.Load(decoded);
+            waveform = peaks;
             audioPlayer = new OggAudioPlayer(decoded);
         }
         catch (Exception ex)

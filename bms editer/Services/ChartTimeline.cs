@@ -105,15 +105,7 @@ public sealed class ChartTimeline
         if (seconds <= 0)
             return 0;
 
-        var measure = 0;
-        while (measure < MaxMeasure)
-        {
-            EnsureBoundary(measure + 1);
-            if (_measureStartSeconds[measure + 1] > seconds)
-                break;
-
-            measure++;
-        }
+        var measure = FindMeasureContaining(seconds);
 
         var remaining = seconds - _measureStartSeconds[measure];
         var bpm = _bpmAtMeasureStart[measure];
@@ -144,6 +136,35 @@ public sealed class ChartTimeline
             return measure + cursor;
 
         return measure + Math.Min(1.0, cursor + (remaining / wholeMeasureSeconds));
+    }
+
+    // 시작 시각이 seconds 이하인 마지막 마디. 경계는 뒤로 갈수록 커지므로 이분 탐색으로 찾는다.
+    // 격자를 그릴 때마다 불리는 자리라 앞에서부터 세면 곡이 길수록 프레임이 늘어진다.
+    private int FindMeasureContaining(double seconds)
+    {
+        var high = Math.Clamp(_measureStartSeconds.Count, 1, MaxMeasure);
+        EnsureBoundary(high);
+
+        while (high < MaxMeasure && _measureStartSeconds[high] <= seconds)
+        {
+            high = Math.Min(MaxMeasure, high * 2);
+            EnsureBoundary(high);
+        }
+
+        if (_measureStartSeconds[high] <= seconds)
+            return high;
+
+        var low = 0;
+        while (high - low > 1)
+        {
+            var middle = low + ((high - low) / 2);
+            if (_measureStartSeconds[middle] <= seconds)
+                low = middle;
+            else
+                high = middle;
+        }
+
+        return low;
     }
 
     // 마디 안에서 measureFraction 만큼이 차지하는 시간. BPM 이 일정한 구간에서만 쓴다.

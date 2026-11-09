@@ -18,6 +18,7 @@ public partial class MainWindow : Window
             vm.ConfirmAsync = message => ConfirmWindow.ShowAsync(this, message, "확인");
             vm.PropertyChanged += OnViewModelPropertyChanged;
             vm.ScrollToRatioRequested += ScrollEditorToRatio;
+            vm.PlaybackFailed += message => _ = ConfirmWindow.ShowMessageAsync(this, message, "재생 실패");
             Waveform.ScrubRequested += OnWaveformScrubRequested;
             Closing += OnWindowClosing;
             Closed += (_, _) => (DataContext as IDisposable)?.Dispose();

@@ -30,6 +30,10 @@ public static class HoldPairingEngine
                 ? new HashSet<string>(rule.Channels, StringComparer.OrdinalIgnoreCase)
                 : null;
 
+            // 역할은 노트의 키음 번호로만 정해진다. 편집할 때마다 전체를 다시 돌기 때문에
+            // 같은 번호의 파일명 해석·정규식을 노트 수만큼 되풀이하지 않게 번호별로 기억해 둔다.
+            var rolesByKey = new Dictionary<string, (HoldRole Role, HoldRole Label)>(StringComparer.Ordinal);
+
             var members = new List<HoldMember>();
             for (var index = 0; index < notes.Count; index++)
             {
@@ -37,7 +41,13 @@ public static class HoldPairingEngine
                 if (channels is not null && !channels.Contains(note.LaneId))
                     continue;
 
-                var (role, label) = HoldRoleClassifier.Classify(profile, rule, note, wavTexts);
+                if (!rolesByKey.TryGetValue(note.WavKey, out var classified))
+                {
+                    classified = HoldRoleClassifier.Classify(profile, rule, note, wavTexts);
+                    rolesByKey[note.WavKey] = classified;
+                }
+
+                var (role, label) = classified;
                 if (role == HoldRole.None)
                     continue;
 

@@ -59,6 +59,9 @@ public sealed partial class MainWindowViewModel
 
     public KeySoundPlayer KeySoundPlayer => _keySoundPlayer;
 
+    // 재생을 시작하지 못했을 때. 창이 사유를 띄운다. (P-7)
+    public event Action<string>? PlaybackFailed;
+
     // 재생을 시작한다. 오디오 장치를 열 수 없으면(장치 없음·다른 앱이 독점) false.
     //
     // 예전에는 OggAudioPlayer 가 던진 예외를 아무도 받지 않아서, 재생 버튼 한 번에
@@ -80,9 +83,11 @@ public sealed partial class MainWindowViewModel
             StopPlayback(resetCursor: false);
             LastErrorMessage = $"재생을 시작하지 못했습니다.\n\n{ex.Message}";
             System.Diagnostics.Debug.WriteLine($"재생 실패: {ex.Message}");
+            PlaybackFailed?.Invoke(LastErrorMessage);
             return false;
         }
 
+        _keySoundPlayer.HoldDeviceOpen = true;
         _playbackStartSeconds = startSeconds;
         _playbackStartedAt = DateTimeOffset.UtcNow;
         PlaybackPositionSeconds = startSeconds;
@@ -108,14 +113,29 @@ public sealed partial class MainWindowViewModel
             ? _playbackStartSeconds + played
             : _playbackStartSeconds + (DateTimeOffset.UtcNow - _playbackStartedAt).TotalSeconds * PlaybackSpeed;
 
+        var reachedEnd = _audioPlayer.HasReachedEnd;
+        if (reachedEnd)
+            currentSec = Math.Max(currentSec, OggDurationSeconds);
+
         PlaybackPositionSeconds = currentSec;
 
-        PlayNotesInTimeRange(_lastPlaybackPositionSeconds + AudioOffsetSeconds, currentSec + AudioOffsetSeconds);
+        var keySoundStart = GetKeySoundWindowStart(_lastPlaybackPositionSeconds, currentSec);
+        PlayNotesInTimeRange(keySoundStart + AudioOffsetSeconds, currentSec + AudioOffsetSeconds);
         _lastPlaybackPositionSeconds = currentSec;
 
-        if (PlaybackPositionSeconds >= OggDurationSeconds)
+        if (reachedEnd || PlaybackPositionSeconds >= OggDurationSeconds)
             StopPlayback(resetCursor: false);
     }
+
+    // 화면이 잠깐 멈춰 틱이 밀렸을 때 뒤늦게 울려도 되는 구간의 길이(곡 시각, 초).
+    public const double MaxKeySoundCatchUpSeconds = 0.25;
+
+    // 이번 틱에 키음을 낼 구간의 시작.
+    //
+    // 틱이 오래 밀리면 그 사이 노트를 한꺼번에 내게 되는데, 뭉쳐 나는 소리는
+    // 차트가 틀린 것처럼 들린다. 최근 구간만 내고 더 지난 것은 버린다. (P-10)
+    public static double GetKeySoundWindowStart(double lastSeconds, double currentSeconds) =>
+        Math.Max(lastSeconds, currentSeconds - MaxKeySoundCatchUpSeconds);
 
     private void PlayNotesInTimeRange(double start, double end)
     {
@@ -152,7 +172,8 @@ public sealed partial class MainWindowViewModel
             if (timeline.SecondsAt(note.Measure + note.Position) >= end)
                 break;
 
-            PlayWavSound(note.WavKey);
+            if (Chart.WavTable.TryGetValue(note.WavKey, out var path))
+                _keySoundPlayer.PlayIfDecoded(path);
         }
     }
 
@@ -161,6 +182,7 @@ public sealed partial class MainWindowViewModel
         _playbackTimer.Stop();
         _audioPlayer?.Stop();
         _keySoundPlayer.StopAll();
+        _keySoundPlayer.HoldDeviceOpen = false;
         _playbackNotes = Array.Empty<BmsNote>();
         IsPlaying = false;
 
