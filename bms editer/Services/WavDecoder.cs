@@ -24,7 +24,8 @@ public static class WavDecoder
 
         try
         {
-            using var stream = File.OpenRead(filePath);
+            // 디코딩은 백그라운드에서 돈다. 그동안 DAW 가 같은 파일을 다시 쓰거나 지울 수 있게 잠그지 않는다.
+            using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
             using var reader = new BinaryReader(stream);
 
             if (stream.Length < 12)

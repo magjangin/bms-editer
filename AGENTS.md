@@ -40,6 +40,12 @@
    - 격자선 렌더링, 뷰포트 스크롤, 마우스 스크러빙이 각각 길이를 계산하면 오프셋 오차가 누적되어 소리와 격자가 어긋납니다. 타임라인 길이는 반드시 `TimelineControlBase.ComputeTimelineLength()` 단 한 곳에서만 계산해야 합니다.
 4. **Space 단축키 포커스 독립성**:
    - DAW 및 리듬게임 에디터의 특성상 툴바/사이드바 버튼 클릭 후 포커스가 머물러 있어도 Space 키는 항상 재생/정지로 최우선 동작해야 합니다. 툴바 버튼들은 `Focusable="False"`로 유지하고, `TextBox` / `NumericUpDown` 활성 입력 중에만 Space를 입력 텍스트로 보존합니다.
+5. **재생 커서 전용 층 (`TimelineControlBase.PlaybackCursorLayer`)**:
+   - 재생 틱은 초당 60번 옵니다. 커서를 부모 `Render`에서 그리면 그때마다 노트·격자·파형 전체를 다시 기록해 곡이 빽빽할수록 끊깁니다. 커서는 얇은 자식 층에 그리고 `TranslateTransform`으로 옮깁니다. `PlaybackPositionSeconds`를 `AffectsRender`에 다시 넣으면 안 됩니다. `InvalidateArrange`로 옮기지도 마십시오(`LayoutUpdated`가 매 틱 불려 WebView2 COM 호출로 이어집니다).
+6. **노트 그리기 색인은 참조로 무효화 (`NoteGridControl.NoteRenderIndex`)**:
+   - 뷰모델은 노트가 바뀌면 항상 새 배열을 줍니다(`NotifyNotesChanged`). 색인은 배열·레인·시간축의 **참조**만 비교합니다. 노트를 제자리에서 고치면서 같은 배열을 다시 주는 경로를 만들면 화면이 갱신되지 않습니다.
+7. **UI 스레드에서 디코딩·디스크 쓰기 금지**:
+   - 재생 판정이 UI 타이머에서 돌기 때문에 UI가 멈추면 키음이 뭉칩니다. 키음 디코딩·파형 계산·자동 저장 쓰기는 백그라운드에서 합니다. 재생 중 노트는 `PlayIfDecoded`(안 풀렸으면 건너뜀), 사용자가 직접 듣는 소리는 `Play`(풀리는 대로 재생)를 씁니다.
 
 ---
 
@@ -48,6 +54,8 @@
   - 뷰포트 외부 격자선과 노트를 거칠게 잘라내려다가 격자선 누락 및 끝 마디 노트 소실 현상 발생. 렌더 무결성이 최우선이므로 현재의 Skia Canvas 안전 클리핑과 계산된 `minPos/maxPos` 버퍼 구간 컬링을 엄격히 유지해야 합니다.
 * ❌ **컨트롤 패널 리스트박스 ItemTemplate 내부 Command 바인딩**:
   - Avalonia Compiled Binding 환경에서 부모 ViewModel 조상 바인딩이 조용히 끊어지는 현상 발생. 목록 항목 내부가 아니라 목록 외부 전용 버튼(`SelectedItem` 바인딩) 및 더블클릭 이벤트 핸들러 방식을 유지해야 합니다.
+* ❌ **헤드리스 테스트에서 `RunJobs`로 재생 타이머 돌리기**:
+  - `DispatcherTimer`는 진짜 메인 루프에서만 돌아서 커서가 0에 머뭅니다. 재생 경로는 `HeadlessUnitTestSession.Dispatch(async ...)` 안에서 `await`로 양보해야 합니다(`RenderingPerformanceRegressionTests` 참고).
 * ❌ **재생 정지 클릭 시 포커스 전파 방치**:
   - 재생 중 정지하려고 에디터 화면을 누를 때 클릭 이벤트가 격자로 흘러들어가 노트를 덮어쓰거나 우클릭 삭제되는 현상 발생. 터널링 단계에서 `e.Handled = true`로 차단하고 ViewModel 차원에서 `IsPlaying` 시 노트 배치/삭제를 가드해야 합니다.
 
@@ -63,7 +71,7 @@
   ```powershell
   dotnet test
   ```
-  *(현재 443개 단위/스모크 테스트 100% 통과 필수)*
+  *(현재 474개 단위/스모크 테스트 100% 통과 필수)*
 * **배포 산출물 빌드**:
   ```powershell
   dotnet publish -c Release -p:PublishProfile=win-x64

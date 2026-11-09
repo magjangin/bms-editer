@@ -27,7 +27,7 @@ public static partial class BmsParser
         new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
 
     private static (string[] Lines, Encoding Encoding) ReadAllLines(
-        string filePath, string directory, Dictionary<string, string> fileNameIndex)
+        string filePath, string directory, Lazy<Dictionary<string, string>> fileNameIndex)
     {
         Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
 
@@ -96,7 +96,7 @@ public static partial class BmsParser
     //
     // 둘 다 못 가르면 CP932 로 둔다. 야생의 BMS 차트는 Shift_JIS 가 가장 많다.
     private static (string[] Lines, Encoding Encoding) DecodeLegacy(
-        byte[] bytes, string directory, Dictionary<string, string> fileNameIndex)
+        byte[] bytes, string directory, Lazy<Dictionary<string, string>> fileNameIndex)
     {
         Encoding? bestEncoding = null;
         string? bestText = null;
@@ -116,7 +116,7 @@ public static partial class BmsParser
             }
 
             var text = candidate.GetString(bytes);
-            var resolved = CountResolvableMedia(text, directory, fileNameIndex);
+            var resolved = CountResolvableMedia(text, directory, fileNameIndex.Value);
             var score = ScoreLegacyText(text);
 
             if (resolved > bestResolved || (resolved == bestResolved && score > bestScore))

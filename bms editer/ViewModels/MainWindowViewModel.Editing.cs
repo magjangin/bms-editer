@@ -121,18 +121,14 @@ public sealed partial class MainWindowViewModel
     {
         if (notes.Count == 0) return 0;
 
-        var targetList = ReferenceEquals(notes, Chart.Notes) ? notes.ToArray() : notes;
-        var removed = 0;
-        foreach (var note in targetList)
-        {
-            if (!Chart.Notes.Remove(note)) continue;
-
-            _selectedNotes.Remove(note);
-            removed++;
-        }
+        // 하나씩 List.Remove 하면 지울 때마다 앞에서부터 찾고 뒤를 당겨서 O(N²)이다.
+        // 만 개 단위로 지우면 창이 수 초씩 멈췄다. 집합으로 만들어 한 번에 걷어낸다.
+        var targets = new HashSet<BmsNote>(notes);
+        var removed = Chart.Notes.RemoveAll(targets.Contains);
 
         if (removed > 0)
         {
+            _selectedNotes.ExceptWith(targets);
             NotifyNotesChanged();
             NotifySelectionChanged();
         }
@@ -380,7 +376,7 @@ public sealed partial class MainWindowViewModel
         {
             var key = GetNextWavKey();
             Chart.WavTable[key] = filePath;
-            _keySoundPlayer.Preload(filePath);
+            _keySoundPlayer.PreloadAsync(new[] { filePath });
             var item = new BmsWavItem { Key = key, FilePath = filePath };
             WavList.Add(item);
             SelectedWavItem = item;
@@ -408,9 +404,10 @@ public sealed partial class MainWindowViewModel
     [RelayCommand]
     private async Task RemoveWavAsync()
     {
-        if (SelectedWavItem is null) return;
+        // 확인 창이 떠 있는 동안 키음 팔레트에서 다른 항목을 고를 수 있다. 처음 고른 것을 붙잡아 둔다.
+        if (SelectedWavItem is not { } target) return;
 
-        var key = SelectedWavItem.Key;
+        var key = target.Key;
         var usedBy = CountNotesUsingWavKey(key);
 
         if (usedBy > 0)
@@ -429,8 +426,10 @@ public sealed partial class MainWindowViewModel
         }
 
         Chart.WavTable.Remove(key);
-        WavList.Remove(SelectedWavItem);
-        SelectedWavItem = null;
+        WavList.Remove(target);
+
+        if (ReferenceEquals(SelectedWavItem, target))
+            SelectedWavItem = null;
     }
 
     [RelayCommand]

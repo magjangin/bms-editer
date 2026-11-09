@@ -40,7 +40,11 @@ public partial class MainWindow
             }
 
             _autoSaveTimer = new DispatcherTimer { Interval = AutoSaveInterval };
-            _autoSaveTimer.Tick += (_, _) => (DataContext as MainWindowViewModel)?.AutoSave();
+            _autoSaveTimer.Tick += async (_, _) =>
+            {
+                if (DataContext is MainWindowViewModel current)
+                    await current.AutoSaveInBackgroundAsync();
+            };
             _autoSaveTimer.Start();
 
             Opened += OnOpenedOfferRecovery;

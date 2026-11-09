@@ -71,6 +71,10 @@ public sealed class OggWaveformControl : TimelineControlBase
     private static readonly IPen CenterLinePen = new Pen(Brushes.DimGray, 1).ToImmutable();
     private static readonly IPen WavePen = new Pen(new SolidColorBrush(Color.FromRgb(150, 170, 160)), 1).ToImmutable();
     private static readonly IBrush WaveFillBrush = new SolidColorBrush(Color.FromArgb(125, 120, 150, 135)).ToImmutable();
+    private static readonly IBrush BackgroundBrush = new SolidColorBrush(Color.FromRgb(15, 20, 20)).ToImmutable();
+    private static readonly IPen SubBeatPen = new Pen(new SolidColorBrush(Color.FromArgb(45, 150, 160, 170)), 1).ToImmutable();
+    private static readonly IPen BeatPen = new Pen(new SolidColorBrush(Color.FromArgb(120, 200, 210, 220)), 1).ToImmutable();
+    private static readonly IPen MeasurePen = new Pen(new SolidColorBrush(Color.FromArgb(210, 255, 255, 255)), 1.5).ToImmutable();
 
     public override void Render(DrawingContext context)
     {
@@ -84,7 +88,7 @@ public sealed class OggWaveformControl : TimelineControlBase
         var waveformThickness = IsHorizontalView ? height : width;
         var center = waveformThickness / 2.0;
 
-        context.FillRectangle(new SolidColorBrush(Color.FromRgb(15, 20, 20)), new Rect(0, 0, width, height));
+        context.FillRectangle(BackgroundBrush, new Rect(0, 0, width, height));
 
         if (IsHorizontalView)
         {
@@ -132,12 +136,6 @@ public sealed class OggWaveformControl : TimelineControlBase
 
         DrawBeatGrid(context, waveformThickness, timelineLength, IsHorizontalView, minPos, maxPos);
         DrawGridSyncFlash(context, width, height);
-
-        // 재생 커서도 같은 시간축 위에 있어야 파형과 맞는다.
-        DrawPlaybackCursor(
-            context,
-            IsHorizontalView ? timelineLength : width,
-            IsHorizontalView ? height : timelineLength);
     }
 
     private bool _isScrubbing;
@@ -278,7 +276,9 @@ public sealed class OggWaveformControl : TimelineControlBase
         var endOffset = thickness - (isHorizontal ? 6.0 : 20.0);
         var center = thickness / 2.0;
 
-        for (var i = 0; i < onsets.Count; i++)
+        var (firstOnset, lastOnset) = VisibleOnsetRange(onsets.Count, timelineLength, isHorizontal, minPos, maxPos);
+
+        for (var i = firstOnset; i < lastOnset; i++)
         {
             var alphaVal = onsets[i];
             if (alphaVal <= 0.01f) continue;
@@ -316,15 +316,29 @@ public sealed class OggWaveformControl : TimelineControlBase
         }
     }
 
+    // 화면에 걸치는 온셋 버킷 범위 [From, To). 위치 -> 시각 -> 버킷으로 되짚고, 양쪽에 한 칸씩 여유를 둔다.
+    private (int From, int To) VisibleOnsetRange(int count, double timelineLength, bool isHorizontal, double minPos, double maxPos)
+    {
+        double RatioOf(double position) => isHorizontal ? position / timelineLength : 1.0 - (position / timelineLength);
+
+        var startRatio = RatioOf(isHorizontal ? minPos - 10 : maxPos + 10);
+        var endRatio = RatioOf(isHorizontal ? maxPos + 10 : minPos - 10);
+        var offsetRatio = AudioOffsetSeconds / DurationSeconds;
+
+        var from = (int)Math.Clamp(Math.Floor((startRatio - offsetRatio) * count) - 1, 0, count);
+        var to = (int)Math.Clamp(Math.Ceiling((endRatio - offsetRatio) * count) + 2, 0, count);
+        return (from, to);
+    }
+
     private static readonly Typeface MeasureLabelTypeface = new("Inter, Arial, sans-serif");
-    private readonly Dictionary<int, (string Text, FormattedText Formatted)> _measureLabelCache = new();
+    private readonly Dictionary<int, (double Seconds, FormattedText Formatted)> _measureLabelCache = new();
 
     private FormattedText GetOrCreateMeasureLabel(int measure, double seconds)
     {
-        var text = $"#{measure:D3} ({seconds:F4}s)";
-        if (_measureLabelCache.TryGetValue(measure, out var cached) && cached.Text == text)
+        if (_measureLabelCache.TryGetValue(measure, out var cached) && cached.Seconds == seconds)
             return cached.Formatted;
 
+        var text = $"#{measure:D3} ({seconds:F4}s)";
         var formatted = new FormattedText(
             text,
             System.Globalization.CultureInfo.CurrentCulture,
@@ -333,7 +347,7 @@ public sealed class OggWaveformControl : TimelineControlBase
             11.0,
             Brushes.LightGray);
 
-        _measureLabelCache[measure] = (text, formatted);
+        _measureLabelCache[measure] = (seconds, formatted);
         return formatted;
     }
 
@@ -348,17 +362,13 @@ public sealed class OggWaveformControl : TimelineControlBase
         if (timelineLength <= 0 || Bpm <= 0)
             return;
 
-        var subBeatPen = new Pen(new SolidColorBrush(Color.FromArgb(45, 150, 160, 170)), 1);
-        var beatPen = new Pen(new SolidColorBrush(Color.FromArgb(120, 200, 210, 220)), 1);
-        var measurePen = new Pen(new SolidColorBrush(Color.FromArgb(210, 255, 255, 255)), 1.5);
-
         foreach (var line in EnumerateGridLines(timelineLength, minPos, maxPos))
         {
             var pen = line.Kind switch
             {
-                GridLineKind.Measure => measurePen,
-                GridLineKind.Beat => beatPen,
-                _ => subBeatPen,
+                GridLineKind.Measure => MeasurePen,
+                GridLineKind.Beat => BeatPen,
+                _ => SubBeatPen,
             };
 
             if (isHorizontal)

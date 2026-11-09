@@ -3,9 +3,11 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using Avalonia;
+using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Media;
 using Avalonia.Platform;
+using Avalonia.Threading;
 using bms_editer.Models;
 using bms_editer.Services;
 using bms_editer.Services.Holds;
@@ -89,6 +91,67 @@ public sealed class PerformanceBenchmarkTests
 
         return (chart, links, peaks, onsets);
     }
+
+    // 실제 창과 같은 구성(스크롤 안의 파형+격자)에서 재생 커서만 움직일 때 한 프레임이 드는 시간.
+    // 재생 중에 사용자가 실제로 겪는 비용이라, 전체 곡을 통째로 그리는 위 측정과 따로 잰다.
+    [Fact]
+    public void 재생_커서_이동_프레임_성능_측정() => HoldTestSupport.RunOnUiThread(() =>
+    {
+        const double durationSeconds = 304.0;
+        var lanes = LaneDefinition.CreateDefault();
+        var notes = new List<BmsNote>();
+        var rnd = new Random(7);
+        for (var measure = 0; measure < 190; measure++)
+        {
+            for (var step = 0; step < 64; step++)
+            {
+                if (rnd.NextDouble() < 0.8)
+                    notes.Add(new BmsNote { LaneId = lanes[rnd.Next(lanes.Count)].Id, Measure = measure, Position = step / 64.0, WavKey = "01" });
+            }
+        }
+
+        var peaks = Enumerable.Range(0, 20000).Select(_ => (float)rnd.NextDouble()).ToArray();
+        var onsets = Enumerable.Range(0, 20000).Select(_ => rnd.NextDouble() < 0.05 ? (float)rnd.NextDouble() : 0f).ToArray();
+
+        var waveform = new OggWaveformControl
+        {
+            MeasureCount = 190, VerticalZoom = 8, BeatSplit = 16, Bpm = 150, DurationSeconds = durationSeconds,
+            Peaks = peaks, Onsets = onsets, Width = 220, IsPlaybackCursorVisible = true,
+        };
+        var grid = new NoteGridControl
+        {
+            Lanes = lanes, Notes = notes.ToArray(), MeasureCount = 190, VerticalZoom = 8, BeatSplit = 16, Bpm = 150,
+            DurationSeconds = durationSeconds, IsPlaybackCursorVisible = true,
+        };
+
+        var surface = new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal };
+        surface.Children.Add(waveform);
+        surface.Children.Add(grid);
+        var scroll = new ScrollViewer { Content = surface };
+        var window = new Window { Width = 1280, Height = 720, Content = scroll };
+        window.Show();
+        Dispatcher.UIThread.RunJobs();
+        window.CaptureRenderedFrame();
+
+        scroll.Offset = new Vector(0, 40000);
+        Dispatcher.UIThread.RunJobs();
+        window.CaptureRenderedFrame();
+
+        const int frames = 120;
+        var sw = Stopwatch.StartNew();
+        for (var i = 0; i < frames; i++)
+        {
+            var seconds = 140.0 + (i * 0.016);
+            waveform.PlaybackPositionSeconds = seconds;
+            grid.PlaybackPositionSeconds = seconds;
+            Dispatcher.UIThread.RunJobs();
+            window.CaptureRenderedFrame();
+        }
+        sw.Stop();
+        window.Close();
+
+        _output.WriteLine($"재생 커서 이동 1프레임 (노트 {notes.Count}개): {sw.Elapsed.TotalMilliseconds / frames:F2} ms");
+    });
 
     [Fact]
     public void 대형_5분_차트_렌더링_성능_측정() => HoldTestSupport.RunOnUiThread(() =>

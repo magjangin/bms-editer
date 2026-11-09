@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Threading.Tasks;
 using bms_editer.Services;
 
 namespace bms_editer.ViewModels;
@@ -49,6 +50,60 @@ public sealed partial class MainWindowViewModel
         {
             ErrorLog.Write(store.LogDirectory, ex, "자동 저장");
             return null;
+        }
+    }
+
+    private bool _isAutoSaving;
+
+    // 타이머가 부르는 자동 저장. 디스크에 쓰는 일만 백그라운드로 보낸다.
+    //
+    // 스냅숏 쓰기와 오래된 스냅숏 정리는 파일을 수십 개 건드린다. UI 스레드에서 하면
+    // 2분마다 재생과 스크롤이 한 번씩 끊겼다. 문서 글을 만드는 일은 차트를 읽으므로 UI 스레드에 둔다.
+    public async Task<SnapshotInfo?> AutoSaveInBackgroundAsync()
+    {
+        if (_isAutoSaving || !IsDirty || Snapshots is not { } store)
+            return null;
+
+        _isAutoSaving = true;
+        try
+        {
+            var documentPath = CurrentFilePath;
+            var outputPath = documentPath ?? Path.Combine(store.GetDocumentDirectory(null), "untitled.bms");
+            var content = BuildDocumentText(outputPath);
+
+            var previous = _lastAutoSnapshot;
+            var sameDocument = previous?.OriginalPath == FullPathOrNull(documentPath);
+            if (previous is not null && sameDocument && content == _lastAutoSnapshotContent)
+            {
+                store.UpdateSession(previous);
+                return previous;
+            }
+
+            var generation = DocumentGeneration;
+            var encoding = ResolveEncodingFor(content, out _);
+            var snapshot = await Task.Run(() => store.WriteSnapshot(documentPath, content, encoding, SnapshotKind.Auto));
+
+            // 쓰는 사이 다른 문서를 열었거나 비상 저장이 더 새로운 것을 남겼으면 그쪽을 기준으로 둔다.
+            if (generation != DocumentGeneration || !ReferenceEquals(previous, _lastAutoSnapshot))
+                return snapshot;
+
+            _lastAutoSnapshot = snapshot;
+            _lastAutoSnapshotContent = content;
+
+            // 쓰는 사이 사용자가 저장했으면 세션은 이미 "되살릴 것 없음"이다. 덮어쓰지 않는다.
+            if (IsDirty)
+                store.UpdateSession(snapshot);
+
+            return snapshot;
+        }
+        catch (Exception ex)
+        {
+            ErrorLog.Write(store.LogDirectory, ex, "자동 저장");
+            return null;
+        }
+        finally
+        {
+            _isAutoSaving = false;
         }
     }
 

@@ -59,7 +59,9 @@ public static partial class BmsParser
         }
 
         var directory = Path.GetDirectoryName(documentPath) ?? "";
-        var mediaPathIndex = BuildFileNameIndex(directory);
+
+        // 하위 폴더 전체를 훑는 일이라 필요할 때만 만든다. 대부분의 차트는 #WAV 가 적힌 자리에 그대로 있다.
+        var mediaPathIndex = new Lazy<Dictionary<string, string>>(() => BuildFileNameIndex(directory));
 
         // 파일을 바이트로 한 번만 읽고 인코딩을 가려낸다. 어느 인코딩으로 읽었는지는
         // 결과에 실어 보내, 저장할 때 그대로 되돌려 쓴다.
@@ -73,6 +75,9 @@ public static partial class BmsParser
         {
             var line = rawLine.Trim();
             if (string.IsNullOrEmpty(line) || !line.StartsWith("#")) continue;
+
+            // #00111:... 같은 데이터 줄이 파일의 대부분이다. 아래 헤더들은 전부 # 뒤가 글자로 시작한다.
+            if (line.Length > 1 && char.IsAsciiDigit(line[1])) continue;
 
             var titleMatch = TitleRegex().Match(line);
             if (titleMatch.Success)

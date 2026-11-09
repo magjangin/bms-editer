@@ -88,28 +88,29 @@ public static class OggPeakLoader
             maxInBucket = 0f;
         }
 
-        var pcm = data.Pcm16;
-        var bytesPerFrame = channels * sizeof(short);
+        var samples = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, short>(data.Pcm16);
+
+        // 프레임마다 64비트 나눗셈을 하면 5분짜리 곡에서 천만 번이 넘는다. 버킷이 바뀌는 프레임만 계산한다.
+        long NextBucketStart(int bucket) => ((((long)bucket + 1) * totalFrames) + peakCount - 1) / peakCount;
+
+        var nextBucketFrame = NextBucketStart(0);
 
         for (; frameIndex < totalFrames; frameIndex++)
         {
-            var bucket = (int)Math.Min(peakCount - 1, frameIndex * peakCount / totalFrames);
-            if (bucket != bucketIndex)
+            if (frameIndex >= nextBucketFrame)
             {
                 FlushBucket();
-                bucketIndex = bucket;
+                bucketIndex = (int)Math.Min(peakCount - 1, frameIndex * peakCount / totalFrames);
+                nextBucketFrame = NextBucketStart(bucketIndex);
             }
 
-            var frameStart = frameIndex * bytesPerFrame;
+            var frameStart = (int)frameIndex * channels;
             var value = 0f;
 
             for (var c = 0; c < channels; c++)
             {
-                var offset = (int)frameStart + (c * sizeof(short));
-                var sample = (short)(pcm[offset] | (pcm[offset + 1] << 8));
-
                 // short.MinValue 의 절댓값은 short 범위를 넘으므로 float 로 올려 나눈다.
-                value = Math.Max(value, Math.Abs(sample / 32768f));
+                value = Math.Max(value, Math.Abs(samples[frameStart + c] / 32768f));
             }
 
             sumSquares += (double)value * value;

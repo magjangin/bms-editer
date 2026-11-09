@@ -347,24 +347,27 @@ public sealed class NoteGridControl : TimelineControlBase
         var selectedSet = _cachedSelectedSet;
         if (notes is not null)
         {
-            for (var index = 0; index < notes.Count; index++)
+            var noteIndex = GetNoteRenderIndex(notes, lanes);
+            var axis = CreateNoteAxis(timelineLength);
+            var isHorizontal = IsHorizontalView;
+            var isCircle = IsCircleNoteShape;
+
+            for (var index = noteIndex.FirstVisible(axis, minPos - 20, maxPos + 20); index < noteIndex.Count; index++)
             {
-                var note = notes[index];
+                var noteTPos = axis.Position(noteIndex.MeasurePositions[index], noteIndex.Seconds[index]);
 
-                var laneIndex = FindLaneIndex(lanes, note.LaneId);
-                if (laneIndex == -1) continue;
+                // 시간 순으로 도는 중이라 화면을 지나면 뒤는 볼 필요가 없다.
+                if (isHorizontal ? noteTPos > maxPos + 20 : noteTPos < minPos - 20)
+                    break;
 
-                var noteTPos = ComputeNoteTPos(note, timelineLength);
-                if (noteTPos < minPos - 20 || noteTPos > maxPos + 20)
-                    continue;
-
+                var note = noteIndex.Notes[index];
                 var noteBrush = GetNoteBrush(note.LaneId);
-                var laneOffset = laneIndex * laneThickness;
+                var laneOffset = noteIndex.LaneIndices[index] * laneThickness;
                 var blackPen = NoteOutlinePen;
 
-                if (IsHorizontalView)
+                if (isHorizontal)
                 {
-                    if (IsCircleNoteShape)
+                    if (isCircle)
                     {
                         var radius = Math.Min(7.5, (laneThickness - 4) / 2);
                         var center = new Point(noteTPos, laneOffset + laneThickness / 2);
@@ -379,7 +382,7 @@ public sealed class NoteGridControl : TimelineControlBase
                 }
                 else
                 {
-                    if (IsCircleNoteShape)
+                    if (isCircle)
                     {
                         var radius = Math.Min(7.5, (laneThickness - 4) / 2);
                         var center = new Point(laneOffset + laneThickness / 2, noteTPos);
@@ -396,7 +399,7 @@ public sealed class NoteGridControl : TimelineControlBase
                 if (selectedSet is not null && selectedSet.Contains(note))
                 {
                     var highlightPen = SelectionPen;
-                    var highlightRect = IsHorizontalView
+                    var highlightRect = isHorizontal
                         ? new Rect(noteTPos - 7, laneOffset + 1, 14, laneThickness - 2)
                         : new Rect(laneOffset + 1, noteTPos - 7, laneThickness - 2, 14);
                     context.DrawRectangle(null, highlightPen, highlightRect);
@@ -414,7 +417,138 @@ public sealed class NoteGridControl : TimelineControlBase
         }
 
         DrawGridSyncFlash(context, totalWidth, totalHeight);
-        DrawPlaybackCursor(context, totalWidth, totalHeight);
+    }
+
+    // 노트를 시간 순으로 세워 둔 그리기 전용 색인.
+    //
+    // 예전에는 Render 마다 노트 전부를 돌며 레인을 문자열로 찾고 시각을 다시 계산했다.
+    // 화면에 수십 개만 보여도 곡 전체(수만 개) 비용을 냈다. 이제 이진 탐색으로 첫 노트를 찾고
+    // 화면을 지나면 멈춘다. 뷰모델은 노트가 바뀔 때마다 새 배열을 주므로 참조만 비교하면 된다.
+    private sealed class NoteRenderIndex
+    {
+        public required IReadOnlyList<BmsNote> Source { get; init; }
+        public required IReadOnlyList<LaneDefinition> Lanes { get; init; }
+        public required Services.ChartTimeline Timeline { get; init; }
+        public required BmsNote[] Notes { get; init; }
+        public required int[] LaneIndices { get; init; }
+        public required double[] MeasurePositions { get; init; }
+        public required double[] Seconds { get; init; }
+
+        public int Count => Notes.Length;
+
+        // 시간 순으로 처음 화면에 들어오는 노트. 시간 축 방향은 뷰에 따라 뒤집힌다.
+        public int FirstVisible(in NoteAxis axis, double lowPos, double highPos)
+        {
+            var low = 0;
+            var high = Count;
+
+            while (low < high)
+            {
+                var middle = low + ((high - low) / 2);
+                var position = axis.Position(MeasurePositions[middle], Seconds[middle]);
+                var isBeforeView = axis.IsHorizontal ? position < lowPos : position > highPos;
+
+                if (isBeforeView)
+                    low = middle + 1;
+                else
+                    high = middle;
+            }
+
+            return low;
+        }
+    }
+
+    // 노트 하나의 타임라인 좌표를 구하는 데 필요한 값. 노트마다 속성을 다시 읽지 않으려고 묶어 둔다.
+    private readonly record struct NoteAxis(
+        bool UsesSeconds, bool IsHorizontal, double DurationSeconds, double MeasureThickness, double TimelineLength)
+    {
+        public double Position(double measurePosition, double seconds)
+        {
+            if (UsesSeconds)
+            {
+                var ratio = seconds / DurationSeconds;
+                return IsHorizontal ? ratio * TimelineLength : (1.0 - ratio) * TimelineLength;
+            }
+
+            var offset = measurePosition * MeasureThickness;
+            return IsHorizontal ? offset : TimelineLength - offset;
+        }
+    }
+
+    private NoteRenderIndex? _noteRenderIndex;
+
+    private NoteAxis CreateNoteAxis(double timelineLength) => new(
+        DurationSeconds > 0 && Bpm > 0,
+        IsHorizontalView,
+        DurationSeconds,
+        RowHeight * VerticalZoom * GetGridSpacingScale(),
+        timelineLength);
+
+    private NoteRenderIndex GetNoteRenderIndex(IReadOnlyList<BmsNote> notes, IReadOnlyList<LaneDefinition> lanes)
+    {
+        var timeline = EffectiveTimeline;
+        if (_noteRenderIndex is { } cached
+            && ReferenceEquals(cached.Source, notes)
+            && ReferenceEquals(cached.Lanes, lanes)
+            && ReferenceEquals(cached.Timeline, timeline))
+        {
+            return cached;
+        }
+
+        var laneMap = GetLaneIndexMap(lanes);
+        var drawable = new List<(double MeasurePosition, BmsNote Note, int Lane)>(notes.Count);
+
+        for (var i = 0; i < notes.Count; i++)
+        {
+            var note = notes[i];
+            if (laneMap.TryGetValue(note.LaneId, out var lane))
+                drawable.Add((note.Measure + note.Position, note, lane));
+        }
+
+        drawable.Sort(static (a, b) => a.MeasurePosition.CompareTo(b.MeasurePosition));
+
+        var ordered = new BmsNote[drawable.Count];
+        var laneIndices = new int[drawable.Count];
+        var measurePositions = new double[drawable.Count];
+        var seconds = new double[drawable.Count];
+
+        for (var i = 0; i < drawable.Count; i++)
+        {
+            ordered[i] = drawable[i].Note;
+            laneIndices[i] = drawable[i].Lane;
+            measurePositions[i] = drawable[i].MeasurePosition;
+            seconds[i] = timeline.SecondsAt(drawable[i].MeasurePosition);
+        }
+
+        _noteRenderIndex = new NoteRenderIndex
+        {
+            Source = notes,
+            Lanes = lanes,
+            Timeline = timeline,
+            Notes = ordered,
+            LaneIndices = laneIndices,
+            MeasurePositions = measurePositions,
+            Seconds = seconds,
+        };
+
+        return _noteRenderIndex;
+    }
+
+    private IReadOnlyList<LaneDefinition>? _laneIndexMapSource;
+    private Dictionary<string, int> _laneIndexMap = new(StringComparer.Ordinal);
+
+    private Dictionary<string, int> GetLaneIndexMap(IReadOnlyList<LaneDefinition> lanes)
+    {
+        if (ReferenceEquals(_laneIndexMapSource, lanes))
+            return _laneIndexMap;
+
+        var map = new Dictionary<string, int>(lanes.Count, StringComparer.Ordinal);
+        for (var i = 0; i < lanes.Count; i++)
+            map.TryAdd(lanes[i].Id, i);
+
+        _laneIndexMapSource = lanes;
+        _laneIndexMap = map;
+        return map;
     }
 
     // 홀드 몸통.
@@ -529,15 +663,8 @@ public sealed class NoteGridControl : TimelineControlBase
         return IsHorizontalView ? totalOffset : (timelineLength - totalOffset);
     }
 
-    private static int FindLaneIndex(IReadOnlyList<LaneDefinition> lanes, string laneId)
-    {
-        for (var j = 0; j < lanes.Count; j++)
-        {
-            if (lanes[j].Id == laneId)
-                return j;
-        }
-        return -1;
-    }
+    private int FindLaneIndex(IReadOnlyList<LaneDefinition> lanes, string laneId) =>
+        GetLaneIndexMap(lanes).TryGetValue(laneId, out var index) ? index : -1;
 
     private static Rect NormalizedRect(Point a, Point b)
     {

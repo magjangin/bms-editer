@@ -252,10 +252,22 @@ public sealed class VideoPreviewControl : Control, IDisposable
             Math.Max(1, (int)Math.Round(Bounds.Width * scale)),
             Math.Max(1, (int)Math.Round(Bounds.Height * scale)));
 
-        _controller.IsVisible = IsEffectivelyVisible && Bounds.Width > 0 && Bounds.Height > 0;
+        var isVisible = IsEffectivelyVisible && Bounds.Width > 0 && Bounds.Height > 0;
+
+        // LayoutUpdated 는 창 어디서든 배치가 돌면 불린다. 바뀐 게 없으면 COM 호출을 보내지 않는다.
+        if (bounds == _lastAppliedBounds && isVisible == _lastAppliedVisibility)
+            return;
+
+        _lastAppliedBounds = bounds;
+        _lastAppliedVisibility = isVisible;
+
+        _controller.IsVisible = isVisible;
         _controller.Bounds = bounds;
         _controller.NotifyParentWindowPositionChanged();
     }
+
+    private DrawingRectangle? _lastAppliedBounds;
+    private bool _lastAppliedVisibility;
 
     private void ExecuteVideoScript(string script)
     {

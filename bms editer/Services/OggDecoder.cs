@@ -21,7 +21,13 @@ public static class OggDecoder
 {
     public static OggAudioData Decode(string filePath)
     {
-        using var reader = new VorbisReader(filePath);
+        // 백그라운드에서 읽는 동안 다른 프로그램이 같은 파일을 다시 쓸 수 있게 잠그지 않는다.
+        var stream = new System.IO.FileStream(
+            filePath,
+            System.IO.FileMode.Open,
+            System.IO.FileAccess.Read,
+            System.IO.FileShare.ReadWrite | System.IO.FileShare.Delete);
+        using var reader = new VorbisReader(stream, closeOnDispose: true);
 
         var channels = Math.Max(1, reader.Channels);
         var sampleRate = reader.SampleRate;
