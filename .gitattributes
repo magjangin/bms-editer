@@ -1,0 +1,4 @@
+# 줄바꿈은 저장소에 LF 로 둔다. 이중 CR 이 섞여 git 이 소스를 바이너리로 취급한 적이 있다.
+* text=auto
+*.png binary
+*.ico binary
