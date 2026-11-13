@@ -200,10 +200,7 @@ public sealed unsafe partial class KeySoundPlayer : IDisposable
 
         var pcm = entry.Value;
         if (pcm is null || pcm.Samples.Length == 0)
-        {
-            StartVoice(filePath, pcm);
             return;
-        }
 
         var startFrame = GetPlayedFrames() is { } played
             ? played + (long)Math.Round(Math.Max(0, delaySeconds) * SampleRate)

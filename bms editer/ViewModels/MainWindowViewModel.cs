@@ -37,7 +37,9 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
     private DateTimeOffset _playbackStartedAt;
     private double _playbackStartSeconds;
     private double _keySoundsScheduledUntil;
+    private long _lastPlaybackUpdateTimestamp;
     private BmsNote[] _playbackNotes = Array.Empty<BmsNote>();
+    private double[] _playbackNoteSeconds = Array.Empty<double>();
     private readonly KeySoundPlayer _keySoundPlayer = new();
 
     // OGG 로딩 및 재생 상태
@@ -211,7 +213,14 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
         // 기본 우선순위(Background)는 입력·배치가 밀려 있으면 뒤로 밀린다. 스크롤하는 동안
         // 재생 커서가 멈칫하고 키음이 뭉쳤다. 커서만 옮기면 되는 일이라 프레임마다 돌려도 가볍다.
         _playbackTimer = new DispatcherTimer(DispatcherPriority.Render) { Interval = TimeSpan.FromMilliseconds(16) };
-        _playbackTimer.Tick += (_, _) => UpdatePlaybackPosition();
+        _playbackTimer.Tick += (_, _) =>
+        {
+            // RequestAnimationFrame 이 방금 갱신했으면 같은 프레임에 두 번 돌지 않는다.
+            if (System.Diagnostics.Stopwatch.GetElapsedTime(_lastPlaybackUpdateTimestamp).TotalMilliseconds < 10)
+                return;
+
+            UpdatePlaybackPosition();
+        };
 
         _playbackSpeedDebounceTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(80) };
         _playbackSpeedDebounceTimer.Tick += (_, _) =>
@@ -280,6 +289,7 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
     public void InvalidateTimeline()
     {
         _timeline = null;
+        _sortedNoteSecondsCache = null;
         OnPropertyChanged(nameof(Timeline));
     }
 

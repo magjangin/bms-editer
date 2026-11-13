@@ -274,27 +274,34 @@ public sealed class NoteGridControl : TimelineControlBase
         var totalWidth = IsHorizontalView ? timelineLength : totalLanesThickness;
         var totalHeight = IsHorizontalView ? totalLanesThickness : timelineLength;
 
-        context.FillRectangle(Brushes.Black, new Rect(0, 0, totalWidth, totalHeight));
-        context.FillRectangle(GridBackgroundBrush, new Rect(0, 0, totalWidth, totalHeight));
-
-
-        var thicknessOffset = 0.0;
-        for (var i = 0; i <= lanes.Count; i++)
-        {
-            if (IsHorizontalView)
-            {
-                context.DrawLine(LanePen, new Point(0, thicknessOffset), new Point(totalWidth, thicknessOffset));
-            }
-            else
-            {
-                context.DrawLine(LanePen, new Point(thicknessOffset, 0), new Point(thicknessOffset, totalHeight));
-            }
-
-            if (i < lanes.Count)
-                thicknessOffset += laneThickness;
-        }
-
         var (minPos, maxPos) = GetVisibleTimelineRange(timelineLength);
+        var visStart = Math.Max(0.0, minPos);
+        var visEnd = Math.Min(timelineLength, maxPos);
+
+        if (visEnd > visStart)
+        {
+            var visRect = IsHorizontalView
+                ? new Rect(visStart, 0, visEnd - visStart, totalHeight)
+                : new Rect(0, visStart, totalWidth, visEnd - visStart);
+            context.FillRectangle(Brushes.Black, visRect);
+            context.FillRectangle(GridBackgroundBrush, visRect);
+
+            var thicknessOffset = 0.0;
+            for (var i = 0; i <= lanes.Count; i++)
+            {
+                if (IsHorizontalView)
+                {
+                    context.DrawLine(LanePen, new Point(visStart, thicknessOffset), new Point(visEnd, thicknessOffset));
+                }
+                else
+                {
+                    context.DrawLine(LanePen, new Point(thicknessOffset, visStart), new Point(thicknessOffset, visEnd));
+                }
+
+                if (i < lanes.Count)
+                    thicknessOffset += laneThickness;
+            }
+        }
 
         foreach (var line in EnumerateGridLines(timelineLength, minPos, maxPos))
         {
@@ -315,21 +322,25 @@ public sealed class NoteGridControl : TimelineControlBase
             }
         }
 
-        // 래인 번호(채널 번호) 텍스트 그리기
-        for (var i = 0; i < lanes.Count; i++)
+        // 래인 번호(채널 번호) 텍스트 그리기 (보이는 구간에 걸칠 때만)
+        var headerPos = IsHorizontalView ? 8.0 : totalHeight - 8.0;
+        if (headerPos >= minPos - 40 && headerPos <= maxPos + 40)
         {
-            var lane = lanes[i];
-            var formattedText = GetOrCreateLaneHeaderFormattedText(lane.Header);
+            for (var i = 0; i < lanes.Count; i++)
+            {
+                var lane = lanes[i];
+                var formattedText = GetOrCreateLaneHeaderFormattedText(lane.Header);
 
-            if (IsHorizontalView)
-            {
-                var laneY = (i * laneThickness) + (laneThickness - formattedText.Height) / 2;
-                context.DrawText(formattedText, new Point(8, laneY));
-            }
-            else
-            {
-                var laneX = (i * laneThickness) + (laneThickness - formattedText.Width) / 2;
-                context.DrawText(formattedText, new Point(laneX, totalHeight - formattedText.Height - 8));
+                if (IsHorizontalView)
+                {
+                    var laneY = (i * laneThickness) + (laneThickness - formattedText.Height) / 2;
+                    context.DrawText(formattedText, new Point(8, laneY));
+                }
+                else
+                {
+                    var laneX = (i * laneThickness) + (laneThickness - formattedText.Width) / 2;
+                    context.DrawText(formattedText, new Point(laneX, totalHeight - formattedText.Height - 8));
+                }
             }
         }
 
@@ -551,6 +562,91 @@ public sealed class NoteGridControl : TimelineControlBase
         return map;
     }
 
+    // 홀드 몸통 그리기 전용 색인. 매 프레임 HoldLinks 전체의 레인·시각을 다시 계산하지 않도록 캐시한다.
+    private sealed class HoldRenderIndex
+    {
+        public required IReadOnlyList<HoldLink> Source { get; init; }
+        public required IReadOnlyList<LaneDefinition> Lanes { get; init; }
+        public required Services.ChartTimeline Timeline { get; init; }
+        public required int[] HeadLanes { get; init; }
+        public required int[] TailLanes { get; init; }
+        public required double[] HeadMeasurePositions { get; init; }
+        public required double[] TailMeasurePositions { get; init; }
+        public required double[] HeadSeconds { get; init; }
+        public required double[] TailSeconds { get; init; }
+        public required string[] Kinds { get; init; }
+
+        public int Count => Kinds.Length;
+    }
+
+    private HoldRenderIndex? _holdRenderIndex;
+
+    private HoldRenderIndex GetHoldRenderIndex(IReadOnlyList<HoldLink> links, IReadOnlyList<LaneDefinition> lanes)
+    {
+        var timeline = EffectiveTimeline;
+        if (_holdRenderIndex is { } cached
+            && ReferenceEquals(cached.Source, links)
+            && ReferenceEquals(cached.Lanes, lanes)
+            && ReferenceEquals(cached.Timeline, timeline))
+        {
+            return cached;
+        }
+
+        var laneMap = GetLaneIndexMap(lanes);
+        var validCount = 0;
+        for (var i = 0; i < links.Count; i++)
+        {
+            var link = links[i];
+            if (laneMap.ContainsKey(link.Head.LaneId) && laneMap.ContainsKey(link.Tail.LaneId))
+                validCount++;
+        }
+
+        var headLanes = new int[validCount];
+        var tailLanes = new int[validCount];
+        var headMeasurePositions = new double[validCount];
+        var tailMeasurePositions = new double[validCount];
+        var headSeconds = new double[validCount];
+        var tailSeconds = new double[validCount];
+        var kinds = new string[validCount];
+
+        var idx = 0;
+        for (var i = 0; i < links.Count; i++)
+        {
+            var link = links[i];
+            if (!laneMap.TryGetValue(link.Head.LaneId, out var headLane)
+                || !laneMap.TryGetValue(link.Tail.LaneId, out var tailLane))
+                continue;
+
+            var headMP = link.Head.Measure + link.Head.Position;
+            var tailMP = link.Tail.Measure + link.Tail.Position;
+
+            headLanes[idx] = headLane;
+            tailLanes[idx] = tailLane;
+            headMeasurePositions[idx] = headMP;
+            tailMeasurePositions[idx] = tailMP;
+            headSeconds[idx] = timeline.SecondsAt(headMP);
+            tailSeconds[idx] = timeline.SecondsAt(tailMP);
+            kinds[idx] = link.Kind;
+            idx++;
+        }
+
+        _holdRenderIndex = new HoldRenderIndex
+        {
+            Source = links,
+            Lanes = lanes,
+            Timeline = timeline,
+            HeadLanes = headLanes,
+            TailLanes = tailLanes,
+            HeadMeasurePositions = headMeasurePositions,
+            TailMeasurePositions = tailMeasurePositions,
+            HeadSeconds = headSeconds,
+            TailSeconds = tailSeconds,
+            Kinds = kinds,
+        };
+
+        return _holdRenderIndex;
+    }
+
     // 홀드 몸통.
     //
     // 양 끝 좌표를 각각 ComputeNoteTPos 로 구한다. 노트와 같은 시간축을 써야 몸통 끝이 끝 노트와 만난다.
@@ -567,32 +663,34 @@ public sealed class NoteGridControl : TimelineControlBase
         if (links is null || links.Count == 0)
             return;
 
-        for (var i = 0; i < links.Count; i++)
-        {
-            var link = links[i];
-            var headLane = FindLaneIndex(lanes, link.Head.LaneId);
-            var tailLane = FindLaneIndex(lanes, link.Tail.LaneId);
-            if (headLane == -1 || tailLane == -1)
-                continue;
+        var holdIndex = GetHoldRenderIndex(links, lanes);
+        var axis = CreateNoteAxis(timelineLength);
+        var isHorizontal = axis.IsHorizontal;
 
-            var headPos = ComputeNoteTPos(link.Head, timelineLength);
-            var tailPos = ComputeNoteTPos(link.Tail, timelineLength);
+        for (var i = 0; i < holdIndex.Count; i++)
+        {
+            var headPos = axis.Position(holdIndex.HeadMeasurePositions[i], holdIndex.HeadSeconds[i]);
+            var tailPos = axis.Position(holdIndex.TailMeasurePositions[i], holdIndex.TailSeconds[i]);
 
             var linkMin = Math.Min(headPos, tailPos);
             var linkMax = Math.Max(headPos, tailPos);
             if (linkMax < minPos - 20 || linkMin > maxPos + 20)
                 continue;
 
+            var headLane = holdIndex.HeadLanes[i];
+            var tailLane = holdIndex.TailLanes[i];
+            var kind = holdIndex.Kinds[i];
+
             if (headLane == tailLane)
             {
-                var body = ComputeHoldBodyRect(headLane * laneThickness, laneThickness, headPos, tailPos, IsHorizontalView);
-                context.FillRectangle(GetHoldBrush(link.Kind), body);
+                var body = ComputeHoldBodyRect(headLane * laneThickness, laneThickness, headPos, tailPos, isHorizontal);
+                context.FillRectangle(GetHoldBrush(kind), body);
             }
             else
             {
                 // 채널을 건너 맺어지는 짝(게임이 여러 채널을 레인 하나로 모으는 게이트 같은 경우)은 선으로 잇는다.
                 context.DrawLine(
-                    GetHoldLinkPen(link.Kind),
+                    GetHoldLinkPen(kind),
                     LaneCenter(headLane, headPos, laneThickness),
                     LaneCenter(tailLane, tailPos, laneThickness));
             }
@@ -611,19 +709,25 @@ public sealed class NoteGridControl : TimelineControlBase
         if (problems is null || problems.Count == 0)
             return;
 
+        var laneMap = GetLaneIndexMap(lanes);
+        var timeline = EffectiveTimeline;
+        var axis = CreateNoteAxis(timelineLength);
+        var isHorizontal = axis.IsHorizontal;
+
         for (var i = 0; i < problems.Count; i++)
         {
             var note = problems[i];
-            var laneIndex = FindLaneIndex(lanes, note.LaneId);
-            if (laneIndex == -1)
+            if (!laneMap.TryGetValue(note.LaneId, out var laneIndex))
                 continue;
 
-            var tPos = ComputeNoteTPos(note, timelineLength);
+            var measurePosition = note.Measure + note.Position;
+            var seconds = axis.UsesSeconds ? timeline.SecondsAt(measurePosition) : 0.0;
+            var tPos = axis.Position(measurePosition, seconds);
             if (tPos < minPos - 20 || tPos > maxPos + 20)
                 continue;
 
             var laneOffset = laneIndex * laneThickness;
-            var rect = IsHorizontalView
+            var rect = isHorizontal
                 ? new Rect(tPos - 10, laneOffset - 1, 20, laneThickness + 2)
                 : new Rect(laneOffset - 1, tPos - 10, laneThickness + 2, 20);
 

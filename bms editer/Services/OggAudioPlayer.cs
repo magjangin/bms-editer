@@ -125,13 +125,15 @@ public sealed partial class OggAudioPlayer : IDisposable
         format.BlockAlign = (short)(format.Channels * format.BitsPerSample / 8);
         format.AvgBytesPerSec = format.SamplesPerSec * format.BlockAlign;
 
-        ThrowIfFailed(WaveOutOpen(out _waveOut, -1, ref format, IntPtr.Zero, IntPtr.Zero, 0));
-        SetVolume(_volume);
-
         var startByte = SecondsToByteOffset(startSeconds, format.BlockAlign);
         var byteCount = _pcmBytes.Length - startByte;
         if (byteCount <= 0)
             return;
+
+        ThrowIfFailed(WaveOutOpen(out _waveOut, -1, ref format, IntPtr.Zero, IntPtr.Zero, 0));
+        try
+        {
+            SetVolume(_volume);
 
         var leadInFrames = (int)Math.Round(Math.Max(0, leadInSeconds) * _sampleRate);
         if (leadInFrames > 0)
@@ -159,9 +161,15 @@ public sealed partial class OggAudioPlayer : IDisposable
         };
         _headerHandle = GCHandle.Alloc(_header, GCHandleType.Pinned);
 
-        ThrowIfFailed(WaveOutPrepareHeader(_waveOut, _headerHandle.AddrOfPinnedObject(), Marshal.SizeOf<WaveHeader>()));
-        _prepared = true;
-        ThrowIfFailed(WaveOutWrite(_waveOut, _headerHandle.AddrOfPinnedObject(), Marshal.SizeOf<WaveHeader>()));
+            ThrowIfFailed(WaveOutPrepareHeader(_waveOut, _headerHandle.AddrOfPinnedObject(), Marshal.SizeOf<WaveHeader>()));
+            _prepared = true;
+            ThrowIfFailed(WaveOutWrite(_waveOut, _headerHandle.AddrOfPinnedObject(), Marshal.SizeOf<WaveHeader>()));
+        }
+        catch
+        {
+            Stop();
+            throw;
+        }
     }
 
     public void Stop()

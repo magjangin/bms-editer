@@ -74,6 +74,7 @@ public sealed partial class MainWindowViewModel
 
         var startSeconds = Math.Clamp(seconds, 0, OggDurationSeconds);
         _playbackNotes = GetSortedNotes();
+        _playbackNoteSeconds = _sortedNoteSecondsCache ?? Array.Empty<double>();
 
         // 위치나 배속이 바뀌었으면 앞서 예약해 둔 키음은 이제 틀린 자리다.
         _keySoundPlayer.CancelScheduled();
@@ -119,6 +120,8 @@ public sealed partial class MainWindowViewModel
     {
         if (_audioPlayer is null)
             return;
+
+        _lastPlaybackUpdateTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
 
         // 장치가 실제로 재생한 위치를 기준으로 삼는다. 벽시계를 쓰면 출력 지연만큼
         // 커서가 처음부터 앞서 나가고, 장치 클럭과도 시간이 갈수록 벌어져서
@@ -174,8 +177,7 @@ public sealed partial class MainWindowViewModel
         if (index >= _playbackNotes.Length)
             return false;
 
-        var note = _playbackNotes[index];
-        return Timeline.SecondsAt(note.Measure + note.Position) < from + (KeySoundLookaheadSeconds * PlaybackSpeed);
+        return _playbackNoteSeconds[index] < from + (KeySoundLookaheadSeconds * PlaybackSpeed);
     }
 
     // 믹서는 40ms 버퍼 3개를 앞서 채운다. 그 대기열에 틱 간격과 잠깐의 UI 지연을 더한 여유다.
@@ -198,15 +200,15 @@ public sealed partial class MainWindowViewModel
     // 해당 시각 이상인 첫 노트를 이진 탐색으로 찾는다. 없으면 노트 개수.
     private int FindFirstNoteAtOrAfter(double seconds)
     {
-        var timeline = Timeline;
+        var noteSeconds = _playbackNoteSeconds;
         var low = 0;
-        var high = _playbackNotes.Length - 1;
-        var found = _playbackNotes.Length;
+        var high = noteSeconds.Length - 1;
+        var found = noteSeconds.Length;
 
         while (low <= high)
         {
             var mid = low + (high - low) / 2;
-            if (timeline.SecondsAt(_playbackNotes[mid].Measure + _playbackNotes[mid].Position) >= seconds)
+            if (noteSeconds[mid] >= seconds)
             {
                 found = mid;
                 high = mid - 1;
@@ -224,19 +226,17 @@ public sealed partial class MainWindowViewModel
     {
         if (!IsKeySoundEnabled || Bpm <= 0 || _playbackNotes.Length == 0) return;
 
-        // 시각 계산은 Timeline 이 맡는다. 예전에는 여기서 240/BPM 을 직접 써서,
-        // BPM 이 바뀌거나 4/4가 아닌 마디가 있는 차트는 키음이 엉뚱한 때에 울렸다.
-        var timeline = Timeline;
+        var invSpeed = 1.0 / Math.Max(0.05, PlaybackSpeed);
+        var wavTable = Chart.WavTable;
 
         for (var i = FindFirstNoteAtOrAfter(start); i < _playbackNotes.Length; i++)
         {
-            var note = _playbackNotes[i];
-            var noteSeconds = timeline.SecondsAt(note.Measure + note.Position);
+            var noteSeconds = _playbackNoteSeconds[i];
             if (noteSeconds >= end)
                 break;
 
-            if (Chart.WavTable.TryGetValue(note.WavKey, out var path))
-                _keySoundPlayer.ScheduleIfDecoded(path, (noteSeconds - now) / Math.Max(0.05, PlaybackSpeed));
+            if (wavTable.TryGetValue(_playbackNotes[i].WavKey, out var path))
+                _keySoundPlayer.ScheduleIfDecoded(path, (noteSeconds - now) * invSpeed);
         }
     }
 
@@ -250,6 +250,7 @@ public sealed partial class MainWindowViewModel
 
         _keySoundPlayer.HoldDeviceOpen = false;
         _playbackNotes = Array.Empty<BmsNote>();
+        _playbackNoteSeconds = Array.Empty<double>();
         IsPlaying = false;
 
         if (resetCursor)
