@@ -649,7 +649,7 @@ public sealed class NoteGridControl : TimelineControlBase
 
     // 홀드 몸통.
     //
-    // 양 끝 좌표를 각각 ComputeNoteTPos 로 구한다. 노트와 같은 시간축을 써야 몸통 끝이 끝 노트와 만난다.
+    // 양 끝 좌표를 노트와 같은 NoteAxis 로 구한다. 노트와 같은 시간축을 써야 몸통 끝이 끝 노트와 만난다.
     // 마디 단위로 선형 보간해 늘리면 BPM 변화나 변박 구간을 지나는 홀드의 끝이 끝 노트와 어긋난다.
     private void DrawHoldBodies(
         DrawingContext context,
@@ -752,23 +752,6 @@ public sealed class NoteGridControl : TimelineControlBase
         IsHorizontalView
             ? new Point(tPos, laneIndex * laneThickness + laneThickness / 2)
             : new Point(laneIndex * laneThickness + laneThickness / 2, tPos);
-
-    private double ComputeNoteTPos(BmsNote note, double timelineLength)
-    {
-        if (DurationSeconds > 0 && Bpm > 0)
-        {
-            // 노트의 시각도 격자와 같은 곳에서 구해야 둘이 어긋나지 않는다.
-            var seconds = EffectiveTimeline.SecondsAt(note.Measure + note.Position);
-            return ToTimelinePosition(seconds / DurationSeconds, timelineLength);
-        }
-
-        var rowHeight = RowHeight * VerticalZoom * GetGridSpacingScale();
-        var totalOffset = (note.Measure + note.Position) * rowHeight;
-        return IsHorizontalView ? totalOffset : (timelineLength - totalOffset);
-    }
-
-    private int FindLaneIndex(IReadOnlyList<LaneDefinition> lanes, string laneId) =>
-        GetLaneIndexMap(lanes).TryGetValue(laneId, out var index) ? index : -1;
 
     private static Rect NormalizedRect(Point a, Point b)
     {
@@ -921,21 +904,29 @@ public sealed class NoteGridControl : TimelineControlBase
         var timelineLength = GetTimelineHeight();
         var selectionRect = NormalizedRect(dragStart, dragEnd).Inflate(2);
 
-        var selected = new List<BmsNote>();
-        for (var i = 0; i < notes.Count; i++)
-        {
-            var note = notes[i];
-            var laneIndex = FindLaneIndex(lanes, note.LaneId);
-            if (laneIndex == -1) continue;
+        // 그리기 색인을 그대로 쓴다. 노트 위치·레인이 화면에 그린 것과 한 치도 다를 수 없고,
+        // 사각형에 걸치는 구간만 이진 탐색으로 훑는다.
+        // 예전에는 놓을 때마다 곡 전체 노트의 시각을 다시 계산하고 레인을 문자열로 찾았다.
+        var noteIndex = GetNoteRenderIndex(notes, lanes);
+        var axis = CreateNoteAxis(timelineLength);
+        var (rangeLow, rangeHigh) = IsHorizontalView
+            ? (selectionRect.Left, selectionRect.Right)
+            : (selectionRect.Top, selectionRect.Bottom);
 
-            var noteTPos = ComputeNoteTPos(note, timelineLength);
-            var laneOffset = laneIndex * laneThickness;
+        var selected = new List<BmsNote>();
+        for (var index = noteIndex.FirstVisible(axis, rangeLow, rangeHigh); index < noteIndex.Count; index++)
+        {
+            var noteTPos = axis.Position(noteIndex.MeasurePositions[index], noteIndex.Seconds[index]);
+            if (IsHorizontalView ? noteTPos > rangeHigh : noteTPos < rangeLow)
+                break;
+
+            var laneOffset = noteIndex.LaneIndices[index] * laneThickness;
             var noteCenter = IsHorizontalView
                 ? new Point(noteTPos, laneOffset + laneThickness / 2)
                 : new Point(laneOffset + laneThickness / 2, noteTPos);
 
             if (selectionRect.Contains(noteCenter))
-                selected.Add(note);
+                selected.Add(noteIndex.Notes[index]);
         }
 
         var args = new NoteSelectionArgs(selected, _isAdditiveDrag);

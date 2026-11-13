@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Text;
-using System.Text.RegularExpressions;
 using bms_editer.Models;
 
 namespace bms_editer.Services;
@@ -74,7 +73,7 @@ public static partial class BmsParser
         foreach (var rawLine in rawLines)
         {
             var line = rawLine.Trim();
-            if (string.IsNullOrEmpty(line) || !line.StartsWith("#")) continue;
+            if (string.IsNullOrEmpty(line) || !line.StartsWith('#')) continue;
 
             // #00111:... 같은 데이터 줄이 파일의 대부분이다. 아래 헤더들은 전부 # 뒤가 글자로 시작한다.
             if (line.Length > 1 && char.IsAsciiDigit(line[1])) continue;
@@ -200,7 +199,7 @@ public static partial class BmsParser
 
             // '#' 로 시작하지 않는 줄은 주석이다(`*----` 같은 구분선이 흔하다).
             // 예전에는 원문 보존 대상에서 빠져 저장할 때 통째로 사라졌다.
-            if (!line.StartsWith("#"))
+            if (!line.StartsWith('#'))
             {
                 chart.PreservedLines.Add(new BmsRawLine
                 {
@@ -216,57 +215,62 @@ public static partial class BmsParser
             if (!dataMatch.Success)
             {
                 // 갈래를 나누는 제어 줄
-                if (ControlFlowRegex().IsMatch(line))
+                var controlMatch = ControlFlowRegex().Match(line);
+                if (controlMatch.Success)
                 {
                     chart.HasConditionalBlocks = true;
 
-                    if (Regex.IsMatch(line, @"^#SWITCH\b", RegexOptions.IgnoreCase))
+                    switch (controlMatch.Groups[1].Value.ToUpperInvariant())
                     {
-                        switchStack.Push(false);
-                    }
-                    else if (Regex.IsMatch(line, @"^#(?:CASE|DEF)\b", RegexOptions.IgnoreCase))
-                    {
-                        if (switchStack.Count > 0 && switchStack.Peek())
-                        {
-                            if (branchStack.Count > 0) branchStack.Pop();
-                        }
-                        if (switchStack.Count > 0)
-                        {
-                            switchStack.Pop();
-                            switchStack.Push(true);
-                        }
-                        currentBranchId = nextBranchId++;
-                        branchStack.Push(currentBranchId);
-                    }
-                    else if (Regex.IsMatch(line, @"^#ENDSW\b", RegexOptions.IgnoreCase))
-                    {
-                        if (switchStack.Count > 0)
-                        {
-                            var hadCase = switchStack.Pop();
-                            if (hadCase && branchStack.Count > 0)
+                        case "SWITCH":
+                            switchStack.Push(false);
+                            break;
+
+                        case "CASE" or "DEF":
+                            if (switchStack.Count > 0 && switchStack.Peek())
+                            {
+                                if (branchStack.Count > 0) branchStack.Pop();
+                            }
+                            if (switchStack.Count > 0)
+                            {
+                                switchStack.Pop();
+                                switchStack.Push(true);
+                            }
+                            currentBranchId = nextBranchId++;
+                            branchStack.Push(currentBranchId);
+                            break;
+
+                        case "ENDSW":
+                            if (switchStack.Count > 0)
+                            {
+                                var hadCase = switchStack.Pop();
+                                if (hadCase && branchStack.Count > 0)
+                                    branchStack.Pop();
+                            }
+                            else if (branchStack.Count > 0)
+                            {
                                 branchStack.Pop();
-                        }
-                        else if (branchStack.Count > 0)
-                        {
-                            branchStack.Pop();
-                        }
-                        currentBranchId = branchStack.Count > 0 ? branchStack.Peek() : 0;
-                    }
-                    else if (Regex.IsMatch(line, @"^#IF\b", RegexOptions.IgnoreCase))
-                    {
-                        currentBranchId = nextBranchId++;
-                        branchStack.Push(currentBranchId);
-                    }
-                    else if (Regex.IsMatch(line, @"^#(?:ELSEIF|ELSE)\b", RegexOptions.IgnoreCase))
-                    {
-                        if (branchStack.Count > 0) branchStack.Pop();
-                        currentBranchId = nextBranchId++;
-                        branchStack.Push(currentBranchId);
-                    }
-                    else if (Regex.IsMatch(line, @"^#ENDIF\b", RegexOptions.IgnoreCase))
-                    {
-                        if (branchStack.Count > 0) branchStack.Pop();
-                        currentBranchId = branchStack.Count > 0 ? branchStack.Peek() : 0;
+                            }
+                            currentBranchId = branchStack.Count > 0 ? branchStack.Peek() : 0;
+                            break;
+
+                        case "IF":
+                            currentBranchId = nextBranchId++;
+                            branchStack.Push(currentBranchId);
+                            break;
+
+                        case "ELSEIF" or "ELSE":
+                            if (branchStack.Count > 0) branchStack.Pop();
+                            currentBranchId = nextBranchId++;
+                            branchStack.Push(currentBranchId);
+                            break;
+
+                        case "ENDIF":
+                            if (branchStack.Count > 0) branchStack.Pop();
+                            currentBranchId = branchStack.Count > 0 ? branchStack.Peek() : 0;
+                            break;
+
+                        // RANDOM·SETRANDOM·SKIP 등은 갈래를 바꾸지 않는다. 원문 보존만 한다.
                     }
 
                     chart.PreservedLines.Add(new BmsRawLine

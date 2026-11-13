@@ -135,31 +135,31 @@ public sealed partial class OggAudioPlayer : IDisposable
         {
             SetVolume(_volume);
 
-        var leadInFrames = (int)Math.Round(Math.Max(0, leadInSeconds) * _sampleRate);
-        if (leadInFrames > 0)
-        {
-            var silence = new byte[leadInFrames * format.BlockAlign];
-            _leadInDataHandle = GCHandle.Alloc(silence, GCHandleType.Pinned);
-            _leadInHeader = new WaveHeader
+            var leadInFrames = (int)Math.Round(Math.Max(0, leadInSeconds) * _sampleRate);
+            if (leadInFrames > 0)
             {
-                Data = _leadInDataHandle.AddrOfPinnedObject(),
-                BufferLength = silence.Length,
+                var silence = new byte[leadInFrames * format.BlockAlign];
+                _leadInDataHandle = GCHandle.Alloc(silence, GCHandleType.Pinned);
+                _leadInHeader = new WaveHeader
+                {
+                    Data = _leadInDataHandle.AddrOfPinnedObject(),
+                    BufferLength = silence.Length,
+                };
+                _leadInHeaderHandle = GCHandle.Alloc(_leadInHeader, GCHandleType.Pinned);
+
+                ThrowIfFailed(WaveOutPrepareHeader(_waveOut, _leadInHeaderHandle.AddrOfPinnedObject(), Marshal.SizeOf<WaveHeader>()));
+                _leadInPrepared = true;
+                ThrowIfFailed(WaveOutWrite(_waveOut, _leadInHeaderHandle.AddrOfPinnedObject(), Marshal.SizeOf<WaveHeader>()));
+                _leadInSeconds = leadInFrames / (double)_sampleRate;
+            }
+
+            _dataHandle = GCHandle.Alloc(_pcmBytes, GCHandleType.Pinned);
+            _header = new WaveHeader
+            {
+                Data = _dataHandle.AddrOfPinnedObject() + startByte,
+                BufferLength = byteCount,
             };
-            _leadInHeaderHandle = GCHandle.Alloc(_leadInHeader, GCHandleType.Pinned);
-
-            ThrowIfFailed(WaveOutPrepareHeader(_waveOut, _leadInHeaderHandle.AddrOfPinnedObject(), Marshal.SizeOf<WaveHeader>()));
-            _leadInPrepared = true;
-            ThrowIfFailed(WaveOutWrite(_waveOut, _leadInHeaderHandle.AddrOfPinnedObject(), Marshal.SizeOf<WaveHeader>()));
-            _leadInSeconds = leadInFrames / (double)_sampleRate;
-        }
-
-        _dataHandle = GCHandle.Alloc(_pcmBytes, GCHandleType.Pinned);
-        _header = new WaveHeader
-        {
-            Data = _dataHandle.AddrOfPinnedObject() + startByte,
-            BufferLength = byteCount,
-        };
-        _headerHandle = GCHandle.Alloc(_header, GCHandleType.Pinned);
+            _headerHandle = GCHandle.Alloc(_header, GCHandleType.Pinned);
 
             ThrowIfFailed(WaveOutPrepareHeader(_waveOut, _headerHandle.AddrOfPinnedObject(), Marshal.SizeOf<WaveHeader>()));
             _prepared = true;

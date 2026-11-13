@@ -40,12 +40,18 @@ public partial class MainWindow
         }
         return null;
     }
+
     // 탐색기 "연결 프로그램"으로 열 때 App 이 넘겨준 파일 경로.
     public string? StartupFilePath { get; init; }
 
     private static readonly string[] BmsExtensions = { ".bms", ".bme", ".bml" };
     private static readonly string[] OggExtensions = { ".ogg" };
     private static readonly string[] VideoExtensions = { ".mp4", ".webm", ".mov", ".avi", ".mkv", ".ogv" };
+
+    // 확장자 비교는 이 한 곳에서 한다. 예전에는 ToLowerInvariant 비교와
+    // OrdinalIgnoreCase 비교가 섞여 있었다.
+    private static bool HasExtension(string path, IEnumerable<string> extensions) =>
+        extensions.Contains(Path.GetExtension(path), StringComparer.OrdinalIgnoreCase);
 
     // 대화상자의 확장자 필터를 폴더 열기가 쓰는 확장자 목록에서 만든다.
     // 두 군데에 따로 적었더니 .ogv 가 폴더 열기에서만 잡혔다.
@@ -131,7 +137,7 @@ public partial class MainWindow
     private async Task OpenStartupFileAsync(MainWindowViewModel vm)
     {
         var path = StartupFilePath;
-        if (path is null || !File.Exists(path) || !BmsExtensions.Contains(Path.GetExtension(path).ToLowerInvariant()))
+        if (path is null || !File.Exists(path) || !HasExtension(path, BmsExtensions))
             return;
 
         // 시작 직후라 보통 물을 게 없지만, 복구한 작업이 있으면 그걸 확인한다.
@@ -255,7 +261,9 @@ public partial class MainWindow
         if (string.IsNullOrWhiteSpace(title))
             return "chart";
 
-        var safe = new string(title.Select(c => Path.GetInvalidFileNameChars().Contains(c) ? '_' : c).ToArray()).Trim();
+        // GetInvalidFileNameChars 는 부를 때마다 배열을 새로 만든다. 글자마다 부르지 않는다.
+        var invalid = Path.GetInvalidFileNameChars();
+        var safe = new string(title.Select(c => Array.IndexOf(invalid, c) >= 0 ? '_' : c).ToArray()).Trim();
 
         // 전부 걸러졌거나 점만 남은 경우.
         return safe.Trim('.').Length == 0 ? "chart" : safe;
@@ -265,10 +273,7 @@ public partial class MainWindow
     {
         RememberFolder(folderPath);
         var folderName = new DirectoryInfo(folderPath).Name;
-        var candidates = Directory.EnumerateFiles(folderPath)
-            .Where(path => BmsExtensions.Contains(Path.GetExtension(path), StringComparer.OrdinalIgnoreCase))
-            .OrderBy(path => Path.GetFileName(path), StringComparer.CurrentCultureIgnoreCase)
-            .ToArray();
+        var candidates = FindFilesInFolder(folderPath, BmsExtensions);
 
         if (candidates.Length == 0)
         {
@@ -280,20 +285,18 @@ public partial class MainWindow
             return;
         }
 
-        var bmsPath = candidates.FirstOrDefault(path =>
-            string.Equals(Path.GetFileNameWithoutExtension(path), folderName, StringComparison.OrdinalIgnoreCase))
-            ?? candidates[0];
-
-        if (candidates.Length > 1 && !string.Equals(Path.GetFileNameWithoutExtension(bmsPath), folderName, StringComparison.OrdinalIgnoreCase))
-        {
-            vm.LastWarningMessage = $"이 폴더에 여러 BMS 파일이 있어 '{Path.GetFileName(bmsPath)}'를 열었습니다.";
-        }
+        var bmsPath = PickByFolderName(candidates, folderName);
 
         if (!vm.LoadBms(bmsPath))
         {
             await ConfirmWindow.ShowMessageAsync(this, $"차트를 열지 못했습니다.\n\n{vm.LastErrorMessage}", "열기 실패");
             return;
         }
+
+        // 여는 동안 문서 안내가 비워지므로 연 뒤에 덧붙인다. 예전에는 연 **앞에** 경고를 넣어서
+        // 아무 데도 뜨지 않고 다음 저장이 지웠다.
+        if (candidates.Length > 1 && !IsNamedAfterFolder(bmsPath, folderName))
+            vm.AddDocumentNotice($"폴더에 차트가 {candidates.Length}개라 '{Path.GetFileName(bmsPath)}'를 열었습니다");
 
         await LoadCompanionMediaAsync(vm, folderPath);
     }
@@ -326,20 +329,24 @@ public partial class MainWindow
             vm.ClearVideo();
     }
 
-    private static string? FindBestFile(string folderPath, IReadOnlyCollection<string> extensions)
-    {
-        var folderName = new DirectoryInfo(folderPath).Name;
-        var candidates = Directory.EnumerateFiles(folderPath)
-            .Where(path => extensions.Contains(Path.GetExtension(path), StringComparer.OrdinalIgnoreCase))
+    // 폴더 안에서 이 확장자들을 가진 파일을 이름 순으로. 폴더 열기와 동반 미디어 찾기가 같이 쓴다.
+    private static string[] FindFilesInFolder(string folderPath, IEnumerable<string> extensions) =>
+        Directory.EnumerateFiles(folderPath)
+            .Where(path => HasExtension(path, extensions))
             .OrderBy(path => Path.GetFileName(path), StringComparer.CurrentCultureIgnoreCase)
             .ToArray();
 
-        if (candidates.Length == 0)
-            return null;
+    // 곡 폴더 이름과 같은 이름의 파일이 있으면 그것을, 없으면 이름 순으로 첫 파일을 고른다.
+    private static string PickByFolderName(string[] candidates, string folderName) =>
+        candidates.FirstOrDefault(path => IsNamedAfterFolder(path, folderName)) ?? candidates[0];
 
-        return candidates.FirstOrDefault(path =>
-            string.Equals(Path.GetFileNameWithoutExtension(path), folderName, StringComparison.OrdinalIgnoreCase))
-            ?? candidates[0];
+    private static bool IsNamedAfterFolder(string path, string folderName) =>
+        string.Equals(Path.GetFileNameWithoutExtension(path), folderName, StringComparison.OrdinalIgnoreCase);
+
+    private static string? FindBestFile(string folderPath, IEnumerable<string> extensions)
+    {
+        var candidates = FindFilesInFolder(folderPath, extensions);
+        return candidates.Length == 0 ? null : PickByFolderName(candidates, new DirectoryInfo(folderPath).Name);
     }
 
     private async void OnAddWavClick(object? sender, RoutedEventArgs e)

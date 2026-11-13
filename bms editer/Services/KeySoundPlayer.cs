@@ -126,6 +126,35 @@ public sealed unsafe partial class KeySoundPlayer : IDisposable
             filePath,
             static path => new Lazy<PcmAudioData?>(() => WavDecoder.Decode(path), LazyThreadSafetyMode.ExecutionAndPublication));
 
+    // 지금 백그라운드에서 풀고 있는 파일. 같은 파일을 두 번 맡기지 않는다.
+    //
+    // 예전에는 안 풀린 노트를 만날 때마다 Task.Run 을 새로 냈다. 곡을 열자마자 재생하면
+    // 같은 키음을 가리키는 노트가 틱마다 작업을 하나씩 더 냈고, 그 작업들은 Lazy 의 잠금에서
+    // 첫 디코딩이 끝나기만 기다리며 스레드 풀을 붙잡았다. 풀이 마르면 미리 읽기까지 밀렸다.
+    private readonly ConcurrentDictionary<string, byte> _decodesInFlight = new(StringComparer.OrdinalIgnoreCase);
+
+    private void DecodeInBackground(string filePath, Lazy<PcmAudioData?> entry)
+    {
+        if (!_decodesInFlight.TryAdd(filePath, 0))
+            return;
+
+        Task.Run(() =>
+        {
+            try
+            {
+                _ = entry.Value;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"키음 디코딩 실패: {filePath} ({ex.Message})");
+            }
+            finally
+            {
+                _decodesInFlight.TryRemove(filePath, out _);
+            }
+        });
+    }
+
     // 호출한 스레드에서 끝까지 푼다. UI 스레드에서는 PreloadAsync 를 쓴다.
     public void Preload(string filePath)
     {
@@ -170,6 +199,8 @@ public sealed unsafe partial class KeySoundPlayer : IDisposable
             return;
         }
 
+        // 사용자가 직접 낸 소리는 드물고 하나하나가 들려야 하므로 겹쳐 맡겨도 된다.
+        // (재생 중 노트처럼 틱마다 쏟아지지 않는다. 중복 제거는 ScheduleIfDecoded 쪽만 한다)
         var generation = Volatile.Read(ref _stopGeneration);
         Task.Run(() =>
         {
@@ -194,7 +225,7 @@ public sealed unsafe partial class KeySoundPlayer : IDisposable
         var entry = GetCacheEntry(filePath);
         if (!entry.IsValueCreated)
         {
-            Task.Run(() => _ = entry.Value);
+            DecodeInBackground(filePath, entry);
             return;
         }
 

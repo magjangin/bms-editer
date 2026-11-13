@@ -28,7 +28,14 @@ public sealed partial class MainWindowViewModel
     public string? LastErrorMessage { get; private set; }
 
     // 저장은 됐지만 사용자가 알아야 할 것. 성공하면서도 채워질 수 있다.
-    public string? LastWarningMessage { get; internal set; }
+    public string? LastWarningMessage { get; private set; }
+
+    // 지금 문서를 열면서 알게 된 것(없는 키음, 여러 차트 중 하나를 골라 연 것 등). 상태 표시줄에 뜬다.
+    // 문서를 비우거나 새로 열면 지워진다.
+    [ObservableProperty] private string? _documentNotice;
+
+    public void AddDocumentNotice(string notice) =>
+        DocumentNotice = string.IsNullOrEmpty(DocumentNotice) ? notice : $"{DocumentNotice} · {notice}";
 
     // 이 문서를 어떤 인코딩으로 읽었는지. 저장할 때 같은 인코딩으로 되돌려 쓴다.
     // 무조건 UTF-8 로 쓰면 CP949·CP932 차트가 다른 플레이어·에디터에서 깨진다.
@@ -180,6 +187,7 @@ public sealed partial class MainWindowViewModel
         MeasureCount = Chart.MeasureCount;
         CurrentFilePath = null;
         DocumentEncoding = new UTF8Encoding(false);
+        DocumentNotice = null;
         ForgetLastAutoSnapshot();
 
         // 비운 문서는 게임 프로파일도 비운다. 앞 문서의 규칙으로 다음 문서의 노트를 짝짓지 않게.
@@ -248,6 +256,9 @@ public sealed partial class MainWindowViewModel
             return false;
         }
 
+        // 비우고 채우는 동안 홀드 짝을 몇 번이고 다시 읽지 않게 끝에 한 번만 읽는다. (DeferHoldRecompute 참고)
+        using var holdDeferral = DeferHoldRecompute();
+
         ResetDocumentState();
 
         // 노트·보존줄·마디길이·BPM 변화·키음표 등 차트 안의 모든 컬렉션이 여기서 한꺼번에 옮겨진다.
@@ -264,11 +275,11 @@ public sealed partial class MainWindowViewModel
         WavList.ReplaceAll(parsed.WavItems);
         _keySoundPlayer.PreloadAsync(Chart.WavTable.Values.ToArray());
 
+        // 예전에는 이 안내를 LastWarningMessage 에 넣었는데, 열기 경로에서는 아무도 그 값을 띄우지 않았다.
+        // 다음 저장이 값을 덮어써서 사용자는 한 번도 보지 못했다. 상태 표시줄에 남겨 둔다.
         var missingWavs = parsed.WavItems.Count(w => w.IsMissing);
         if (missingWavs > 0)
-        {
-            LastWarningMessage = $"경로에 없는 키음 파일이 {missingWavs}개 있습니다. (목록의 ⚠️ 표시 참조)";
-        }
+            AddDocumentNotice($"⚠️ 경로에 없는 키음 {missingWavs}개 (목록의 ⚠️ 표시 참조)");
 
         if (WavList.Count > 0)
         {

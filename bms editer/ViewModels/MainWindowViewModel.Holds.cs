@@ -162,8 +162,39 @@ public sealed partial class MainWindowViewModel
             SetNoteSelection(new[] { value.Note }, NoteSelectionSource.Search);
     }
 
+    // 문서를 여는 동안에는 짝 읽기를 미뤘다가 끝에 한 번만 한다.
+    //
+    // 여는 한 번에 노트 알림·키음 목록 교체·프로파일 적용이 각자 RecomputeHolds 를 불러서
+    // 곡 전체 짝짓기가 네다섯 번 돌았다. 중간 결과는 아무도 보지 않는다.
+    private int _holdRecomputeDeferrals;
+    private bool _isHoldRecomputePending;
+
+    private HoldRecomputeDeferral DeferHoldRecompute()
+    {
+        _holdRecomputeDeferrals++;
+        return new HoldRecomputeDeferral(this);
+    }
+
+    private readonly struct HoldRecomputeDeferral(MainWindowViewModel owner) : IDisposable
+    {
+        public void Dispose()
+        {
+            if (--owner._holdRecomputeDeferrals > 0 || !owner._isHoldRecomputePending)
+                return;
+
+            owner._isHoldRecomputePending = false;
+            owner.RecomputeHolds();
+        }
+    }
+
     private void RecomputeHolds()
     {
+        if (_holdRecomputeDeferrals > 0)
+        {
+            _isHoldRecomputePending = true;
+            return;
+        }
+
         var result = HoldPairingEngine.Pair(Chart.Notes, BuildWavTexts(), SelectedProfile);
 
         HoldResult = result;

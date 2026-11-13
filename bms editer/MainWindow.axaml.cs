@@ -56,8 +56,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        var ext = Path.GetExtension(first);
-        if (BmsExtensions.Contains(ext, StringComparer.OrdinalIgnoreCase))
+        if (HasExtension(first, BmsExtensions))
         {
             if (!await vm.ConfirmDiscardIfNeededAsync("현재 작업 중인 내용이 모두 사라집니다.\n새 파일을 열까요?"))
                 return;
@@ -74,13 +73,13 @@ public partial class MainWindow : Window
                 await ConfirmWindow.ShowMessageAsync(this, $"차트를 열지 못했습니다.\n\n{vm.LastErrorMessage}", "열기 실패");
             }
         }
-        else if (OggExtensions.Contains(ext, StringComparer.OrdinalIgnoreCase))
+        else if (HasExtension(first, OggExtensions))
         {
             RememberFolder(first);
             if (await vm.LoadOggAsync(first) == OggLoadResult.Failed)
                 await ConfirmWindow.ShowMessageAsync(this, $"OGG를 불러오지 못했습니다.\n\n{vm.LastErrorMessage}", "OGG 로드 실패");
         }
-        else if (VideoExtensions.Contains(ext, StringComparer.OrdinalIgnoreCase))
+        else if (HasExtension(first, VideoExtensions))
         {
             RememberFolder(first);
             vm.LoadVideo(first);

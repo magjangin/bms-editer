@@ -45,8 +45,8 @@ public partial class MainWindow
         }
 
         // 방향키·Delete 는 목록·콤보·슬라이더에서는 그쪽 것이다.
-        if (IsWithin<ListBox>(focused) || IsWithin<ComboBox>(focused)
-            || IsWithin<Slider>(focused) || IsWithin<NumericUpDown>(focused))
+        // (NumericUpDown 은 위에서 이미 걸렀다)
+        if (IsWithin<ListBox>(focused) || IsWithin<ComboBox>(focused) || IsWithin<Slider>(focused))
         {
             return;
         }

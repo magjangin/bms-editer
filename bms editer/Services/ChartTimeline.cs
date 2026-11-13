@@ -66,8 +66,13 @@ public sealed class ChartTimeline
     // 마디 위치(마디 + 마디 안 0~1)를 곡 시작부터의 초로 바꾼다.
     public double SecondsAt(double measurePosition)
     {
-        if (measurePosition <= 0)
+        if (measurePosition <= 0 || double.IsNaN(measurePosition))
             return 0;
+
+        // 경계 표는 앞에서부터 채워 가므로 터무니없이 큰 값이 오면 그만큼 끝없이 늘어난다.
+        // MeasurePositionAt 과 같은 상한에서 멈춘다. 그 너머는 차트가 담을 수 없는 자리다.
+        if (measurePosition >= MaxMeasure)
+            measurePosition = MaxMeasure;
 
         var measure = (int)Math.Floor(measurePosition);
         var position = measurePosition - measure;
