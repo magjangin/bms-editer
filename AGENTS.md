@@ -55,6 +55,12 @@
     - `#SWITCH` 구문 안의 다중 `#CASE`/`#DEF`는 내부에서 새 `branchId`를 할당받지만, 구문이 종료되는 `#ENDSW`에서는 반드시 부모 분기 ID(최상위는 0)로 복구되어야 합니다. `switchStack`(`Stack<bool>`)을 도입하여 분기 내 케이스 교체 및 블록 종료 시 정상 중립 분기로 복원하도록 보장합니다.
 11. **마지막 작업 폴더 기억 (`RememberFolder`) 및 드래그 앤 드롭**:
     - 파일 열기 대화상자에서 매번 루트로 돌아가는 사용성 불편을 방지하기 위해 파일/폴더를 열거나 저장할 때마다 마지막 경로를 메모리에 보존하여 다음 탐색기의 `SuggestedStartLocation`으로 사용합니다.
+12. **문서를 여는 동안 홀드 짝짓기 미루기 (`DeferHoldRecompute`)**:
+    - 열기 한 번에 노트 알림·키음 목록 교체·프로파일 적용이 각자 `RecomputeHolds`를 불러 곡 전체 짝짓기가 4~5번 돌았습니다. `LoadDocument`는 `using var _ = DeferHoldRecompute();`로 묶어 끝에 한 번만 짝짓습니다. 여러 단계를 거치는 새 경로(일괄 편집 등)도 같은 방식으로 묶으십시오.
+13. **열기 안내는 `DocumentNotice`, 저장 안내는 `LastWarningMessage`**:
+    - `LastWarningMessage`는 저장 직후 창이 대화상자로 띄우는 값이고 다음 저장이 덮어씁니다. 열 때 알게 된 것(없는 키음, 폴더에 차트가 여럿)은 상태 표시줄의 `DocumentNotice`에 넣습니다. 문서를 비우면 지워지므로 열기 **뒤에** `AddDocumentNotice`로 덧붙여야 합니다.
+14. **줄바꿈은 `.gitattributes`(`* text=auto`)가 관리**:
+    - 한때 7개 파일이 `\r\r\n`으로 저장돼 git이 바이너리로 취급했고 diff가 통째 교체로 보였습니다. 파이썬 등으로 파일을 쓸 때 텍스트 모드로 읽은 뒤 `\r\n`을 덧붙이지 마십시오. `git ls-files --eol`에서 소스가 `i/lf`인지 확인하십시오.
 
 ---
 
@@ -71,6 +77,8 @@
   - 재생 중 정지하려고 에디터 화면을 누를 때 클릭 이벤트가 격자로 흘러들어가 노트를 덮어쓰거나 우클릭 삭제되는 현상 발생. 터널링 단계에서 `e.Handled = true`로 차단하고 ViewModel 차원에서 `IsPlaying` 시 노트 배치/삭제를 가드해야 합니다.
 * ❌ **Avalonia 12 `DragEventArgs.Data` 구형 API 직접 접근 시도**:
   - Avalonia 12.0.5에서는 `e.Data`가 `e.DataTransfer`(`IDataTransfer`)로 개편되었으며, `DataFormats.Files` 대신 `DataFormat.File`과 `TryGetFiles()`, `IStorageItem.TryGetLocalPath()`를 사용하는 현대적 API로 구현해야 합니다.
+* ❌ **미리듣기(`KeySoundPlayer.Play`)까지 디코딩 중복 제거**:
+  - 재생 중 노트(`ScheduleIfDecoded`)는 파일당 백그라운드 작업 하나로 묶었지만, 미리듣기에도 같은 묶음을 쓰면 재생 예약이 먼저 풀기 시작한 파일을 사용자가 눌렀을 때 소리가 조용히 사라집니다. 미리듣기는 드물고 하나하나 들려야 하므로 예전처럼 둡니다.
 * ❌ **`CommunityToolkit.Mvvm` `OnPropertyChanging(ref T)` 부분 메서드 시도**:
   - 소스 생성기가 `ref` 형태의 부분 메서드를 지원하지 않으므로, 유효성 검사 및 클램핑이 필요한 프로퍼티는 수동 getter/setter와 `SetProperty`를 사용하는 것이 가장 안정적입니다.
 
@@ -86,7 +94,7 @@
   ```powershell
   dotnet test
   ```
-  *(현재 480개 단위/스모크 테스트 100% 통과 필수)*
+  *(현재 507개 단위/스모크 테스트 100% 통과 필수)*
 * **배포 산출물 빌드**:
   ```powershell
   dotnet publish -c Release -p:PublishProfile=win-x64
