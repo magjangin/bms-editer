@@ -110,6 +110,7 @@ public partial class MainWindow
             var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
             {
                 Title = "BMS 폴더 선택",
+                SuggestedStartLocation = await GetSuggestedFolderAsync(vm),
                 AllowMultiple = false,
             });
 
@@ -167,6 +168,7 @@ public partial class MainWindow
             var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
             {
                 Title = "BMS 파일 선택",
+                SuggestedStartLocation = await GetSuggestedFolderAsync(vm),
                 AllowMultiple = false,
                 FileTypeFilter = new[]
                 {
@@ -182,7 +184,9 @@ public partial class MainWindow
             if (!await vm.ConfirmDiscardIfNeededAsync("현재 작업 중인 내용이 모두 사라집니다.\n파일을 열까요?"))
                 return;
 
-            if (!vm.LoadBms(path))
+            if (vm.LoadBms(path))
+                RememberFolder(path);
+            else
                 await ConfirmWindow.ShowMessageAsync(this, $"파일을 열지 못했습니다.\n\n{vm.LastErrorMessage}", "열기 실패");
         }
 
@@ -220,6 +224,7 @@ public partial class MainWindow
                 return;
             }
 
+            RememberFolder(path);
             if (vm.LastWarningMessage is { } warning)
                 await ConfirmWindow.ShowMessageAsync(this, warning, "저장 완료");
         }
@@ -229,6 +234,7 @@ public partial class MainWindow
             var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
             {
                 Title = "BMS 파일로 저장",
+                SuggestedStartLocation = await GetSuggestedFolderAsync(vm),
                 DefaultExtension = "bms",
                 SuggestedFileName = ToSafeFileName(vm.Title),
                 FileTypeChoices = new[]
@@ -281,21 +287,6 @@ public partial class MainWindow
             if (candidates.Length > 1 && !string.Equals(Path.GetFileNameWithoutExtension(bmsPath), folderName, StringComparison.OrdinalIgnoreCase))
             {
                 vm.LastWarningMessage = $"이 폴더에 여러 BMS 파일이 있어 '{Path.GetFileName(bmsPath)}'를 열었습니다.";
-            }
-
-            // 차트가 없는 폴더를 고르면 아무것도 건드리지 않는다.
-            //
-            // 예전에는 차트만 건너뛰고 음원·영상을 얹었다. 사용자는 새로 열렸다고 생각하는데
-            // 화면의 차트는 옛것이고, CurrentFilePath 도 옛 파일을 가리켜서
-            // 그대로 [저장]을 누르면 방금 연 폴더가 아니라 옛 차트가 덮어써졌다.
-            if (bmsPath is null)
-            {
-                await ConfirmWindow.ShowMessageAsync(
-                    this,
-                    $"이 폴더에 BMS 차트가 없습니다.\n\n{folderPath}\n\n" +
-                    "지금 작업 중인 차트를 그대로 두었습니다. 음원·영상도 바꾸지 않았습니다.",
-                    "폴더 열기");
-                return;
             }
 
             if (!vm.LoadBms(bmsPath))
@@ -359,6 +350,7 @@ public partial class MainWindow
             var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
             {
                 Title = "WAV 파일 선택",
+                SuggestedStartLocation = await GetSuggestedFolderAsync(vm),
                 AllowMultiple = false,
                 FileTypeFilter = new[]
                 {
@@ -371,6 +363,7 @@ public partial class MainWindow
                 return;
 
             // 예전에는 실패해도 아무 표시가 없어서, 키음이 한도를 넘으면 조용히 아무 일도 안 났다.
+            RememberFolder(path);
             if (!vm.AddWav(path))
                 await ConfirmWindow.ShowMessageAsync(this, $"키음을 추가하지 못했습니다.\n\n{vm.LastErrorMessage}", "키음 추가 실패");
         }

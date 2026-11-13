@@ -225,7 +225,7 @@ public abstract class TimelineControlBase : Control
 
     protected readonly record struct GridLine(double Position, GridLineKind Kind, int Measure, double Seconds);
 
-    public const double DefaultViewportBuffer = 400.0;
+    public const double DefaultViewportBuffer = 800.0;
 
     private ScrollViewer? _observedScrollViewer;
 

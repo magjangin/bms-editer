@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
+using Avalonia.Media.Immutable;
 using Avalonia.Platform;
 using Avalonia.VisualTree;
 using bms_editer.Services;
@@ -19,6 +20,10 @@ public sealed class VideoPreviewControl : Control, IDisposable
 {
     private const string PreviewHostName = "bms-video-preview.local";
 
+    private static readonly IBrush BackgroundBrush = new SolidColorBrush(Color.FromRgb(10, 10, 12)).ToImmutable();
+    private static readonly IBrush StatusTextBrush = new SolidColorBrush(Color.FromArgb(150, 210, 210, 210)).ToImmutable();
+    private static readonly Typeface StatusTypeface = new("Inter, Arial, sans-serif");
+
     private CoreWebView2Controller? _controller;
     private CoreWebView2? _webView;
     private Task? _initializationTask;
@@ -27,6 +32,9 @@ public sealed class VideoPreviewControl : Control, IDisposable
     private bool _isPlaying;
     private double _lastRequestedSeconds;
     private string _statusText = "VIDEO";
+    private string? _cachedStatusText;
+    private FormattedText? _cachedStatusFormattedText;
+    private int _videoRequestVersion;
 
     public VideoPreviewControl()
     {
@@ -35,17 +43,22 @@ public sealed class VideoPreviewControl : Control, IDisposable
 
     public override void Render(DrawingContext context)
     {
-        context.FillRectangle(new SolidColorBrush(Color.FromRgb(10, 10, 12)), Bounds);
+        context.FillRectangle(BackgroundBrush, Bounds);
         if (!_hasVideo || _webView is null)
         {
-            var text = new FormattedText(
-                _statusText,
-                CultureInfo.CurrentCulture,
-                FlowDirection.LeftToRight,
-                new Typeface("Inter, Arial, sans-serif"),
-                13,
-                new SolidColorBrush(Color.FromArgb(150, 210, 210, 210)));
+            if (_cachedStatusFormattedText is null || _cachedStatusText != _statusText)
+            {
+                _cachedStatusText = _statusText;
+                _cachedStatusFormattedText = new FormattedText(
+                    _statusText,
+                    CultureInfo.CurrentCulture,
+                    FlowDirection.LeftToRight,
+                    StatusTypeface,
+                    13,
+                    StatusTextBrush);
+            }
 
+            var text = _cachedStatusFormattedText;
             context.DrawText(text, new Point((Bounds.Width - text.Width) / 2, (Bounds.Height - text.Height) / 2));
         }
     }
@@ -66,12 +79,16 @@ public sealed class VideoPreviewControl : Control, IDisposable
 
     public async void LoadVideo(string filePath)
     {
+        var version = ++_videoRequestVersion;
         _pendingVideoPath = filePath;
         _hasVideo = true;
         _statusText = "비디오 로딩 중";
         InvalidateVisual();
 
         await EnsureWebViewAsync();
+        if (_disposed || version != _videoRequestVersion)
+            return;
+
         if (_webView is null)
         {
             _statusText = "비디오 엔진 초기화 실패";
@@ -87,6 +104,7 @@ public sealed class VideoPreviewControl : Control, IDisposable
 
     public async void ClearVideo()
     {
+        var version = ++_videoRequestVersion;
         _pendingVideoPath = null;
         _hasVideo = false;
         _isPlaying = false;
@@ -94,6 +112,9 @@ public sealed class VideoPreviewControl : Control, IDisposable
         InvalidateVisual();
 
         await EnsureWebViewAsync();
+        if (_disposed || version != _videoRequestVersion)
+            return;
+
         _webView?.NavigateToString(BuildEmptyHtml());
     }
 

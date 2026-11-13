@@ -88,20 +88,24 @@ public sealed class OggWaveformControl : TimelineControlBase
         var waveformThickness = IsHorizontalView ? height : width;
         var center = waveformThickness / 2.0;
 
-        context.FillRectangle(BackgroundBrush, new Rect(0, 0, width, height));
-
-        if (IsHorizontalView)
-        {
-            context.DrawLine(CenterLinePen, new Point(0, center), new Point(width, center));
-        }
-        else
-        {
-            context.DrawLine(CenterLinePen, new Point(center, 0), new Point(center, height));
-        }
-
         var maxAmplitude = (center - 8) * 0.58 * Math.Clamp(HorizontalZoom, 0.1, 4.0);
         var peaks = Peaks;
         var (minPos, maxPos) = GetVisibleTimelineRange(timelineLength);
+
+        var bgStart = Math.Max(0.0, minPos);
+        var bgEnd = Math.Min(timelineLength, maxPos);
+        if (bgEnd > bgStart)
+        {
+            var bgRect = IsHorizontalView
+                ? new Rect(bgStart, 0, bgEnd - bgStart, height)
+                : new Rect(0, bgStart, width, bgEnd - bgStart);
+            context.FillRectangle(BackgroundBrush, bgRect);
+
+            if (IsHorizontalView)
+                context.DrawLine(CenterLinePen, new Point(bgStart, center), new Point(bgEnd, center));
+            else
+                context.DrawLine(CenterLinePen, new Point(center, bgStart), new Point(center, bgEnd));
+        }
 
         if (peaks is { Count: > 1 })
         {

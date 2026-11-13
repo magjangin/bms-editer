@@ -25,18 +25,34 @@ public sealed partial class MainWindowViewModel
     // 시각 순으로 정렬한 노트. 재생 중 "지금 울릴 노트"를 이진 탐색으로 찾는 데 쓴다.
     // 노트가 바뀔 때만 다시 만든다. (NotifyNotesChanged 참고)
     private BmsNote[]? _sortedNotesCache;
+    private double[]? _sortedNoteSecondsCache;
 
-    private BmsNote[] GetSortedNotes() =>
-        _sortedNotesCache ??= Chart.Notes.OrderBy(n => n.Measure + n.Position).ToArray();
+    private BmsNote[] GetSortedNotes()
+    {
+        if (_sortedNotesCache is not null)
+            return _sortedNotesCache;
+
+        var sorted = Chart.Notes.OrderBy(n => n.Measure + n.Position).ToArray();
+        var timeline = Timeline;
+        var seconds = new double[sorted.Length];
+        for (var i = 0; i < sorted.Length; i++)
+            seconds[i] = timeline.SecondsAt(sorted[i].Measure + sorted[i].Position);
+
+        _sortedNotesCache = sorted;
+        _sortedNoteSecondsCache = seconds;
+        return sorted;
+    }
 
     // 노트가 바뀌었다고 알린다. 화면 갱신과 정렬 캐시 무효화가 늘 짝이어야 해서 한곳에 모은다.
     private void NotifyNotesChanged()
     {
         _sortedNotesCache = null;
+        _sortedNoteSecondsCache = null;
         _notesCache = Chart.Notes.ToArray();
         if (IsPlaying)
         {
             _playbackNotes = GetSortedNotes();
+            _playbackNoteSeconds = _sortedNoteSecondsCache ?? Array.Empty<double>();
         }
         MarkDirty();
 
@@ -183,8 +199,8 @@ public sealed partial class MainWindowViewModel
         if (created.Count > 0)
         {
             Chart.Notes.AddRange(created);
-            SetNoteSelection(created, NoteSelectionSource.Search);
             NotifyNotesChanged();
+            SetNoteSelection(created, NoteSelectionSource.Search);
         }
 
         return new NoteCopyResult(created.Count, blocked, outOfRange);
