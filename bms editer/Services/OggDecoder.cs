@@ -1,4 +1,5 @@
 using System;
+using System.Runtime.InteropServices;
 using NVorbis;
 
 namespace bms_editer.Services;
@@ -27,7 +28,21 @@ public static class OggDecoder
             System.IO.FileMode.Open,
             System.IO.FileAccess.Read,
             System.IO.FileShare.ReadWrite | System.IO.FileShare.Delete);
-        using var reader = new VorbisReader(stream, closeOnDispose: true);
+
+        // VorbisReader 가 만들어지기 전에 던지면(OGG 가 아닌 파일 등) 아무도 스트림을 닫지 않아
+        // 파일이 잠긴 채 남았다. 만들어진 뒤에는 reader 가 닫는다.
+        VorbisReader reader;
+        try
+        {
+            reader = new VorbisReader(stream, closeOnDispose: true);
+        }
+        catch
+        {
+            stream.Dispose();
+            throw;
+        }
+
+        using var _ = reader;
 
         var channels = Math.Max(1, reader.Channels);
         var sampleRate = reader.SampleRate;
@@ -55,12 +70,13 @@ public static class OggDecoder
             if (needed > bytes.Length)
                 Array.Resize(ref bytes, Math.Max(needed, bytes.Length * 2));
 
+            // 바이트를 하나씩 끊어 쓰지 않고 short 로 바로 쓴다. waveOut 이 받는 PCM16 은
+            // 리틀 엔디언이고 Windows 도 리틀 엔디언이라 결과 바이트는 예전과 같다.
+            var destination = MemoryMarshal.Cast<byte, short>(bytes.AsSpan(byteOffset, samplesRead * sizeof(short)));
             for (var i = 0; i < samplesRead; i++)
-            {
-                var sample = (short)(Math.Clamp(floatBuffer[i], -1f, 1f) * short.MaxValue);
-                bytes[byteOffset++] = (byte)(sample & 0xff);
-                bytes[byteOffset++] = (byte)((sample >> 8) & 0xff);
-            }
+                destination[i] = (short)(Math.Clamp(floatBuffer[i], -1f, 1f) * short.MaxValue);
+
+            byteOffset = needed;
         }
 
         // 예상보다 적게 나왔으면 남는 꼬리를 잘라낸다. 안 자르면 곡 끝에 무음이 붙는다.

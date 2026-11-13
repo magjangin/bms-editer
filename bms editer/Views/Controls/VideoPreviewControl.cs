@@ -66,6 +66,12 @@ public sealed class VideoPreviewControl : Control, IDisposable
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
+
+        // 떼어냈다가 다시 붙이면 새로 만든다. 예전에는 Dispose 표시가 영영 남아서
+        // 다시 붙인 컨트롤에서는 영상이 다시는 뜨지 않았다. 새 컨트롤러가 크기를 받도록 기록도 비운다.
+        _disposed = false;
+        _lastAppliedBounds = null;
+
         LayoutUpdated += OnLayoutUpdated;
         _ = EnsureWebViewAsync();
     }
@@ -156,6 +162,10 @@ public sealed class VideoPreviewControl : Control, IDisposable
     public void SyncTo(double seconds)
     {
         _lastRequestedSeconds = Math.Max(0, seconds);
+
+        // 영상이 없으면 스크립트 문자열을 만들 필요도 없다. 재생 중 매 프레임 불리는 자리다.
+        if (!_hasVideo || _webView is null)
+            return;
 
         // 뒤로 감았거나(스크럽) 충분히 시간이 지났을 때만 보낸다.
         if (Math.Abs(_lastRequestedSeconds - _lastSyncedSeconds) < VideoSyncIntervalSeconds)

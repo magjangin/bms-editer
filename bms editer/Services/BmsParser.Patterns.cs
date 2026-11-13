@@ -49,8 +49,9 @@ public static partial class BmsParser
     private static partial Regex DataRegex();
 
     // 갈래를 나누는 제어 줄. (#RANDOM/#IF/#SWITCH 등 갈래를 보존해 저장한다)
+    // 1번 그룹이 제어어다. 예전에는 맞은 줄마다 제어어를 가리려고 정규식을 다시 여섯 번 돌렸다.
     [GeneratedRegex(
-        @"^#(?:RANDOM|SETRANDOM|ENDRANDOM|RONDAM|IF|ELSEIF|ELSE|ENDIF|SWITCH|SETSWITCH|CASE|SKIP|DEF|ENDSW)(?:\s|$)",
+        @"^#(RANDOM|SETRANDOM|ENDRANDOM|RONDAM|IF|ELSEIF|ELSE|ENDIF|SWITCH|SETSWITCH|CASE|SKIP|DEF|ENDSW)(?:\s|$)",
         RegexOptions.IgnoreCase)]
     private static partial Regex ControlFlowRegex();
 

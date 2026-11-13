@@ -49,16 +49,24 @@ internal static class HoldPolicies
         var tails = ordered.Where(m => m.Role == HoldRole.Tail).ToList();
         var consumed = new HashSet<BmsNote>();
 
+        // 시작은 시각 순으로 온다. 앞 시작이 건너뛴 끝(이미 쓰였거나 시작보다 앞선 것)은
+        // 뒤 시작에게도 건너뛸 대상이라, 매번 처음부터 훑지 않고 이어서 본다.
+        // 예전에는 시작마다 끝 전체를 처음부터 다시 훑어서 홀드가 많은 곡에서 O(N²)였다.
+        var next = 0;
+
         foreach (var head in ordered.Where(m => m.Role == HoldRole.Head))
         {
             HoldMember? found = null;
-            foreach (var candidate in tails)
+            for (; next < tails.Count; next++)
             {
+                var candidate = tails[next];
+
                 // 같은 자리의 끝은 짝이 아니다. 게임 코드가 "시작보다 뒤"만 본다.
                 if (consumed.Contains(candidate.Note) || candidate.Time <= head.Time + TimeEpsilon)
                     continue;
 
                 found = candidate;
+                next++;
                 break;
             }
 
@@ -85,17 +93,15 @@ internal static class HoldPolicies
         var tails = ordered.Where(m => m.Role == HoldRole.Tail).ToList();
         var usage = new Dictionary<BmsNote, int>();
 
+        // 시작이 시각 순으로 오므로 "시작보다 뒤인 첫 끝"도 앞으로만 움직인다. (NearestUnconsumedTail 참고)
+        var next = 0;
+
         foreach (var head in ordered.Where(m => m.Role == HoldRole.Head))
         {
-            HoldMember? found = null;
-            foreach (var candidate in tails)
-            {
-                if (candidate.Time <= head.Time + TimeEpsilon)
-                    continue;
+            while (next < tails.Count && tails[next].Time <= head.Time + TimeEpsilon)
+                next++;
 
-                found = candidate;
-                break;
-            }
+            HoldMember? found = next < tails.Count ? tails[next] : null;
 
             if (found is not { } tail)
             {
