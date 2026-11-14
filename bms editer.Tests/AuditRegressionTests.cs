@@ -386,6 +386,84 @@ public sealed class AuditRegressionTests : IDisposable
         Assert.False(vm.CanRedo);
     }
 
+    [Fact]
+    public void Undo_기록은_연속_편집에서_앞_기록의_편집후_배열을_공유한다()
+    {
+        using var vm = new MainWindowViewModel();
+        var wavPath = Path.Combine(_directory, "a.wav");
+        File.WriteAllBytes(wavPath, Array.Empty<byte>());
+        Assert.True(vm.AddWav(wavPath));
+        vm.SelectedWavItem = vm.WavList[0];
+
+        vm.PlaceNoteCommand.Execute(new NotePlacementArgs("11", 1, 0.0));
+        vm.PlaceNoteCommand.Execute(new NotePlacementArgs("12", 1, 0.0));
+        vm.PlaceNoteCommand.Execute(new NotePlacementArgs("13", 1, 0.0));
+
+        var entries = UndoEntries(vm);
+        Assert.Equal(3, entries.Count);
+        Assert.Same(SnapshotOf(entries[0], "After"), SnapshotOf(entries[1], "Before"));
+        Assert.Same(SnapshotOf(entries[1], "After"), SnapshotOf(entries[2], "Before"));
+
+        // 되돌린 뒤 새로 편집하면 남은 마지막 기록의 "편집 후"를 공유한다.
+        vm.UndoCommand.Execute(null);
+        vm.PlaceNoteCommand.Execute(new NotePlacementArgs("14", 1, 0.0));
+        entries = UndoEntries(vm);
+        Assert.Equal(3, entries.Count);
+        Assert.Same(SnapshotOf(entries[1], "After"), SnapshotOf(entries[2], "Before"));
+
+        // 공유해도 되돌리기 결과는 그대로다.
+        vm.UndoCommand.Execute(null);
+        Assert.Equal(new[] { "11", "12" }, vm.Chart.Notes.Select(n => n.LaneId).OrderBy(id => id));
+        vm.UndoCommand.Execute(null);
+        vm.UndoCommand.Execute(null);
+        Assert.Empty(vm.Chart.Notes);
+        vm.RedoCommand.Execute(null);
+        vm.RedoCommand.Execute(null);
+        vm.RedoCommand.Execute(null);
+        Assert.Equal(new[] { "11", "12", "14" }, vm.Chart.Notes.Select(n => n.LaneId).OrderBy(id => id));
+    }
+
+    [Fact]
+    public void 재생_중에는_Undo와_Redo가_꺼지고_정지하면_다시_켜진다()
+    {
+        using var vm = new MainWindowViewModel();
+        var wavPath = Path.Combine(_directory, "a.wav");
+        File.WriteAllBytes(wavPath, Array.Empty<byte>());
+        Assert.True(vm.AddWav(wavPath));
+        vm.SelectedWavItem = vm.WavList[0];
+
+        vm.PlaceNoteCommand.Execute(new NotePlacementArgs("11", 1, 0.0));
+        vm.PlaceNoteCommand.Execute(new NotePlacementArgs("12", 1, 0.0));
+        vm.UndoCommand.Execute(null);
+        Assert.True(vm.CanUndo);
+        Assert.True(vm.CanRedo);
+
+        var undoCanExecuteChanged = 0;
+        vm.UndoCommand.CanExecuteChanged += (_, _) => undoCanExecuteChanged++;
+
+        vm.IsPlaying = true;
+        Assert.False(vm.CanUndo);
+        Assert.False(vm.CanRedo);
+        Assert.False(vm.UndoCommand.CanExecute(null));
+        Assert.False(vm.RedoCommand.CanExecute(null));
+        Assert.True(undoCanExecuteChanged > 0);
+
+        vm.IsPlaying = false;
+        Assert.True(vm.CanUndo);
+        Assert.True(vm.CanRedo);
+        Assert.True(vm.UndoCommand.CanExecute(null));
+    }
+
+    private static List<object> UndoEntries(MainWindowViewModel vm)
+    {
+        var field = typeof(MainWindowViewModel).GetField(
+            "_undoStack", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+        return ((System.Collections.IEnumerable)field.GetValue(vm)!).Cast<object>().ToList();
+    }
+
+    private static object SnapshotOf(object entry, string propertyName) =>
+        entry.GetType().GetProperty(propertyName)!.GetValue(entry)!;
+
     // ── 타임라인 스크럽 수학 ────────────────────────────────────────────────
 
     [Fact]

@@ -455,3 +455,11 @@
   - `MainWindow.axaml` 의 `편집(_E)` 메뉴에 `되돌리기(_U)`·`다시 실행(_R)` 을 추가했고, `MainWindow.Input.cs` 및 4개 보조 창(`ToolWindowInputHelper`)에서 모두 단축키를 지원합니다.
 * **O-6: 테스트 임시 폴더 정리 (`IDisposable`)**:
   - `AudioOffsetTests` 와 `WindowSmokeTests` 가 `%TEMP%\bms-editer-tests` 아래 생성한 임시 디렉터리를 `Dispose()` 에서 정리하도록 수정했습니다.
+
+### 4. 감사 후속 (2026-11-14)
+* **O-7: Undo 기록 메모리 절반으로 줄이기**:
+  - 기록 하나가 곡 전체 노트를 편집 전·후 두 벌로 들고 있어, 노트 1만 개 곡에서 100단계를 채우면 약 95MB(3만 개면 약 290MB)를 썼습니다.
+  - 연달아 편집하면 이번 "편집 전"은 바로 앞 기록의 "편집 후"와 같습니다. `RecordNoteHistory` 가 내용을 비교해 같으면 앞 기록의 배열을 그대로 씁니다. 되돌린 뒤 새로 편집할 때도 남은 마지막 기록과 공유합니다.
+* **O-8: 재생 중에는 되돌리기·다시 실행을 끈다**:
+  - `Undo()`/`Redo()` 는 재생 중 아무것도 하지 않는데 `CanUndo`/`CanRedo` 가 재생 여부를 보지 않아 메뉴가 켜져 있었습니다. 이제 `IsPlaying` 이면 꺼지고, `OnIsPlayingChanged` 에서 명령 상태를 다시 알립니다.
+* 회귀 테스트 2개 추가(`AuditRegressionTests`), 총 513개 통과.
