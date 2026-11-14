@@ -63,6 +63,7 @@
     - 한때 7개 파일이 `\r\r\n`으로 저장돼 git이 바이너리로 취급했고 diff가 통째 교체로 보였습니다. 파이썬 등으로 파일을 쓸 때 텍스트 모드로 읽은 뒤 `\r\n`을 덧붙이지 마십시오. `git ls-files --eol`에서 소스가 `i/lf`인지 확인하십시오.
 15. **Undo/Redo 히스토리 및 부분 클래스 구조 (`MainWindowViewModel.UndoRedo.cs` / `NoteGridControl.*.cs`)**:
     - 6개 노트 편집 경로(`PlaceNote`·`RemoveNote`·`DeleteNotes`·`MoveSelectedNotes`·`ReplaceWavKey`·`CopyNotesByMeasureOffset`)는 `NoteSnapshot[]` + 선택 인덱스로 `MainWindowViewModel.UndoRedo.cs` 에 기록됩니다(100단계, `ResetDocumentState` 시 초기화). 새 노트 편집 경로를 추가할 때는 반드시 스냅숏 캡처·기록을 연결하십시오.
+    - 기록마다 곡 전체를 두 벌 들지 않도록, 이번 "편집 전"이 앞 기록의 "편집 후"와 같으면 그 배열을 공유합니다(`RecordNoteHistory`). 스냅숏 배열은 기록된 뒤 절대 제자리에서 고치면 안 됩니다. 재생 중에는 `CanUndo`/`CanRedo` 가 false 입니다.
     - `NoteGridControl` 은 렌더링(`NoteGridControl.cs`)·색인 캐시(`NoteGridControl.Indexing.cs`, `NoteRenderIndex`·`HoldRenderIndex`·`HoldProblemRenderIndex`)·포인터 입력(`NoteGridControl.Input.cs`)으로 분리되어 있습니다.
 
 ---
@@ -97,7 +98,7 @@
   ```powershell
   dotnet test
   ```
-  *(현재 511개 단위/스모크 테스트 100% 통과 필수)*
+  *(현재 513개 단위/스모크 테스트 100% 통과 필수)*
 * **배포 산출물 빌드**:
   ```powershell
   dotnet publish -c Release -p:PublishProfile=win-x64

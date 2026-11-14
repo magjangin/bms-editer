@@ -49,8 +49,11 @@ public sealed partial class MainWindowViewModel
     private readonly List<NoteEditHistoryEntry> _undoStack = new();
     private readonly List<NoteEditHistoryEntry> _redoStack = new();
 
-    public bool CanUndo => _undoStack.Count > 0;
-    public bool CanRedo => _redoStack.Count > 0;
+    // 재생 중에는 Undo()/Redo() 가 아무것도 하지 않으므로 메뉴·단축키도 꺼 둔다.
+    public bool CanUndo => !IsPlaying && _undoStack.Count > 0;
+    public bool CanRedo => !IsPlaying && _redoStack.Count > 0;
+
+    partial void OnIsPlayingChanged(bool value) => NotifyUndoRedoStateChanged();
 
     [RelayCommand(CanExecute = nameof(CanUndo))]
     private void Undo()
@@ -103,6 +106,12 @@ public sealed partial class MainWindowViewModel
     private void RecordNoteHistory(NoteSnapshot[] beforeNotes, int[] beforeSelected, string description)
     {
         var (afterNotes, afterSelected) = CaptureNoteSnapshot();
+
+        // 연달아 편집하면 이번 "편집 전"은 바로 앞 기록의 "편집 후"와 같다(되돌린 뒤라면 그 앞 기록의 "편집 후").
+        // 같은 내용이면 앞 기록의 배열을 그대로 써서 단계마다 곡 전체를 두 벌씩 들고 있지 않는다.
+        if (_undoStack.Count > 0 && SameNotes(_undoStack[^1].After, beforeNotes))
+            beforeNotes = _undoStack[^1].After;
+
         var entry = new NoteEditHistoryEntry(beforeNotes, beforeSelected, afterNotes, afterSelected, description);
 
         if (_undoStack.Count >= MaxUndoHistory)
@@ -112,6 +121,9 @@ public sealed partial class MainWindowViewModel
         _redoStack.Clear();
         NotifyUndoRedoStateChanged();
     }
+
+    private static bool SameNotes(NoteSnapshot[] a, NoteSnapshot[] b) =>
+        ReferenceEquals(a, b) || a.AsSpan().SequenceEqual(b);
 
     private void ApplyNoteSnapshot(NoteSnapshot[] snapshot, int[] selectedIndices)
     {
