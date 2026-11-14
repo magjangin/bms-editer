@@ -137,6 +137,8 @@ public sealed partial class MainWindowViewModel
     {
         if (notes.Count == 0) return 0;
 
+        var (beforeNotes, beforeSelected) = CaptureNoteSnapshot();
+
         // 하나씩 List.Remove 하면 지울 때마다 앞에서부터 찾고 뒤를 당겨서 O(N²)이다.
         // 만 개 단위로 지우면 창이 수 초씩 멈췄다. 집합으로 만들어 한 번에 걷어낸다.
         var targets = new HashSet<BmsNote>(notes);
@@ -147,6 +149,7 @@ public sealed partial class MainWindowViewModel
             _selectedNotes.ExceptWith(targets);
             NotifyNotesChanged();
             NotifySelectionChanged();
+            RecordNoteHistory(beforeNotes, beforeSelected, $"노트 {removed}개 삭제");
         }
 
         return removed;
@@ -198,9 +201,11 @@ public sealed partial class MainWindowViewModel
 
         if (created.Count > 0)
         {
+            var (beforeNotes, beforeSelected) = CaptureNoteSnapshot();
             Chart.Notes.AddRange(created);
             NotifyNotesChanged();
             SetNoteSelection(created, NoteSelectionSource.Search);
+            RecordNoteHistory(beforeNotes, beforeSelected, $"노트 {created.Count}개 복제");
         }
 
         return new NoteCopyResult(created.Count, blocked, outOfRange);
@@ -217,17 +222,26 @@ public sealed partial class MainWindowViewModel
     {
         if (notes.Count == 0 || string.IsNullOrWhiteSpace(wavKey)) return 0;
 
+        NoteSnapshot[]? beforeNotes = null;
+        int[]? beforeSelected = null;
+
         var changed = 0;
         foreach (var note in notes)
         {
             if (note.WavKey == wavKey) continue;
+
+            if (beforeNotes is null)
+                (beforeNotes, beforeSelected) = CaptureNoteSnapshot();
 
             note.WavKey = wavKey;
             changed++;
         }
 
         if (changed > 0)
+        {
             NotifyNotesChanged();
+            RecordNoteHistory(beforeNotes!, beforeSelected!, $"키음 {changed}개 교체");
+        }
 
         return changed;
     }
@@ -295,6 +309,7 @@ public sealed partial class MainWindowViewModel
         }
 
         // 3단계: 확인이 끝났으니 한꺼번에 옮긴다.
+        var (beforeNotes, beforeSelected) = CaptureNoteSnapshot();
         foreach (var (note, measure, position, laneId) in moves)
         {
             note.Measure = measure;
@@ -303,6 +318,7 @@ public sealed partial class MainWindowViewModel
         }
 
         NotifyNotesChanged();
+        RecordNoteHistory(beforeNotes, beforeSelected, "노트 이동");
     }
 
     // 노트를 시간축으로 격자 한 칸만큼 **옮긴다.** 격자에 붙이지 않는다.
@@ -468,23 +484,35 @@ public sealed partial class MainWindowViewModel
 
         if (existing is not null)
         {
-            existing.WavKey = wavKey;
-        }
-        else
-        {
-            var note = new BmsNote
+            if (existing.WavKey != wavKey)
             {
-                Measure = args.Measure,
-                LaneId = args.LaneId,
-                Position = args.Position,
-                WavKey = wavKey,
-                Type = NoteType.Normal
-            };
-            Chart.Notes.Add(note);
+                var (beforeNotes, beforeSelected) = CaptureNoteSnapshot();
+                existing.WavKey = wavKey;
+                PlayWavSound(wavKey);
+                NotifyNotesChanged();
+                RecordNoteHistory(beforeNotes, beforeSelected, "노트 키음 변경");
+                return;
+            }
+
+            PlayWavSound(wavKey);
+            NotifyNotesChanged();
+            return;
         }
+
+        var (addBeforeNotes, addBeforeSelected) = CaptureNoteSnapshot();
+        var note = new BmsNote
+        {
+            Measure = args.Measure,
+            LaneId = args.LaneId,
+            Position = args.Position,
+            WavKey = wavKey,
+            Type = NoteType.Normal
+        };
+        Chart.Notes.Add(note);
 
         PlayWavSound(wavKey);
         NotifyNotesChanged();
+        RecordNoteHistory(addBeforeNotes, addBeforeSelected, "노트 추가");
     }
 
     // 우클릭한 자리에서 가장 가까운 노트 하나를 지운다.
@@ -524,9 +552,11 @@ public sealed partial class MainWindowViewModel
         if (nearest is null)
             return;
 
+        var (beforeNotes, beforeSelected) = CaptureNoteSnapshot();
         Chart.Notes.Remove(nearest);
         _selectedNotes.Remove(nearest);
         NotifyNotesChanged();
         NotifySelectionChanged();
+        RecordNoteHistory(beforeNotes, beforeSelected, "노트 삭제");
     }
 }

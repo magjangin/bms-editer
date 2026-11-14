@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Runtime.InteropServices;
 
 namespace bms_editer.Services;
 
@@ -135,8 +136,7 @@ public static class WavDecoder
                 return null;
 
             var sampleCount = data.Pcm16.Length / sizeof(short);
-            var shorts = new short[sampleCount];
-            Buffer.BlockCopy(data.Pcm16, 0, shorts, 0, data.Pcm16.Length);
+            var shorts = MemoryMarshal.Cast<byte, short>(data.Pcm16.AsSpan(0, sampleCount * sizeof(short)));
 
             var frameCount = sampleCount / data.Channels;
             var sourceFrames = new float[frameCount * data.Channels];
@@ -172,12 +172,9 @@ public static class WavDecoder
             }
             else if (bitsPerSample == 16)
             {
+                var shorts = MemoryMarshal.Cast<byte, short>(data.AsSpan(0, result.Length * sizeof(short)));
                 for (var i = 0; i < result.Length; i++)
-                {
-                    var offset = i * 2;
-                    short s = (short)(data[offset] | (data[offset + 1] << 8));
-                    result[i] = s / 32768f;
-                }
+                    result[i] = shorts[i] / 32768f;
             }
             else if (bitsPerSample == 24)
             {

@@ -44,7 +44,7 @@ public static partial class BmsParser
         }
     }
 
-    // 데이터 줄을 두 자리씩 끊어 "마디 안 위치 + 코드"로 내놓는다. 빈 칸("00")은 건너뛴다.
+    // 데이터 줄을 두 자리씩 끊어 "마디 안 위치 + 코드"로 내놓는다. 빈 칸("00")은 할당 없이 건너뛴다.
     private static IEnumerable<(double Position, string Code)> EnumerateSlots(string data)
     {
         var count = data.Length / 2;
@@ -53,12 +53,32 @@ public static partial class BmsParser
 
         for (var i = 0; i < count; i++)
         {
-            var code = data.Substring(i * 2, 2).ToUpperInvariant();
-            if (code == "00")
+            var offset = i * 2;
+            if (IsZeroSlot(data, offset, 2))
                 continue;
 
-            yield return ((double)i / count, code);
+            yield return ((double)i / count, data.Substring(offset, 2).ToUpperInvariant());
         }
+    }
+
+    private static bool IsZeroSlot(ReadOnlySpan<char> slot)
+    {
+        for (var i = 0; i < slot.Length; i++)
+        {
+            if (slot[i] != '0')
+                return false;
+        }
+        return true;
+    }
+
+    private static bool IsZeroSlot(string data, int offset, int length)
+    {
+        for (var i = 0; i < length; i++)
+        {
+            if (data[offset + i] != '0')
+                return false;
+        }
+        return true;
     }
 
     private static int DetermineChunkSize(string dataStr, bool has3DigitWav, Dictionary<string, string> wavTable)
@@ -76,15 +96,13 @@ public static partial class BmsParser
 
             for (var i = 0; i < dataStr.Length; i += 2)
             {
-                var k = dataStr.Substring(i, 2).ToUpperInvariant();
-                if (k != "00" && wavTable.ContainsKey(k))
+                if (!IsZeroSlot(dataStr, i, 2) && wavTable.ContainsKey(dataStr.Substring(i, 2).ToUpperInvariant()))
                     matchCount2++;
             }
 
             for (var i = 0; i < dataStr.Length; i += 3)
             {
-                var k = dataStr.Substring(i, 3).ToUpperInvariant();
-                if (k != "000" && wavTable.ContainsKey(k))
+                if (!IsZeroSlot(dataStr, i, 3) && wavTable.ContainsKey(dataStr.Substring(i, 3).ToUpperInvariant()))
                     matchCount3++;
             }
 

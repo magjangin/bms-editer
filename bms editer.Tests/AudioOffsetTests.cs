@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using bms_editer.Models;
@@ -8,10 +9,25 @@ using Xunit;
 
 namespace bms_editer.Tests;
 
-public sealed class AudioOffsetTests
+public sealed class AudioOffsetTests : IDisposable
 {
     private const int SampleRate = 44100;
     private const int Channels = 2;
+    private readonly List<string> _tempDirs = new();
+
+    public void Dispose()
+    {
+        foreach (var dir in _tempDirs)
+        {
+            try
+            {
+                Directory.Delete(dir, recursive: true);
+            }
+            catch (IOException)
+            {
+            }
+        }
+    }
 
     private static OggAudioData BuildShiftedClickTrack(double bpm, int beats, double shiftSeconds)
     {
@@ -98,10 +114,11 @@ public sealed class AudioOffsetTests
         Assert.Equal(0.0229, owner.AudioOffsetSeconds, 9);
     }
 
-    private static string WriteTempChart(string content)
+    private string WriteTempChart(string content)
     {
         var directory = Path.Combine(Path.GetTempPath(), "bms-editer-tests", Path.GetRandomFileName());
         Directory.CreateDirectory(directory);
+        _tempDirs.Add(directory);
         var path = Path.Combine(directory, "chart.bms");
         File.WriteAllText(path, content, new UTF8Encoding(false));
         return path;

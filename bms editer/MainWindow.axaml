@@ -30,6 +30,9 @@
                 <MenuItem Header="자동 저장·오류 기록 폴더 열기" Click="OnOpenAppDataFolderClick" />
             </MenuItem>
             <MenuItem Header="편집(_E)">
+                <MenuItem Header="되돌리기(_U)" Command="{Binding UndoCommand}" InputGesture="Ctrl+Z" />
+                <MenuItem Header="다시 실행(_R)" Command="{Binding RedoCommand}" InputGesture="Ctrl+Y" />
+                <Separator />
                 <MenuItem Header="선택 해제" Command="{Binding ClearNoteSelectionCommand}" InputGesture="Escape" />
                 <MenuItem Header="선택 삭제" Command="{Binding DeleteSelectedNotesCommand}" InputGesture="Delete" />
                 <Separator />

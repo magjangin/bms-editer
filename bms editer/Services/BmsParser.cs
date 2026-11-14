@@ -78,6 +78,34 @@ public static partial class BmsParser
             // #00111:... 같은 데이터 줄이 파일의 대부분이다. 아래 헤더들은 전부 # 뒤가 글자로 시작한다.
             if (line.Length > 1 && char.IsAsciiDigit(line[1])) continue;
 
+            // #WAVxx 가 헤더 줄의 95% 이상을 차지하므로 가장 먼저 판별해 불필요한 정규식 검사를 피한다.
+            if (line.Length > 1 && line[1] is 'W' or 'w')
+            {
+                var wavMatch = WavRegex().Match(line);
+                if (wavMatch.Success)
+                {
+                    var key = wavMatch.Groups[1].Value.ToUpperInvariant();
+                    var wavFile = wavMatch.Groups[2].Value.Trim();
+
+                    if (key.Length == 3)
+                    {
+                        has3DigitWav = true;
+                    }
+
+                    var absoluteWavPath = ResolveMediaPath(directory, wavFile, mediaPathIndex, out var pathGuessed);
+                    chart.WavTable[key] = absoluteWavPath;
+
+                    wavItems.Add(new BmsWavItem
+                    {
+                        Key = key,
+                        FilePath = absoluteWavPath,
+                        SourceText = wavFile,
+                        IsPathGuessed = pathGuessed,
+                    });
+                }
+                continue;
+            }
+
             var titleMatch = TitleRegex().Match(line);
             if (titleMatch.Success)
             {
@@ -156,30 +184,6 @@ public static partial class BmsParser
             if (profileMatch.Success)
             {
                 chart.Header.ProfileId = profileMatch.Groups[1].Value.Trim();
-                continue;
-            }
-
-            var wavMatch = WavRegex().Match(line);
-            if (wavMatch.Success)
-            {
-                var key = wavMatch.Groups[1].Value.ToUpperInvariant();
-                var wavFile = wavMatch.Groups[2].Value.Trim();
-
-                if (key.Length == 3)
-                {
-                    has3DigitWav = true;
-                }
-
-                var absoluteWavPath = ResolveMediaPath(directory, wavFile, mediaPathIndex, out var pathGuessed);
-                chart.WavTable[key] = absoluteWavPath;
-
-                wavItems.Add(new BmsWavItem
-                {
-                    Key = key,
-                    FilePath = absoluteWavPath,
-                    SourceText = wavFile,
-                    IsPathGuessed = pathGuessed,
-                });
             }
         }
 
@@ -344,23 +348,17 @@ public static partial class BmsParser
             // 데이터 자르기 단위 크기 결정 (2자리 또는 3자리)
             var chunkSize = DetermineChunkSize(dataStr, has3DigitWav, chart.WavTable);
 
-            var chunks = new List<string>();
-            for (var i = 0; i < dataStr.Length; i += chunkSize)
-            {
-                if (i + chunkSize <= dataStr.Length)
-                {
-                    chunks.Add(dataStr.Substring(i, chunkSize).ToUpperInvariant());
-                }
-            }
-
-            var totalChunks = chunks.Count;
+            var totalChunks = dataStr.Length / chunkSize;
+            var dataSpan = dataStr.AsSpan();
             for (var index = 0; index < totalChunks; index++)
             {
-                var code = chunks[index];
+                var slot = dataSpan.Slice(index * chunkSize, chunkSize);
 
-                // 빈 데이터("00", "000") 건너뛰기
-                if (code == "00" || code == "000") continue;
+                // 빈 데이터("00", "000")는 문자열을 할당하지 않고 건너뛴다.
+                if (IsZeroSlot(slot))
+                    continue;
 
+                var code = slot.ToString().ToUpperInvariant();
                 var position = (double)index / totalChunks;
                 chart.Notes.Add(new BmsNote
                 {

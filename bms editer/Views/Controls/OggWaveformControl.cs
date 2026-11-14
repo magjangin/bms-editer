@@ -184,9 +184,7 @@ public sealed class OggWaveformControl : TimelineControlBase
         if (timelineLength <= 0)
             return;
 
-        var timelineRatio = IsHorizontalView ? Math.Clamp(pos / timelineLength, 0, 1) : Math.Clamp(1.0 - (pos / timelineLength), 0, 1);
-        var audioSeconds = AudioSecondsAtRatio(timelineRatio);
-        var ratio = Math.Clamp(audioSeconds / DurationSeconds, 0, 1);
+        var ratio = PositionToAudioRatio(pos, timelineLength, IsHorizontalView, DurationSeconds, AudioOffsetSeconds);
         ScrubRequested?.Invoke(this, new WaveformScrubRequestedEventArgs(ratio, isFinal));
         e.Handled = true;
     }

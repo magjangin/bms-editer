@@ -425,3 +425,33 @@
 ### 4. 정리
 * 폴더에서 차트·음원·영상을 고르는 규칙(`FindFilesInFolder`·`PickByFolderName`)과 확장자 비교(`HasExtension`)를 한 곳으로 모았다. `ToLowerInvariant` 비교와 `OrdinalIgnoreCase` 비교가 섞여 있었다.
 * 더 이상 쓰지 않는 `NoteGridControl.ComputeNoteTPos`·`FindLaneIndex` 를 지웠다. `OggAudioPlayer.Play` 의 들여쓰기를 고쳤다.
+
+---
+
+## 🛠️ O. 전체 코드베이스 리팩토링·병목 제거 및 Undo/Redo 구현 (2026-11-14)
+
+총 511개 단위·스모크 테스트 통과(새 회귀 테스트 4개 포함, 경고 0개).
+
+### 1. 구조 리팩토링 및 중복 제거
+* **O-1: `NoteGridControl` 3분할 및 `HoldProblemRenderIndex` 도입**:
+  - 943줄 단일 파일이던 `NoteGridControl.cs` 를 렌더링(`NoteGridControl.cs`) · 색인/좌표 캐싱(`NoteGridControl.Indexing.cs`) · 포인터 입력/드래그 선택(`NoteGridControl.Input.cs`) 으로 분리했습니다.
+  - `HoldProblemRenderIndex` 와 공유 이진 탐색 도우미 `FindFirstVisible` 을 추가해, 매 렌더 프레임 `DrawHoldProblems` 가 `timeline.SecondsAt` 과 레인 조회를 반복하던 병목을 제거했습니다.
+* **O-2: `WinMmNative` 통합**:
+  - `KeySoundPlayer.cs` 와 `OggAudioPlayer.cs` 에 중복 선언돼 있던 Win32 `winmm.dll` 상수(`WHDR_*`, `TIME_*`, `SND_*`), 구조체(`MmTime`, `WaveFormat`, `WaveHeader`), `[LibraryImport("winmm.dll")]` 메서드를 `bms editer/Services/WinMmNative.cs` 한 곳으로 모았습니다.
+* **O-3: 타임라인 스크럽 수학 및 보조 창 입력 헬퍼 통합**:
+  - `OggWaveformControl.RequestScrub` 과 `MainWindow.ScrubFromEditorSurface` 에 흩어져 있던 오프셋 반영 스크럽 비율 계산을 `TimelineControlBase.PositionToAudioRatio` 로 통합했습니다.
+  - 4개 보조 창(`NoteSearchWindow`, `WavPaletteWindow`, `ControlPanelWindow`, `NoteStatsWindow`)과 `MainWindow.Input.cs` 의 공통 단축키 및 시각 트리 조상 기반 입력 포커스 검사(`IsWithinTextInput`/`IsWithin<T>`)를 `bms editer/Views/ToolWindowInputHelper.cs` 로 통합해 `NumericUpDown` 내부 입력 칸 포커스 시 Space/단축키 오작동을 방지했습니다.
+
+### 2. 병목 개선
+* **O-4: 파서·디코더·홀드 딕셔너리 핫패스 최적화**:
+  - `BmsParser` 1단계 및 `IsConsumedHeader` 에서 헤더 줄의 대부분(95%+)을 차지하는 `#WAV` 를 가장 먼저 분기하고 첫 글자 스위치로 10회의 불필요한 정규식 검사를 제거했습니다.
+  - `BmsParser.Parse` 와 `BmsParser.Channels` 에서 빈 슬롯(`"00"`, `"000"`)은 `IsZeroSlot` 으로 먼저 판별해 `Substring` · `ToUpperInvariant` 문자열 할당과 임시 `List<string>` 생성을 제거했습니다.
+  - `WavDecoder.DecodeOgg` 와 16비트 PCM `ExtractFrames` 에서 `short[]` 복사본 할당(`Buffer.BlockCopy`) 대신 `MemoryMarshal.Cast<byte, short>` 로 직접 변환하도록 개선했습니다.
+  - `MainWindowViewModel.Holds.BuildWavTexts()` 가 매 노트 편집마다 `WavList` 전체를 새 `Dictionary<string, string>` 으로 재생성하던 문제를 `_wavTextsCache` 로 캐시해 `WavList.CollectionChanged` 및 `ResetDocumentState()` 시에만 무효화하도록 개선했습니다.
+
+### 3. 채보 작성 기능 & 테스트 위생
+* **O-5: 전체 노트 편집 Undo / Redo (`Ctrl+Z` / `Ctrl+Y` / `Ctrl+Shift+Z`)**:
+  - `MainWindowViewModel.UndoRedo.cs` 를 신설해 `PlaceNote`·`RemoveNote`·`DeleteNotes`·`MoveSelectedNotes`·`ReplaceWavKey`·`CopyNotesByMeasureOffset` 6대 편집 경로를 값 타입 스냅숏(`NoteSnapshot[]`) 기반으로 100단계까지 실행 취소/다시 실행하고 선택 노트 상태도 함께 복원합니다.
+  - `MainWindow.axaml` 의 `편집(_E)` 메뉴에 `되돌리기(_U)`·`다시 실행(_R)` 을 추가했고, `MainWindow.Input.cs` 및 4개 보조 창(`ToolWindowInputHelper`)에서 모두 단축키를 지원합니다.
+* **O-6: 테스트 임시 폴더 정리 (`IDisposable`)**:
+  - `AudioOffsetTests` 와 `WindowSmokeTests` 가 `%TEMP%\bms-editer-tests` 아래 생성한 임시 디렉터리를 `Dispose()` 에서 정리하도록 수정했습니다.

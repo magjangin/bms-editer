@@ -6,6 +6,7 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
+using static bms_editer.Services.WinMmNative;
 
 namespace bms_editer.Services;
 
@@ -608,71 +609,4 @@ public sealed unsafe partial class KeySoundPlayer : IDisposable
         _wakeEvent.Dispose();
         _cache.Clear();
     }
-
-    private const int WHDR_DONE = 0x00000001;
-    private const int WHDR_PREPARED = 0x00000002;
-
-    private const int SND_ASYNC = 0x0001;
-    private const int SND_NODEFAULT = 0x0002;
-    private const int SND_FILENAME = 0x00020000;
-
-    private const uint TIME_SAMPLES = 0x0002;
-    private const uint TIME_BYTES = 0x0004;
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct MmTime
-    {
-        public uint Type;
-        public uint Value;
-        public uint UnionTail;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct WaveFormat
-    {
-        public short FormatTag;
-        public short Channels;
-        public int SamplesPerSec;
-        public int AvgBytesPerSec;
-        public short BlockAlign;
-        public short BitsPerSample;
-        public short Size;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct WaveHeader
-    {
-        public IntPtr Data;
-        public int BufferLength;
-        public int BytesRecorded;
-        public IntPtr User;
-        public int Flags;
-        public int Loops;
-        public IntPtr Next;
-        public IntPtr Reserved;
-    }
-
-    [LibraryImport("winmm.dll", EntryPoint = "waveOutOpen")]
-    private static partial int WaveOutOpen(out IntPtr hWaveOut, int deviceId, ref WaveFormat format, IntPtr callback, IntPtr instance, int flags);
-
-    [LibraryImport("winmm.dll", EntryPoint = "waveOutPrepareHeader")]
-    private static partial int WaveOutPrepareHeader(IntPtr hWaveOut, IntPtr header, int headerSize);
-
-    [LibraryImport("winmm.dll", EntryPoint = "waveOutWrite")]
-    private static partial int WaveOutWrite(IntPtr hWaveOut, IntPtr header, int headerSize);
-
-    [LibraryImport("winmm.dll", EntryPoint = "waveOutReset")]
-    private static partial int WaveOutReset(IntPtr hWaveOut);
-
-    [LibraryImport("winmm.dll", EntryPoint = "waveOutUnprepareHeader")]
-    private static partial int WaveOutUnprepareHeader(IntPtr hWaveOut, IntPtr header, int headerSize);
-
-    [LibraryImport("winmm.dll", EntryPoint = "waveOutClose")]
-    private static partial int WaveOutClose(IntPtr hWaveOut);
-
-    [LibraryImport("winmm.dll", EntryPoint = "waveOutGetPosition")]
-    private static partial int WaveOutGetPosition(IntPtr hWaveOut, ref MmTime mmTime, int size);
-
-    [LibraryImport("winmm.dll", EntryPoint = "PlaySoundW", StringMarshalling = StringMarshalling.Utf16)]
-    private static partial int PlaySound(string pszSound, IntPtr hmod, int fdwSound);
 }
