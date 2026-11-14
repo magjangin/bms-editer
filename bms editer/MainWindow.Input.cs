@@ -1,11 +1,9 @@
-using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
-using Avalonia.VisualTree;
 using bms_editer.Models;
 using bms_editer.ViewModels;
+using bms_editer.Views;
 
 namespace bms_editer;
 
@@ -28,7 +26,7 @@ public partial class MainWindow
         var focused = FocusManager?.GetFocusedElement();
 
         // 글자를 치거나 숫자를 입력하는 중이면 단축키가 아니라 입력이다.
-        if (IsWithin<TextBox>(focused) || IsWithin<NumericUpDown>(focused))
+        if (ToolWindowInputHelper.IsWithinTextInput(focused))
             return;
 
         if (e.KeyModifiers.HasFlag(KeyModifiers.Control))
@@ -46,7 +44,9 @@ public partial class MainWindow
 
         // 방향키·Delete 는 목록·콤보·슬라이더에서는 그쪽 것이다.
         // (NumericUpDown 은 위에서 이미 걸렀다)
-        if (IsWithin<ListBox>(focused) || IsWithin<ComboBox>(focused) || IsWithin<Slider>(focused))
+        if (ToolWindowInputHelper.IsWithin<ListBox>(focused)
+            || ToolWindowInputHelper.IsWithin<ComboBox>(focused)
+            || ToolWindowInputHelper.IsWithin<Slider>(focused))
         {
             return;
         }
@@ -73,6 +73,21 @@ public partial class MainWindow
             case Key.N:
                 if (DataContext is MainWindowViewModel vm)
                     vm.NewFileCommand.Execute(null);
+                e.Handled = true;
+                break;
+            case Key.Z when e.KeyModifiers.HasFlag(KeyModifiers.Shift):
+                if (DataContext is MainWindowViewModel vmRedo && vmRedo.RedoCommand.CanExecute(null))
+                    vmRedo.RedoCommand.Execute(null);
+                e.Handled = true;
+                break;
+            case Key.Z:
+                if (DataContext is MainWindowViewModel vmUndo && vmUndo.UndoCommand.CanExecute(null))
+                    vmUndo.UndoCommand.Execute(null);
+                e.Handled = true;
+                break;
+            case Key.Y:
+                if (DataContext is MainWindowViewModel vmY && vmY.RedoCommand.CanExecute(null))
+                    vmY.RedoCommand.Execute(null);
                 e.Handled = true;
                 break;
         }
@@ -121,20 +136,5 @@ public partial class MainWindow
             vm.MoveSelectedNotesCommand.Execute(d);
             e.Handled = true;
         }
-    }
-
-    // 포커스가 T 안에(또는 T 자신에) 있는지.
-    private static bool IsWithin<T>(IInputElement? focused) where T : class
-    {
-        if (focused is not Visual visual)
-            return false;
-
-        foreach (var ancestor in visual.GetSelfAndVisualAncestors())
-        {
-            if (ancestor is T)
-                return true;
-        }
-
-        return false;
     }
 }

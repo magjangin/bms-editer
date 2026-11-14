@@ -150,6 +150,25 @@ public abstract class TimelineControlBase : Control
     public double AudioSecondsAtRatio(double ratio) =>
         (ratio * DurationSeconds) - AudioOffsetSeconds;
 
+    public static double PositionToAudioRatio(
+        double position,
+        double timelineLength,
+        bool isHorizontalView,
+        double durationSeconds,
+        double audioOffsetSeconds)
+    {
+        if (timelineLength <= 0 || durationSeconds <= 0)
+            return 0;
+
+        double timelineRatio = isHorizontalView
+            ? Math.Clamp(position / timelineLength, 0, 1)
+            : Math.Clamp(1.0 - (position / timelineLength), 0, 1);
+
+        double timelineSeconds = timelineRatio * durationSeconds;
+        double audioSeconds = timelineSeconds - audioOffsetSeconds;
+        return Math.Clamp(audioSeconds / durationSeconds, 0, 1);
+    }
+
     public bool IsPlaybackCursorVisible
     {
         get => GetValue(IsPlaybackCursorVisibleProperty);

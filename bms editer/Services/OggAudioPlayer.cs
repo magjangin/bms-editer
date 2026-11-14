@@ -1,10 +1,11 @@
 using System;
 using System.Runtime.InteropServices;
 using NVorbis;
+using static bms_editer.Services.WinMmNative;
 
 namespace bms_editer.Services;
 
-public sealed partial class OggAudioPlayer : IDisposable
+public sealed class OggAudioPlayer : IDisposable
 {
     private readonly byte[] _pcmBytes;
     private readonly int _sampleRate;
@@ -219,68 +220,5 @@ public sealed partial class OggAudioPlayer : IDisposable
             throw new InvalidOperationException($"waveOut error: {result}");
     }
 
-    [LibraryImport("winmm.dll", EntryPoint = "waveOutSetVolume")]
-    private static partial int WaveOutSetVolume(IntPtr hWaveOut, uint dwVolume);
-
-    [LibraryImport("winmm.dll", EntryPoint = "waveOutOpen")]
-    private static partial int WaveOutOpen(out IntPtr hWaveOut, int deviceId, ref WaveFormat format, IntPtr callback, IntPtr instance, int flags);
-
-    [LibraryImport("winmm.dll", EntryPoint = "waveOutPrepareHeader")]
-    private static partial int WaveOutPrepareHeader(IntPtr hWaveOut, IntPtr header, int headerSize);
-
-    [LibraryImport("winmm.dll", EntryPoint = "waveOutWrite")]
-    private static partial int WaveOutWrite(IntPtr hWaveOut, IntPtr header, int headerSize);
-
-    [LibraryImport("winmm.dll", EntryPoint = "waveOutReset")]
-    private static partial int WaveOutReset(IntPtr hWaveOut);
-
-    [LibraryImport("winmm.dll", EntryPoint = "waveOutUnprepareHeader")]
-    private static partial int WaveOutUnprepareHeader(IntPtr hWaveOut, IntPtr header, int headerSize);
-
-    [LibraryImport("winmm.dll", EntryPoint = "waveOutClose")]
-    private static partial int WaveOutClose(IntPtr hWaveOut);
-
-    [LibraryImport("winmm.dll", EntryPoint = "waveOutGetPosition")]
-    private static partial int WaveOutGetPosition(IntPtr hWaveOut, ref MmTime mmTime, int size);
-
-    private const int WHDR_DONE = 0x00000001;
-    private static readonly int HeaderFlagsOffset = (int)Marshal.OffsetOf<WaveHeader>(nameof(WaveHeader.Flags));
-
-    private const uint TIME_SAMPLES = 0x0002;
-    private const uint TIME_BYTES = 0x0004;
-
-    // MMTIME. wType 뒤에 오는 union 은 smpte 구조체가 가장 커서 8바이트라
-    // 전체 12바이트다. 우리는 union 의 첫 4바이트(sample/cb)만 읽는다.
-    [StructLayout(LayoutKind.Sequential)]
-    private struct MmTime
-    {
-        public uint Type;
-        public uint Value;
-        public uint UnionTail;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct WaveFormat
-    {
-        public short FormatTag;
-        public short Channels;
-        public int SamplesPerSec;
-        public int AvgBytesPerSec;
-        public short BlockAlign;
-        public short BitsPerSample;
-        public short Size;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct WaveHeader
-    {
-        public IntPtr Data;
-        public int BufferLength;
-        public int BytesRecorded;
-        public IntPtr User;
-        public int Flags;
-        public int Loops;
-        public IntPtr Next;
-        public IntPtr Reserved;
-    }
+    private static readonly int HeaderFlagsOffset = WaveHeaderFlagsOffset;
 }

@@ -230,14 +230,23 @@ public sealed partial class MainWindowViewModel
         return text;
     }
 
+    private Dictionary<string, string>? _wavTextsCache;
+
+    internal void InvalidateWavTextsCache() => _wavTextsCache = null;
+
     // 키 -> #WAV 에 적힌 글자 그대로. 파일명 규칙은 게임마다 폴더를 떼기도 하고 안 떼기도 해서
     // 원문을 넘기고 떼는 일은 규칙 쪽에 맡긴다.
+    // WavList 가 바뀌지 않는 한 매 노트 편집마다 Dictionary 를 다시 만들지 않는다.
     private IReadOnlyDictionary<string, string> BuildWavTexts()
     {
-        var texts = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (_wavTextsCache is not null)
+            return _wavTextsCache;
+
+        var texts = new Dictionary<string, string>(WavList.Count, StringComparer.OrdinalIgnoreCase);
         foreach (var item in WavList)
             texts[item.Key] = string.IsNullOrEmpty(item.SourceText) ? item.FileName : item.SourceText;
 
+        _wavTextsCache = texts;
         return texts;
     }
 }

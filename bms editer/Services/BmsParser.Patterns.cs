@@ -1,3 +1,4 @@
+using System;
 using System.Text.RegularExpressions;
 
 namespace bms_editer.Services;
@@ -61,15 +62,22 @@ public static partial class BmsParser
 
     // 1단계에서 이미 읽어간(= 저장할 때 에디터가 새로 써주는) 헤더인지 판별한다.
     // 여기서 false 인 줄만 원문 보관 대상이 된다.
-    private static bool IsConsumedHeader(string line) =>
-        TitleRegex().IsMatch(line)
-        || ArtistRegex().IsMatch(line)
-        || BpmRegex().IsMatch(line)
-        || GenreRegex().IsMatch(line)
-        || PlayerRegex().IsMatch(line)
-        || RankRegex().IsMatch(line)
-        || PlayLevelRegex().IsMatch(line)
-        || AudioOffsetRegex().IsMatch(line)
-        || ProfileRegex().IsMatch(line)
-        || WavRegex().IsMatch(line);
+    // 첫 글자 분기로 #WAV 등 대량 헤더에서 불필요한 정규식 10회 검사를 막는다.
+    private static bool IsConsumedHeader(string line)
+    {
+        if (line.Length < 2 || line[0] != '#')
+            return false;
+
+        return char.ToUpperInvariant(line[1]) switch
+        {
+            'W' => WavRegex().IsMatch(line),
+            'T' => TitleRegex().IsMatch(line),
+            'A' => ArtistRegex().IsMatch(line),
+            'B' => BpmRegex().IsMatch(line) || AudioOffsetRegex().IsMatch(line) || ProfileRegex().IsMatch(line),
+            'R' => RankRegex().IsMatch(line) || AudioOffsetRegex().IsMatch(line) || ProfileRegex().IsMatch(line),
+            'G' => GenreRegex().IsMatch(line),
+            'P' => PlayerRegex().IsMatch(line) || PlayLevelRegex().IsMatch(line),
+            _ => false,
+        };
+    }
 }

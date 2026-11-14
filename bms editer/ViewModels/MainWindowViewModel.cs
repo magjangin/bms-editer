@@ -241,6 +241,7 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
         // 파일명으로 홀드를 가리는 게임이 있어서, 키음 표가 바뀌면 짝도 다시 읽는다.
         WavList.CollectionChanged += (_, _) =>
         {
+            InvalidateWavTextsCache();
             MarkDirty();
             RecomputeHolds();
         };

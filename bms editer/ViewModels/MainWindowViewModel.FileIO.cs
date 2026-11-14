@@ -178,6 +178,8 @@ public sealed partial class MainWindowViewModel
 
         Chart.Clear();
         WavList.Clear();
+        InvalidateWavTextsCache();
+        ClearUndoHistory();
         SelectedWavItem = null;
         _selectedNotes.Clear();
         NotifySelectionChanged();

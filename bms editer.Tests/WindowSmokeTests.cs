@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -23,8 +24,24 @@ namespace bms_editer.Tests;
 //
 // 렌더링까지 실제로 돈다(HeadlessAppFixture 가 Skia + UseHeadlessDrawing=false).
 // 레이아웃이나 바인딩이 터지면 여기서 예외가 난다.
-public sealed class WindowSmokeTests
+public sealed class WindowSmokeTests : IDisposable
 {
+    private readonly List<string> _tempDirs = new();
+
+    public void Dispose()
+    {
+        foreach (var dir in _tempDirs)
+        {
+            try
+            {
+                Directory.Delete(dir, recursive: true);
+            }
+            catch (IOException)
+            {
+            }
+        }
+    }
+
     // Avalonia 는 자기 스레드에서만 창을 만들 수 있다. 세션 하나를 어셈블리 단위로 공유한다.
     private static void RunOnUiThread(Action body) =>
         HeadlessUnitTestSession
@@ -33,10 +50,11 @@ public sealed class WindowSmokeTests
             .GetAwaiter()
             .GetResult();
 
-    private static MainWindowViewModel LoadedOwner()
+    private MainWindowViewModel LoadedOwner()
     {
         var directory = Path.Combine(Path.GetTempPath(), "bms-editer-tests", Path.GetRandomFileName());
         Directory.CreateDirectory(directory);
+        _tempDirs.Add(directory);
 
         var path = Path.Combine(directory, "chart.bms");
         File.WriteAllText(

@@ -63,11 +63,12 @@ public partial class MainWindow
             return;
 
         var position = e.GetPosition(EditorSurface);
-        var timelineRatio = vm.IsHorizontalView
-            ? Math.Clamp(position.X / timelineLength, 0, 1)
-            : Math.Clamp(1.0 - (position.Y / timelineLength), 0, 1);
-        var audioSeconds = (timelineRatio * vm.OggDurationSeconds) - vm.AudioOffsetSeconds;
-        var ratio = Math.Clamp(audioSeconds / vm.OggDurationSeconds, 0, 1);
+        var ratio = TimelineControlBase.PositionToAudioRatio(
+            vm.IsHorizontalView ? position.X : position.Y,
+            timelineLength,
+            vm.IsHorizontalView,
+            vm.OggDurationSeconds,
+            vm.AudioOffsetSeconds);
 
         if (isFinal)
             vm.ScrubCommit(ratio);

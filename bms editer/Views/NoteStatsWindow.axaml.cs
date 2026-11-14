@@ -20,23 +20,9 @@ public partial class NoteStatsWindow : Window
 
     protected override void OnKeyDown(KeyEventArgs e)
     {
-        if (e.Key == Key.Escape)
-        {
-            Close();
-            e.Handled = true;
+        var mainVm = (DataContext as NoteStatsViewModel)?.Owner;
+        if (ToolWindowInputHelper.TryHandleCommonShortcuts(this, mainVm, e, closeOnEscape: true))
             return;
-        }
-
-        if (e.Key == Key.Space && DataContext is NoteStatsViewModel vm)
-        {
-            var focused = FocusManager?.GetFocusedElement();
-            if (focused is not TextBox && focused is not NumericUpDown)
-            {
-                vm.Owner.TogglePlaybackCommand.Execute(null);
-                e.Handled = true;
-                return;
-            }
-        }
 
         base.OnKeyDown(e);
     }
