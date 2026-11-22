@@ -25,6 +25,7 @@
 | **건볼트** | `gunvolt` | `16` `11` `12` / `14` `15` `18` | 2 | KeyValue (페어리는 N:M) | 홀드 NearestTailShared · 페어리 FifoQueue | 🔶 코드 확인 | [gunvolt_records_cychronicle.md](../guides/gunvolt_records_cychronicle.md) |
 | **DEFLATE** | `deflate` | `16` `11` `12` `13` + `14`(드롭) | 3 | FileNameKeyword | NearestUnconsumedTail | 🔶 코드 확인 | [deflate.md](../guides/deflate.md) |
 | **UNBEATABLE** | `unbeatable` | `16` `11`~`15` | 2 | FileNameBase | Alternate (출현 순서) | 🔶 코드 확인 | *(가이드 준비 중)* |
+| **PUMP IT UP RISE** | `pump_it_up_rise` | `11`~`15` (싱글 5키) | 2 / 3 | FileNameKeyword | ReplacePending | 🔶 코드 확인 | [pump_it_up_rise.md](../guides/pump_it_up_rise.md) |
 | **뮤즈 대시** | `muse_dash` | `13` `14` `15` `18` | 2 | FileNameUid | Alternate (출현 순서) | ✅ 플레이 확인 · **지원 제외** | [muse_dash.md](../guides/muse_dash.md) |
 
 ### 검증 상태 — JSON 의 `verification` 값
@@ -135,6 +136,20 @@ JSON 에 들어 있는 값입니다. 판별 방식과 짝 정책의 뜻은 [hold
 
 > ` end` 표식 자체는 게임이 짝을 정하는 데 쓰지 않습니다. 에디터는 표식과 순서가 **처음 어긋난 자리**를
 > `ParityBreak` 로 알리는 데만 씁니다. 채널 `18` 은 노트가 아니라 카메라/방향 전환 연출입니다.
+
+### PUMP IT UP RISE (`pump_it_up_rise`) — FileNameKeyword + ReplacePending
+
+| 항목 | 값 |
+|:---|:---|
+| 채널 | `11` `12` `13` `14` `15` (싱글 5키: `↙ ↖ ◎ ↗ ↘`) |
+| 키 폭 | **2자리 / 3자리 자동** (`#WAV01`~`ZZ` 기본, `#WAV001`~`ZZZ` 감지 시 3자리 전환) |
+| 시작 키워드 | `홀드 시작` `홀드시작` `hold start` `holdstart` `long start` `longstart` `ln start` `lnstart` (공백·`_`·`-` 변형 포함) |
+| 끝 키워드 | `홀드 끝` `홀드끝` `hold end` `holdend` `long end` `longend` `ln end` `lnend` (공백·`_`·`-` 변형 포함) |
+| `tailFirst` | **`false`** — 모드가 시작 키워드를 먼저 본다 |
+| 정책 | `ReplacePending` — 레인마다 대기 칸이 하나뿐이라 새 시작이 앞 시작을 덮어쓴다 |
+
+> 채널 `16`·`18` 은 무시됩니다. 더블(10키)용 P2 채널 `21`~`25` 는 에디터 편집 레인 밖이라 원문 보존으로만 통과합니다.
+> 고아 시작은 게임에서 스텝을 생성하지 않고 무시되며, 고아 끝은 빈 자리에 일반 단타(`X`)로 강등됩니다.
 
 ### 뮤즈 대시 (`muse_dash`) — FileNameUid + 출현 순서 · **지원 제외**
 

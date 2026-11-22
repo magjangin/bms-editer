@@ -125,6 +125,7 @@ internal static class GameOracles
         "gunvolt" => Gunvolt(chart),
         "muse_dash" => MuseDash(chart),
         "unbeatable" => Unbeatable(chart),
+        "pump_it_up_rise" => PumpItUpRise(chart),
         _ => throw new ArgumentException($"오라클이 없는 프로파일입니다: {profileId}"),
     };
 
@@ -711,5 +712,88 @@ internal static class GameOracles
         }
 
         return new Result(pairs, pendingStart.Count, 0, 0);
+    }
+
+    // ── PUMP IT UP RISE ────────────────────────────────────────────────────
+    // PUMP IT UP RISE-unity-il2cpp / mod/PIURiseCustom/CustomChartParsers.cs ParseBms · MapBmsChannelToPiuLane
+
+    private static readonly HashSet<string> PiuRiseP1Channels = new() { "11", "12", "13", "14", "15" };
+    private static readonly HashSet<string> PiuRiseP2Channels = new() { "21", "22", "23", "24", "25" };
+
+    private static Result PumpItUpRise(RawChart chart)
+    {
+        var holdStartWavIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var holdEndWavIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var wavKeyLen = 2;
+
+        foreach (var (key, wavName) in chart.Wavs)
+        {
+            if (key.Length == 3)
+                wavKeyLen = 3;
+
+            var norm = wavName.ToLowerInvariant().Replace(" ", "").Replace("_", "").Replace("-", "");
+            if (norm.Contains("홀드시작") || norm.Contains("holdstart") || norm.Contains("longstart") || norm.Contains("lnstart"))
+                holdStartWavIds.Add(key);
+            else if (norm.Contains("홀드끝") || norm.Contains("holdend") || norm.Contains("longend") || norm.Contains("lnend"))
+                holdEndWavIds.Add(key);
+        }
+
+        var notes = new List<RawSlot>();
+        var hidden = 0;
+
+        foreach (var raw in chart.Lines)
+        {
+            var isP1 = PiuRiseP1Channels.Contains(raw.Channel);
+            var isP2 = PiuRiseP2Channels.Contains(raw.Channel);
+            if (!isP1 && !isP2)
+                continue;
+
+            var tokLen = (wavKeyLen == 3 && raw.Data.Length % 3 == 0) ? 3 : 2;
+            foreach (var slot in RawChart.Slots(raw, tokLen))
+            {
+                if (isP2)
+                {
+                    if (holdStartWavIds.Contains(slot.Value) || holdEndWavIds.Contains(slot.Value))
+                        hidden++;
+                    continue;
+                }
+
+                notes.Add(slot);
+            }
+        }
+
+        var pairs = new List<PairKey>();
+        int orphanHeads = 0, orphanTails = 0;
+
+        foreach (var group in notes.GroupBy(n => n.Channel))
+        {
+            RawSlot? open = null;
+            foreach (var note in group.OrderBy(n => n.Time))
+            {
+                if (holdStartWavIds.Contains(note.Value))
+                {
+                    if (open is not null)
+                        orphanHeads++;
+                    open = note;
+                }
+                else if (holdEndWavIds.Contains(note.Value))
+                {
+                    if (open is { } start)
+                    {
+                        pairs.Add(Key(start.Channel, start.Time, note.Channel, note.Time, "Hold"));
+                        open = null;
+                    }
+                    else
+                    {
+                        orphanTails++;
+                    }
+                }
+            }
+
+            if (open is not null)
+                orphanHeads++;
+        }
+
+        return new Result(pairs, orphanHeads, orphanTails, hidden);
     }
 }

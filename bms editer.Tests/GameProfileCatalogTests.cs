@@ -38,7 +38,7 @@ public sealed class GameProfileCatalogTests : IDisposable
 
         Assert.Empty(catalog.LoadErrors);
         Assert.Equal(
-            new[] { "deflate", "gunvolt", "muse_dash", "stargazer", "startrail", "unbeatable" },
+            new[] { "deflate", "gunvolt", "muse_dash", "pump_it_up_rise", "stargazer", "startrail", "unbeatable" },
             catalog.Profiles.Select(p => p.Id).OrderBy(id => id, StringComparer.Ordinal));
     }
 
@@ -67,7 +67,7 @@ public sealed class GameProfileCatalogTests : IDisposable
         // 스타게이저는 모드가 짝을 맺지 않고 게임에 넘긴다. 짝 규칙은 가정이다.
         Assert.Equal(ProfileVerification.Assumed, catalog.Find("stargazer")!.Verification);
 
-        foreach (var id in new[] { "deflate", "startrail", "gunvolt", "unbeatable" })
+        foreach (var id in new[] { "deflate", "startrail", "gunvolt", "unbeatable", "pump_it_up_rise" })
             Assert.Equal(ProfileVerification.Source, catalog.Find(id)!.Verification);
     }
 
@@ -78,6 +78,7 @@ public sealed class GameProfileCatalogTests : IDisposable
     [InlineData(@"H:\steam\steamapps\common\GUNVOLT RECORDS Cychronicle\hwa\shut up\hwa2.bms", "gunvolt")]
     [InlineData(@"H:\muse dash hwa\hwa\MARENOIA\hwa2.bms", "muse_dash")]
     [InlineData(@"H:\steam\steamapps\common\UNBEATABLE\hwa\fogat\hwa2.bms", "unbeatable")]
+    [InlineData(@"H:\steam\steamapps\common\PUMP IT UP RISE\hwa\summertime (Arrange ver.)\hwa2.bms", "pump_it_up_rise")]
     [InlineData("/home/user/games/DEFLATE/hwa/song/hwa2.bms", "deflate")]
     [InlineData(@"H:\steam\steamapps\common\A Dance of Fire and Ice\hwa\hwa2.bms", "")]
     [InlineData(@"C:\charts\my song\chart.bms", "")]
@@ -111,7 +112,7 @@ public sealed class GameProfileCatalogTests : IDisposable
 
         Assert.Empty(catalog.LoadErrors);
         Assert.Equal("덮어쓴 DEFLATE", catalog.Find("deflate")!.DisplayName);
-        Assert.Equal(6, catalog.Profiles.Count);
+        Assert.Equal(7, catalog.Profiles.Count);
     }
 
     [Fact]
@@ -122,7 +123,7 @@ public sealed class GameProfileCatalogTests : IDisposable
         var catalog = GameProfileCatalog.Load(_directory);
 
         Assert.Contains(catalog.LoadErrors, e => e.Contains("broken.json", StringComparison.Ordinal));
-        Assert.Equal(6, catalog.Profiles.Count);
+        Assert.Equal(7, catalog.Profiles.Count);
     }
 
     [Theory]
@@ -172,6 +173,6 @@ public sealed class GameProfileCatalogTests : IDisposable
         var catalog = GameProfileCatalog.Load(_directory);
 
         Assert.Contains(catalog.LoadErrors, e => e.Contains("nulls.json", StringComparison.Ordinal));
-        Assert.Equal(6, catalog.Profiles.Count);
+        Assert.Equal(7, catalog.Profiles.Count);
     }
 }
