@@ -25,6 +25,7 @@ internal static class GameChartCorpus
         ("GUNVOLT RECORDS Cychronicle", "gunvolt"),
         ("Muse Dash", "muse_dash"),
         ("UNBEATABLE", "unbeatable"),
+        ("PUMP IT UP RISE", "pump_it_up_rise"),
 
         // 모드가 없는 게임인데, UNBEATABLE 차트를 그대로 복사한 파일이 있다(md5 동일).
         // 경로 추정 대상은 아니지만 실제 파일이므로 UNBEATABLE 규칙으로 함께 돌린다.

@@ -11,6 +11,7 @@
   - *GUNVOLT RECORDS Cychronicle* (Mono)
   - *Muse Dash* (Il2Cpp / PC & Android)
   - *DEFLATE* (`dizzylab.castor`, Il2Cpp)
+  - *PUMP IT UP RISE* (`PIURiseCustom`, Il2Cpp)
   - *UNBEATABLE*, *A Dance of Fire and Ice (ADOFAI)*
 * **게임 런타임 및 시그니처 덤프 원칙**:
   - Mono 게임: `ilspycmd` 기반 C# 전체 역컴파일 로직 분석

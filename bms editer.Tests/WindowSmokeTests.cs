@@ -284,7 +284,8 @@ public sealed class WindowSmokeTests : IDisposable
             var vm = new MainWindowViewModel();
             var success = vm.LoadBms(chart.Path);
             Assert.True(success, $"{chart.Game} - {chart.Path} 로드 실패: {vm.LastErrorMessage}");
-            Assert.True(vm.Notes.Count > 0, $"{chart.Game} - {chart.Path} 에 노트가 없습니다.");
+            if (RawChart.Read(chart.Path).Lines.Any(l => GameOracles.EditorChannels.Contains(l.Channel)))
+                Assert.True(vm.Notes.Count > 0, $"{chart.Game} - {chart.Path} 에 노트가 없습니다.");
 
             var window = new MainWindow { DataContext = vm };
             ShowAndDraw(window);

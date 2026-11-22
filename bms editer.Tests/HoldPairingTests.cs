@@ -365,6 +365,79 @@ public sealed class HoldPairingTests
         Assert.Empty(Pair("unbeatable", UnbeatableWavs, Note("18", 1.0, "004"), Note("18", 2.0, "005")).Links);
     }
 
+    // ── PUMP IT UP RISE ────────────────────────────────────────────────────
+
+    private static readonly Dictionary<string, string> PumpItUpRiseWavs = Wavs(
+        ("001", "C5.wav"),
+        ("006", "홀드 시작.wav"),
+        ("007", "홀드 끝.wav"),
+        ("06", "홀드 시작.wav"),
+        ("07", "홀드 끝.wav"),
+        ("08", "long-start.wav"),
+        ("09", "long_end.wav"),
+        ("0A", "hold start end.wav"));
+
+    [Fact]
+    public void 펌프잇업라이즈는_3자리_키음도_정상_짝짓는다()
+    {
+        var head = Note("12", 1.0, "006");
+        var tail = Note("12", 2.0, "007");
+
+        Assert.Equal(new[] { (head, tail) }, Pairs(Pair("pump_it_up_rise", PumpItUpRiseWavs, head, tail)));
+    }
+
+    [Fact]
+    public void 펌프잇업라이즈는_대기칸이_하나라_새_시작이_앞_시작을_버린다()
+    {
+        var first = Note("11", 1.0, "06");
+        var second = Note("11", 1.5, "06");
+        var tail = Note("11", 2.0, "07");
+
+        var result = Pair("pump_it_up_rise", PumpItUpRiseWavs, first, second, tail);
+
+        Assert.Equal(new[] { (second, tail) }, Pairs(result));
+        Assert.Same(first, Assert.Single(Diagnostics(result, HoldDiagnosticKind.ReplacedHead)).Note);
+    }
+
+    [Fact]
+    public void 펌프잇업라이즈는_long_키워드와_하이픈_밑줄을_인식한다()
+    {
+        var head = Note("13", 1.0, "08");
+        var tail = Note("13", 2.0, "09");
+
+        Assert.Equal(new[] { (head, tail) }, Pairs(Pair("pump_it_up_rise", PumpItUpRiseWavs, head, tail)));
+    }
+
+    [Fact]
+    public void 펌프잇업라이즈는_시작과_끝_키워드가_둘_다_있으면_시작을_먼저_본다()
+    {
+        var both = Note("14", 1.0, "0A");
+        var tail = Note("14", 2.0, "07");
+
+        Assert.Equal(new[] { (both, tail) }, Pairs(Pair("pump_it_up_rise", PumpItUpRiseWavs, both, tail)));
+    }
+
+    [Fact]
+    public void 펌프잇업라이즈_16과_18채널은_보지_않는다()
+    {
+        var result = Pair(
+            "pump_it_up_rise",
+            PumpItUpRiseWavs,
+            Note("16", 1.0, "06"), Note("16", 2.0, "07"),
+            Note("18", 1.0, "06"), Note("18", 2.0, "07"));
+
+        Assert.Empty(result.Links);
+        Assert.Empty(result.Diagnostics);
+    }
+
+    [Fact]
+    public void 펌프잇업라이즈_짝_없는_끝은_고아다()
+    {
+        var tail = Note("15", 2.0, "07");
+
+        Assert.Same(tail, Assert.Single(Diagnostics(Pair("pump_it_up_rise", PumpItUpRiseWavs, tail), HoldDiagnosticKind.OrphanTail)).Note);
+    }
+
     // ── 공통 ───────────────────────────────────────────────────────────────
 
     [Fact]
