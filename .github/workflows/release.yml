@@ -29,6 +29,9 @@ jobs:
           if ($ver -ne $tag) { throw "csproj Version($ver) 과 태그($tag) 가 다릅니다." }
           if (-not (Select-String -Path CHANGELOG.md -Pattern "^## \[$([regex]::Escape($tag))\]" -Quiet)) { throw "CHANGELOG.md 에 ## [$tag] 항목이 없습니다." }
 
+      - name: Install virtual audio device
+        uses: LABSN/sound-ci-helpers@v1
+
       - name: Test
         run: dotnet test "bms editer.slnx" -c Release
 

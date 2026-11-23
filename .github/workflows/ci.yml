@@ -19,6 +19,11 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
+      # 호스팅 러너에는 오디오 장치가 없어 waveOutOpen 이 MMSYSERR_BADDEVICEID(2)로 실패한다.
+      # 재생 테스트(실제 장치를 여는 것)를 건너뛰지 않도록 가상 오디오 장치를 설치한다.
+      - name: Install virtual audio device
+        uses: LABSN/sound-ci-helpers@v1
+
       - name: Build (warnings as errors)
         run: dotnet build "bms editer.slnx" -c Release -warnaserror
 
