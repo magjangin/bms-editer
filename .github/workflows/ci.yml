@@ -1,0 +1,33 @@
+name: CI
+
+# 빌드(경고 0)와 전체 테스트를 Windows 에서 돌린다.
+# 앱이 waveOut·WebView2 를 쓰고 테스트가 CRLF 저장 결과를 확인하므로 Linux 러너로는 안 된다.
+on:
+  push:
+    branches: [main, 'claude/**', 'feat/**', 'fix/**', 'refactor/**']
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build-test:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Build (warnings as errors)
+        run: dotnet build "bms editer.slnx" -c Release -warnaserror
+
+      - name: Test
+        run: dotnet test "bms editer.slnx" -c Release --no-build --logger "trx;LogFileName=results.trx"
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: '**/TestResults/*.trx'

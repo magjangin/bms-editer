@@ -49,9 +49,10 @@ public static class BmsWriter
 
         // 에디터가 다루지 않는 헤더(#TOTAL, #STAGEFILE, #BPMxx, #STOPxx, #BMPxx 등)를
         // 읽어들인 원문 그대로 되돌려 놓는다. 없으면 저장할 때마다 사라진다.
+        // 조건 블록 안의 줄(갈래 안 주석 등)은 블록 밖으로 끌려 나오지 않게 아래 조건 구역에서 쓴다.
         foreach (var raw in chart.PreservedLines)
         {
-            if (!raw.IsData)
+            if (!raw.IsData && !IsConditional(raw))
                 sb.AppendLine(raw.Text);
         }
 
@@ -80,18 +81,35 @@ public static class BmsWriter
 
         var laneOrder = BuildLaneOrder(chart.Lanes);
 
-        // 편집한 건반 줄과 보존한 원문 줄을 마디 순서로 합쳐서 내보낸다.
-        // 같은 마디 안에서는 원문 줄(BGM·마디 길이·BPM 변화 등)과 조건 블록을 원래 순서대로 배치한다.
-        var dataLines = new List<(int Measure, int Order, string Text)>();
+        // 편집한 건반 줄과 보존한 원문 줄을 내보낸다.
+        //
+        // 조건 블록(#RANDOM/#IF/#SWITCH) 밖의 줄은 마디 순서로, 블록 안의 줄과 제어 줄은
+        // **원문 줄 순서 그대로** 따로 쓴다. 예전에는 둘을 한 번에 마디 순으로 섞어서,
+        // 여러 마디에 걸친 #IF 블록 사이로 블록 밖의 줄(BGM 등)이 끼어들어 조건부가 되어 버렸다.
+        // BMS 는 블록 밖 데이터 줄의 위치에 의미가 없으므로 앞에 몰아 써도 결과가 같다.
+        var plainLines = new List<(int Measure, int Order, string Text)>();
+        var conditionalLines = new List<(double Order, int Tie, string Text)>();
+
+        // 갈래마다 원문에서 마지막으로 나온 줄 순서. 원문 줄이 없는 새 노트 줄을 그 갈래 끝에 붙인다.
+        var lastOrderByBranch = new Dictionary<int, int>();
 
         foreach (var raw in chart.PreservedLines)
         {
-            if (raw.IsData)
+            if (IsConditional(raw))
             {
-                var order = raw.IsControlFlow || raw.BranchId > 0
-                    ? 10000 + (raw.Order >= 0 ? raw.Order : 0)
-                    : 0;
-                dataLines.Add((raw.Measure, order, raw.Text));
+                var order = Math.Max(0, raw.Order);
+                conditionalLines.Add((order, 0, raw.Text));
+
+                if (raw.BranchId > 0)
+                {
+                    lastOrderByBranch[raw.BranchId] = lastOrderByBranch.TryGetValue(raw.BranchId, out var last)
+                        ? Math.Max(last, order)
+                        : order;
+                }
+            }
+            else if (raw.IsData)
+            {
+                plainLines.Add((raw.Measure, 0, raw.Text));
             }
         }
 
@@ -118,30 +136,35 @@ public static class BmsWriter
 
             var measureTag = group.Key.Measure.ToString("000", CultureInfo.InvariantCulture);
             var lIndex = laneOrder.TryGetValue(group.Key.LaneId, out var o) ? o + 1 : 100;
+            var text = $"#{measureTag}{group.Key.LaneId}:{string.Concat(slots)}";
 
-            int order;
             if (group.Key.BranchId > 0)
             {
+                // 원문 줄에서 온 노트면 그 줄 자리에, 아니면(옮긴 노트) 같은 갈래의 마지막 줄 바로 뒤에 둔다.
                 var sourceOrder = notes.Where(n => n.SourceLineOrder > 0).Select(n => n.SourceLineOrder).DefaultIfEmpty(0).Min();
-                order = 10000 + (sourceOrder > 0 ? sourceOrder : (1000 + lIndex));
+                double order = sourceOrder > 0
+                    ? sourceOrder
+                    : lastOrderByBranch.TryGetValue(group.Key.BranchId, out var last) ? last + 0.5 : double.MaxValue;
+                conditionalLines.Add((order, (group.Key.Measure * 1000) + lIndex, text));
             }
             else
             {
-                order = lIndex;
+                plainLines.Add((group.Key.Measure, lIndex, text));
             }
-
-            dataLines.Add((
-                group.Key.Measure,
-                order,
-                $"#{measureTag}{group.Key.LaneId}:{string.Concat(slots)}"));
         }
 
         // OrderBy 는 안정 정렬이라 순서 값이 같은 원문 줄끼리는 담은 순서가 유지된다.
-        foreach (var line in dataLines.OrderBy(d => d.Measure).ThenBy(d => d.Order))
+        foreach (var line in plainLines.OrderBy(d => d.Measure).ThenBy(d => d.Order))
+            sb.AppendLine(line.Text);
+
+        foreach (var line in conditionalLines.OrderBy(d => d.Order).ThenBy(d => d.Tie))
             sb.AppendLine(line.Text);
 
         return sb.ToString();
     }
+
+    // 조건 블록의 제어 줄이거나 갈래 안에 있던 줄인지.
+    private static bool IsConditional(BmsRawLine raw) => raw.IsControlFlow || raw.BranchId > 0;
 
     private static void AppendIfPresent(StringBuilder sb, string tag, string value)
     {

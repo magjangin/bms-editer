@@ -52,17 +52,21 @@
    - 믹서는 40ms 버퍼 3개를 앞서 채웁니다. 재생 중 노트를 그냥 넣으면 대기열 뒤에 붙어 배경음보다 늦습니다. `waveOutGetPosition`으로 얻은 재생 프레임에 남은 시간을 더해 시작 프레임을 정하고, 믹서가 그 프레임에 섞습니다. 앞서 보는 양은 `KeySoundLookaheadSeconds`(0.25초, 실제 시간)이고 대기열보다 커야 합니다. 두 장치의 시계가 돌기 전의 위치 값은 믿을 수 없으므로 그동안은 예약하지 않습니다. 시작 지점 바로 뒤의 노트를 위해 `OggAudioPlayer.Play`의 `leadInSeconds`로 곡 앞에 0.2초 무음을 넣으며, 무음 동안 `GetPlayedSeconds`는 음수입니다.
 9. **재생 관련 변경은 실제 출력으로 측정**:
    - 무음 PCM이나 단위 테스트로는 키음 타이밍·음량을 알 수 없습니다. 실제로 `d7775f9`는 테스트를 전부 통과하면서 키음을 37ms에서 111ms로 늦췄습니다. 왼쪽 채널 배경음 클릭과 오른쪽 채널 키음 클릭을 프로세스 루프백(`VAD\\Process_Loopback`)으로 녹음해 시차를 재십시오. 시스템 전체 루프백은 다른 앱 소리가 섞입니다. 곡 중간만 재지 말고 재생 시작 직후, 40ms 미만의 짧은 소리, 곡 끝 경계를 함께 재십시오.
-10. **스위치/케이스 분기 스택 격리 (`switchStack`)**:
+10. **조건 블록 저장은 "블록 밖 = 마디 순, 블록 안 = 원문 순" (`BmsWriter.Write`)**:
+    - 제어 줄을 다른 줄과 함께 마디 순으로 섞으면 여러 마디에 걸친 `#IF` 사이로 블록 밖 줄이 끼어들어 조건부가 됩니다(2026-11-23 수정 전 실제 동작). 블록 안 줄(`IsControlFlow || BranchId > 0`)은 `Order`(원문 줄 번호)로만 정렬하고, 원문 줄이 없는 갈래 노트는 같은 갈래의 마지막 줄 바로 뒤에 둡니다.
+11. **키음 확장자 대체 (`BmsParser.AlternateAudioNames`)**:
+    - `.wav`↔`.ogg` 만 서로 바꿔 찾습니다(디코더가 읽는 두 형식). 바꿔 찾은 경로는 `IsPathGuessed` 라 저장 때 원문 이름을 지킵니다. 하위 폴더 색인은 `MaxMediaSearchDepth`(6)까지만 훑습니다.
+12. **스위치/케이스 분기 스택 격리 (`switchStack`)**:
     - `#SWITCH` 구문 안의 다중 `#CASE`/`#DEF`는 내부에서 새 `branchId`를 할당받지만, 구문이 종료되는 `#ENDSW`에서는 반드시 부모 분기 ID(최상위는 0)로 복구되어야 합니다. `switchStack`(`Stack<bool>`)을 도입하여 분기 내 케이스 교체 및 블록 종료 시 정상 중립 분기로 복원하도록 보장합니다.
-11. **마지막 작업 폴더 기억 (`RememberFolder`) 및 드래그 앤 드롭**:
+13. **마지막 작업 폴더 기억 (`RememberFolder`) 및 드래그 앤 드롭**:
     - 파일 열기 대화상자에서 매번 루트로 돌아가는 사용성 불편을 방지하기 위해 파일/폴더를 열거나 저장할 때마다 마지막 경로를 메모리에 보존하여 다음 탐색기의 `SuggestedStartLocation`으로 사용합니다.
-12. **문서를 여는 동안 홀드 짝짓기 미루기 (`DeferHoldRecompute`)**:
+14. **문서를 여는 동안 홀드 짝짓기 미루기 (`DeferHoldRecompute`)**:
     - 열기 한 번에 노트 알림·키음 목록 교체·프로파일 적용이 각자 `RecomputeHolds`를 불러 곡 전체 짝짓기가 4~5번 돌았습니다. `LoadDocument`는 `using var _ = DeferHoldRecompute();`로 묶어 끝에 한 번만 짝짓습니다. 여러 단계를 거치는 새 경로(일괄 편집 등)도 같은 방식으로 묶으십시오.
-13. **열기 안내는 `DocumentNotice`, 저장 안내는 `LastWarningMessage`**:
+15. **열기 안내는 `DocumentNotice`, 저장 안내는 `LastWarningMessage`**:
     - `LastWarningMessage`는 저장 직후 창이 대화상자로 띄우는 값이고 다음 저장이 덮어씁니다. 열 때 알게 된 것(없는 키음, 폴더에 차트가 여럿)은 상태 표시줄의 `DocumentNotice`에 넣습니다. 문서를 비우면 지워지므로 열기 **뒤에** `AddDocumentNotice`로 덧붙여야 합니다.
-14. **줄바꿈은 `.gitattributes`(`* text=auto`)가 관리**:
+16. **줄바꿈은 `.gitattributes`(`* text=auto`)가 관리**:
     - 한때 7개 파일이 `\r\r\n`으로 저장돼 git이 바이너리로 취급했고 diff가 통째 교체로 보였습니다. 파이썬 등으로 파일을 쓸 때 텍스트 모드로 읽은 뒤 `\r\n`을 덧붙이지 마십시오. `git ls-files --eol`에서 소스가 `i/lf`인지 확인하십시오.
-15. **Undo/Redo 히스토리 및 부분 클래스 구조 (`MainWindowViewModel.UndoRedo.cs` / `NoteGridControl.*.cs`)**:
+17. **Undo/Redo 히스토리 및 부분 클래스 구조 (`MainWindowViewModel.UndoRedo.cs` / `NoteGridControl.*.cs`)**:
     - 6개 노트 편집 경로(`PlaceNote`·`RemoveNote`·`DeleteNotes`·`MoveSelectedNotes`·`ReplaceWavKey`·`CopyNotesByMeasureOffset`)는 `NoteSnapshot[]` + 선택 인덱스로 `MainWindowViewModel.UndoRedo.cs` 에 기록됩니다(100단계, `ResetDocumentState` 시 초기화). 새 노트 편집 경로를 추가할 때는 반드시 스냅숏 캡처·기록을 연결하십시오.
     - 기록마다 곡 전체를 두 벌 들지 않도록, 이번 "편집 전"이 앞 기록의 "편집 후"와 같으면 그 배열을 공유합니다(`RecordNoteHistory`). 스냅숏 배열은 기록된 뒤 절대 제자리에서 고치면 안 됩니다. 재생 중에는 `CanUndo`/`CanRedo` 가 false 입니다.
     - `NoteGridControl` 은 렌더링(`NoteGridControl.cs`)·색인 캐시(`NoteGridControl.Indexing.cs`, `NoteRenderIndex`·`HoldRenderIndex`·`HoldProblemRenderIndex`)·포인터 입력(`NoteGridControl.Input.cs`)으로 분리되어 있습니다.
@@ -99,7 +103,9 @@
   ```powershell
   dotnet test
   ```
-  *(현재 513개 단위/스모크 테스트 100% 통과 필수)*
+  *(현재 518개 단위/스모크 테스트 100% 통과 필수. 테스트는 CRLF·waveOut 을 전제하므로 Windows 에서 돌립니다)*
+* **CI**: `.github/workflows/ci.yml` 이 push·PR 마다 Windows 에서 `-warnaserror` 빌드와 전체 테스트를 돌립니다. 게임 DLL이 필요 없는 프로젝트라 클라우드 세션에서도 이 CI 결과로 검증할 수 있습니다.
+* **릴리즈**: `csproj` `<Version>`(4곳)과 `CHANGELOG.md` `## [<버전>]` 을 함께 올려 main 에 머지한 뒤 `v<버전>` 태그를 밀면 `.github/workflows/release.yml` 이 테스트 → 단일 exe 게시 → `bms-editer-v<버전>-win-x64.zip`(SHA256 포함) 릴리즈를 만듭니다. 둘이 다르면 멈춥니다.
 * **배포 산출물 빌드**:
   ```powershell
   dotnet publish -c Release -p:PublishProfile=win-x64

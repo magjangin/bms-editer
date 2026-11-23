@@ -1,0 +1,55 @@
+name: Release
+
+# v<버전> 태그를 밀면 Windows 단일 exe 를 만들어 GitHub 릴리즈에 올린다.
+# 버전은 csproj <Version> 과 태그가 같아야 한다. 노트는 CHANGELOG.md 의 해당 항목을 쓴다.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Check version matches tag
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}".TrimStart('v')
+          [xml]$proj = Get-Content "bms editer/bms editer.csproj"
+          $ver = ($proj.Project.PropertyGroup | Where-Object { $_.Version } | Select-Object -First 1).Version
+          if ($ver -ne $tag) { throw "csproj Version($ver) 과 태그($tag) 가 다릅니다." }
+          if (-not (Select-String -Path CHANGELOG.md -Pattern "^## \[$([regex]::Escape($tag))\]" -Quiet)) { throw "CHANGELOG.md 에 ## [$tag] 항목이 없습니다." }
+
+      - name: Test
+        run: dotnet test "bms editer.slnx" -c Release
+
+      - name: Publish single exe
+        run: dotnet publish "bms editer/bms editer.csproj" -p:PublishProfile=win-x64
+
+      - name: Package and release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $zip = "bms-editer-$tag-win-x64.zip"
+          Compress-Archive -Path "publish/win-x64/*" -DestinationPath $zip
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash
+          $ver = $tag.TrimStart('v')
+          $lines = Get-Content CHANGELOG.md
+          $start = ($lines | Select-String -Pattern "^## \[$([regex]::Escape($ver))\]").LineNumber
+          $rest = $lines[$start..($lines.Count - 1)]
+          $end = ($rest | Select-String -Pattern '^## \[' | Select-Object -First 1).LineNumber
+          $body = if ($end) { $rest[0..($end - 2)] } else { $rest }
+          $notes = ($body -join "`n") + "`n`n### 설치`nzip 을 풀고 ``bms editer.exe`` 하나를 실행합니다(Windows x64, .NET 설치 불필요).`n`nSHA256: ``$hash```n"
+          Set-Content -Path notes.md -Value $notes -Encoding utf8
+          gh release create $tag $zip --title "rhythm bms editer $tag" --notes-file notes.md

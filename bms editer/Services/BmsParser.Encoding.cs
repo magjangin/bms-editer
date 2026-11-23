@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
@@ -157,7 +158,8 @@ public static partial class BmsParser
 
             try
             {
-                if (fileNameIndex.ContainsKey(Path.GetFileName(mediaPath)))
+                var fileName = Path.GetFileName(mediaPath);
+                if (fileNameIndex.ContainsKey(fileName) || AlternateAudioNames(fileName).Any(fileNameIndex.ContainsKey))
                 {
                     found++;
                     continue;

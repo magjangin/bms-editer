@@ -12,25 +12,31 @@ public static class AppDataPaths
     private static readonly string LegacyRoot =
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "bms editer");
 
-    public static string Root
+    // 한 번만 정한다. 예전에는 Root 를 읽을 때마다(오류 기록·WebView2·폴더 열기) 디스크를 두 번 확인하고,
+    // 옮기기가 실패하면 매번 다시 시도했다.
+    private static readonly Lazy<string> ResolvedRoot = new(ResolveRoot, isThreadSafe: true);
+
+    public static string Root => ResolvedRoot.Value;
+
+    private static string ResolveRoot()
     {
-        get
+        var newRoot = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "rhythm bms editer");
+
+        // 기존 bms editer 폴더가 있고 새 rhythm bms editer 폴더가 없으면 옮긴다.
+        // 옮기지 못하면(WebView2 가 붙잡고 있는 등) 이번 실행은 옛 폴더를 그대로 쓴다.
+        if (!Directory.Exists(newRoot) && Directory.Exists(LegacyRoot))
         {
-            var newRoot = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "rhythm bms editer");
-            // 기존 bms editer 폴더가 있고 새 rhythm bms editer 폴더가 없으면 마이그레이션
-            if (!Directory.Exists(newRoot) && Directory.Exists(LegacyRoot))
+            try
             {
-                try
-                {
-                    Directory.Move(LegacyRoot, newRoot);
-                }
-                catch
-                {
-                    return LegacyRoot;
-                }
+                Directory.Move(LegacyRoot, newRoot);
             }
-            return newRoot;
+            catch
+            {
+                return LegacyRoot;
+            }
         }
+
+        return newRoot;
     }
 
     public static string Logs => Path.Combine(Root, "logs");
