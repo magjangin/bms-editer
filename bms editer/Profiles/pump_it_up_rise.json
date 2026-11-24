@@ -3,12 +3,12 @@
   "displayName": "PUMP IT UP RISE",
   "verification": "Source",
   "source": "PUMP IT UP RISE-unity-il2cpp / mod/PIURiseCustom/CustomChartParsers.cs — ParseBms · MapBmsChannelToPiuLane",
-  "note": "싱글 5키(채널 11~15 → ↙↖◎↗↘). #WAV 파일명 키워드(공백·_·- 무시, 시작 우선)로 홀드 시작/끝을 판별합니다. 레인마다 대기 칸이 하나뿐이라 끝이 오기 전에 시작이 또 오면 앞 시작을 버립니다. 2자리(#WAV01~ZZ)·3자리(#WAV001~ZZZ) 키음을 모두 지원하며, 더블(21~25)은 에디터 편집 레인 밖입니다.",
+  "note": "5키 전용(에디터 좌→우 5레인: 채널 16, 11, 12, 13, 14 → ↙↖◎↗↘). #WAV 파일명 키워드(공백·_·- 무시, 시작 우선)로 홀드 시작/끝을 판별합니다. 레인마다 대기 칸이 하나뿐이라 끝이 오기 전에 시작이 또 오면 앞 시작을 버립니다. 2자리(#WAV01~ZZ)·3자리(#WAV001~ZZZ) 키음을 모두 지원하며, 채널 15·18은 무시됩니다.",
   "pathHints": [ "PUMP IT UP RISE", "PIURise" ],
   "holdRules": [
     {
       "kind": "Hold",
-      "channels": [ "11", "12", "13", "14", "15" ],
+      "channels": [ "16", "11", "12", "13", "14" ],
       "role": {
         "type": "FileNameKeyword",
         "headKeywords": [

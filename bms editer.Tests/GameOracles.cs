@@ -717,8 +717,7 @@ internal static class GameOracles
     // ── PUMP IT UP RISE ────────────────────────────────────────────────────
     // PUMP IT UP RISE-unity-il2cpp / mod/PIURiseCustom/CustomChartParsers.cs ParseBms · MapBmsChannelToPiuLane
 
-    private static readonly HashSet<string> PiuRiseP1Channels = new() { "11", "12", "13", "14", "15" };
-    private static readonly HashSet<string> PiuRiseP2Channels = new() { "21", "22", "23", "24", "25" };
+    private static readonly HashSet<string> PiuRiseChannels = new() { "16", "11", "12", "13", "14" };
 
     private static Result PumpItUpRise(RawChart chart)
     {
@@ -739,27 +738,15 @@ internal static class GameOracles
         }
 
         var notes = new List<RawSlot>();
-        var hidden = 0;
 
         foreach (var raw in chart.Lines)
         {
-            var isP1 = PiuRiseP1Channels.Contains(raw.Channel);
-            var isP2 = PiuRiseP2Channels.Contains(raw.Channel);
-            if (!isP1 && !isP2)
+            if (!PiuRiseChannels.Contains(raw.Channel))
                 continue;
 
             var tokLen = (wavKeyLen == 3 && raw.Data.Length % 3 == 0) ? 3 : 2;
             foreach (var slot in RawChart.Slots(raw, tokLen))
-            {
-                if (isP2)
-                {
-                    if (holdStartWavIds.Contains(slot.Value) || holdEndWavIds.Contains(slot.Value))
-                        hidden++;
-                    continue;
-                }
-
                 notes.Add(slot);
-            }
         }
 
         var pairs = new List<PairKey>();
@@ -794,6 +781,6 @@ internal static class GameOracles
                 orphanHeads++;
         }
 
-        return new Result(pairs, orphanHeads, orphanTails, hidden);
+        return new Result(pairs, orphanHeads, orphanTails, 0);
     }
 }

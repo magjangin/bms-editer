@@ -47,7 +47,7 @@ docs/
 * **[muse_dash.md](guides/muse_dash.md)**: **[지원 제외]** 뮤즈 대시 2레인 구조 매핑 및 모딩 아카이브 가이드입니다. 6자리 UID 체계와 출현 순서 전파(Cascade)로 인한 극심한 제작 난이도로 인해 공식 지원 대상에서 제외되었습니다 (보존용 아카이브).
 * **[gunvolt_records_cychronicle.md](guides/gunvolt_records_cychronicle.md)**: Unity Mono 기반의 *GUNVOLT RECORDS Cychronicle* (`GRC2`)에서 좌/우 6레인 매핑(`16, 11, 12` vs `14, 15, 18`), 8방향 플릭(`03~0A`) 및 페어리 아크(`11~18`, `1A/1B`) 주입 가이드입니다.
 * **[deflate.md](guides/deflate.md)**: *DEFLATE*의 플레이 4레인(`16, 11, 12, 13`) + 드롭 레인(`14`) 매핑, `DrumMode`(HiHat/KickSnare)가 같은 물리 레인을 나눠 쓰는 구조, **`#WAV` 파일명 키워드로 홀드 시작/끝을 판별하는 규칙**(부분 일치 · Tail 우선 · 가장 가까운 Tail)과 1마디 3840틱 시간 계산 가이드입니다.
-* **[pump_it_up_rise.md](guides/pump_it_up_rise.md)**: *PUMP IT UP RISE* (`PIURiseCustom`)의 싱글 5키(`11~15` → `↙↖◎↗↘`) 매핑, 2자리/3자리 키음 자동 전환 규칙, `#WAV` 파일명 키워드(시작 우선) + `ReplacePending` 롱노트 짝짓기 및 `hwa/` 폴더 규격 가이드입니다.
+* **[pump_it_up_rise.md](guides/pump_it_up_rise.md)**: *PUMP IT UP RISE* (`PIURiseCustom`)의 5키(`16, 11~14` → `↙↖◎↗↘`) 매핑, 2자리/3자리 키음 자동 전환 규칙, `#WAV` 파일명 키워드(시작 우선) + `ReplacePending` 롱노트 짝짓기 및 `hwa/` 폴더 규격 가이드입니다.
 
 ### 3. 규격 및 동작 사양 (`specifications/`)
 * **[grid_specification.md](specifications/grid_specification.md)**: 마디당 기본 16분할(16비트 스냅) 그리드 렌더링 규칙, 확대/축소 비율, 주요 박자선(Beat Line) 구분 로직의 명세를 정의합니다.

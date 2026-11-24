@@ -378,10 +378,10 @@ public sealed class HoldPairingTests
         ("0A", "hold start end.wav"));
 
     [Fact]
-    public void 펌프잇업라이즈는_3자리_키음도_정상_짝짓는다()
+    public void 펌프잇업라이즈는_3자리_키음과_16채널도_정상_짝짓는다()
     {
-        var head = Note("12", 1.0, "006");
-        var tail = Note("12", 2.0, "007");
+        var head = Note("16", 1.0, "006");
+        var tail = Note("16", 2.0, "007");
 
         Assert.Equal(new[] { (head, tail) }, Pairs(Pair("pump_it_up_rise", PumpItUpRiseWavs, head, tail)));
     }
@@ -418,12 +418,12 @@ public sealed class HoldPairingTests
     }
 
     [Fact]
-    public void 펌프잇업라이즈_16과_18채널은_보지_않는다()
+    public void 펌프잇업라이즈_15와_18채널은_보지_않는다()
     {
         var result = Pair(
             "pump_it_up_rise",
             PumpItUpRiseWavs,
-            Note("16", 1.0, "06"), Note("16", 2.0, "07"),
+            Note("15", 1.0, "06"), Note("15", 2.0, "07"),
             Note("18", 1.0, "06"), Note("18", 2.0, "07"));
 
         Assert.Empty(result.Links);
@@ -433,7 +433,7 @@ public sealed class HoldPairingTests
     [Fact]
     public void 펌프잇업라이즈_짝_없는_끝은_고아다()
     {
-        var tail = Note("15", 2.0, "07");
+        var tail = Note("14", 2.0, "07");
 
         Assert.Same(tail, Assert.Single(Diagnostics(Pair("pump_it_up_rise", PumpItUpRiseWavs, tail), HoldDiagnosticKind.OrphanTail)).Note);
     }
