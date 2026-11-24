@@ -12,25 +12,26 @@ public static class AppDataPaths
     private static readonly string LegacyRoot =
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "bms editer");
 
-    public static string Root
+    private static readonly Lazy<string> ResolvedRoot = new(ResolveRoot);
+
+    public static string Root => ResolvedRoot.Value;
+
+    private static string ResolveRoot()
     {
-        get
+        var newRoot = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "rhythm bms editer");
+        // 기존 bms editer 폴더가 있고 새 rhythm bms editer 폴더가 없으면 최초 1회 마이그레이션
+        if (!Directory.Exists(newRoot) && Directory.Exists(LegacyRoot))
         {
-            var newRoot = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "rhythm bms editer");
-            // 기존 bms editer 폴더가 있고 새 rhythm bms editer 폴더가 없으면 마이그레이션
-            if (!Directory.Exists(newRoot) && Directory.Exists(LegacyRoot))
+            try
             {
-                try
-                {
-                    Directory.Move(LegacyRoot, newRoot);
-                }
-                catch
-                {
-                    return LegacyRoot;
-                }
+                Directory.Move(LegacyRoot, newRoot);
             }
-            return newRoot;
+            catch
+            {
+                return Directory.Exists(newRoot) ? newRoot : LegacyRoot;
+            }
         }
+        return newRoot;
     }
 
     public static string Logs => Path.Combine(Root, "logs");

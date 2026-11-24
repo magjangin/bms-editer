@@ -10,7 +10,7 @@ namespace bms_editer.Services;
 //
 // 예전에는 Program.Main 의 catch 가 exe 폴더에 crash.log 를 썼다. 쓸 수 없는 폴더면
 // 그 쓰기가 다시 예외를 던져 원래 예외를 가렸고, 로그도 안 남았다.
-// 이제 %LocalAppData%\bms editer\logs 에 한 건씩 따로 쓰고, 여기서는 절대 던지지 않는다.
+// 이제 %LocalAppData%\rhythm bms editer\logs 에 한 건씩 따로 쓰고, 여기서는 절대 던지지 않는다.
 public static class ErrorLog
 {
     // 오래된 기록은 지운다. 매 프레임 터지는 예외가 있어도 폴더가 끝없이 커지지 않게.
@@ -45,13 +45,30 @@ public static class ErrorLog
 
             Directory.CreateDirectory(directory);
 
-            // 예외가 줄줄이 터지면 같은 밀리초에 여러 건이 온다. 덮어쓰지 않게 번호를 붙인다.
+            // 예외가 줄줄이 터지면 같은 밀리초에 여러 건이 온다. CreateNew 로 다중 스레드 경합 없이 고유 파일을 만든다.
             var stem = $"error-{now:yyyyMMdd-HHmmss-fff}";
-            var path = Path.Combine(directory, stem + ".log");
-            for (var i = 2; File.Exists(path); i++)
-                path = Path.Combine(directory, $"{stem}-{i}.log");
+            var contentBytes = new UTF8Encoding(false).GetBytes(Format(exception, source, now));
+            string? path = null;
+            for (var i = 1; i <= 1000; i++)
+            {
+                var candidate = i == 1
+                    ? Path.Combine(directory, stem + ".log")
+                    : Path.Combine(directory, $"{stem}-{i}.log");
+                try
+                {
+                    using var stream = new FileStream(candidate, FileMode.CreateNew, FileAccess.Write, FileShare.Read);
+                    stream.Write(contentBytes, 0, contentBytes.Length);
+                    path = candidate;
+                    break;
+                }
+                catch (IOException) when (File.Exists(candidate))
+                {
+                    continue;
+                }
+            }
 
-            File.WriteAllText(path, Format(exception, source, now), new UTF8Encoding(false));
+            if (path is null)
+                return null;
 
             Prune(directory);
             return path;

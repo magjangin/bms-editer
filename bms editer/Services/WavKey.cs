@@ -52,11 +52,16 @@ public static class WavKey
     // 정해진 자릿수에 맞춰 키 문자열을 만든다. ("01", "001")
     public static string Format(int value, int width)
     {
+        if (width <= 0)
+            throw new ArgumentOutOfRangeException(nameof(width));
+
+        var max = MaxValue(width);
+        var clamped = Math.Clamp(value, 0, max);
         var chars = new char[width];
         for (var i = width - 1; i >= 0; i--)
         {
-            chars[i] = Digits[value % 36];
-            value /= 36;
+            chars[i] = Digits[clamped % 36];
+            clamped /= 36;
         }
 
         return new string(chars);

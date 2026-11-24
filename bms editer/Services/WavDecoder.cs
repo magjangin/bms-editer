@@ -61,6 +61,9 @@ public static class WavDecoder
 
                 if (chunkId == "fmt ")
                 {
+                    if (safeChunkSize < 16)
+                        return null;
+
                     audioFormat = reader.ReadInt16();
                     channels = reader.ReadInt16();
                     sampleRate = reader.ReadInt32();
@@ -71,16 +74,16 @@ public static class WavDecoder
                     var readBytes = 16;
 
                     // WAVE_FORMAT_EXTENSIBLE (0xFFFE) 처리
-                    if (audioFormat == -2 || audioFormat == unchecked((short)0xFFFE))
+                    if (audioFormat == unchecked((short)0xFFFE) && safeChunkSize >= 18)
                     {
                         var extraSize = reader.ReadInt16();
                         readBytes += 2;
-                        if (extraSize >= 22)
+                        if (extraSize >= 22 && safeChunkSize >= readBytes + 22)
                         {
                             reader.ReadInt16(); // validBitsPerSample
                             reader.ReadInt32(); // channelMask
                             var subFormatTag = reader.ReadInt16(); // 첫 2바이트가 GUID 포맷 (1 = PCM, 3 = Float)
-                            reader.ReadBytes(14); // 나머지 14바이트 GUID
+                            stream.Seek(14, SeekOrigin.Current); // 나머지 14바이트 GUID
                             readBytes += 22;
                             audioFormat = subFormatTag;
                         }
@@ -88,16 +91,20 @@ public static class WavDecoder
 
                     var remaining = safeChunkSize - readBytes;
                     if (remaining > 0)
-                        reader.ReadBytes(remaining);
+                        stream.Seek(remaining, SeekOrigin.Current);
+
+                    if (dataBytes is not null)
+                        break;
                 }
                 else if (chunkId == "data")
                 {
                     dataBytes = reader.ReadBytes(safeChunkSize);
-                    break;
+                    if (sampleRate > 0 && channels > 0)
+                        break;
                 }
                 else
                 {
-                    reader.ReadBytes(safeChunkSize);
+                    stream.Seek(safeChunkSize, SeekOrigin.Current);
                 }
 
                 // RIFF 청크 2바이트 워드 패딩 처리
@@ -140,7 +147,7 @@ public static class WavDecoder
 
             var frameCount = sampleCount / data.Channels;
             var sourceFrames = new float[frameCount * data.Channels];
-            for (var i = 0; i < sampleCount; i++)
+            for (var i = 0; i < sourceFrames.Length; i++)
             {
                 sourceFrames[i] = shorts[i] / 32768f;
             }
@@ -220,15 +227,22 @@ public static class WavDecoder
         var sourceFrames = source.Length / sourceChannels;
         if (sourceFrames == 0) return Array.Empty<short>();
 
-        int targetFrames;
+        long targetFramesLong;
         if (sourceSampleRate == TargetSampleRate)
         {
-            targetFrames = sourceFrames;
+            targetFramesLong = sourceFrames;
         }
         else
         {
-            targetFrames = (int)Math.Round((double)sourceFrames * TargetSampleRate / sourceSampleRate);
+            targetFramesLong = (long)Math.Round((double)sourceFrames * TargetSampleRate / sourceSampleRate);
         }
+
+        // 비정상 헤더로 인한 거대/오버플로우 할당 방지 (약 60분 스테레오 44.1kHz 상한)
+        const int maxTargetFrames = TargetSampleRate * 60 * 60;
+        if (targetFramesLong <= 0 || targetFramesLong > maxTargetFrames)
+            return Array.Empty<short>();
+
+        var targetFrames = (int)targetFramesLong;
 
         var output = new short[targetFrames * TargetChannels];
 
@@ -274,8 +288,10 @@ public static class WavDecoder
                 }
             }
 
-            output[i * 2] = (short)(Math.Clamp(l, -1f, 1f) * short.MaxValue);
-            output[i * 2 + 1] = (short)(Math.Clamp(r, -1f, 1f) * short.MaxValue);
+            var safeL = float.IsFinite(l) ? Math.Clamp(l, -1f, 1f) : 0f;
+            var safeR = float.IsFinite(r) ? Math.Clamp(r, -1f, 1f) : 0f;
+            output[i * 2] = (short)(safeL * short.MaxValue);
+            output[i * 2 + 1] = (short)(safeR * short.MaxValue);
         }
 
         return output;

@@ -135,16 +135,24 @@ internal static class HoldRoleClassifier
 // 그 뒤의 샌드백이 전부 뒤집힌다.
 internal static class UidTypeResolver
 {
+    private static readonly TimeSpan RegexMatchTimeout = TimeSpan.FromMilliseconds(200);
     private static readonly ConcurrentDictionary<string, Regex> Patterns = new();
 
     public static string? Resolve(UidTable table, string wavText)
     {
         var name = HoldRoleClassifier.FileNameWithoutExtension(wavText);
-        var lower = name.ToLowerInvariant();
 
-        var regex = Patterns.GetOrAdd(table.Pattern, p => new Regex(p, RegexOptions.CultureInvariant));
-        var match = regex.Match(name);
-        var uid = match.Success ? match.Groups[match.Groups.Count > 1 ? 1 : 0].Value : null;
+        var regex = Patterns.GetOrAdd(table.Pattern, p => new Regex(p, RegexOptions.CultureInvariant, RegexMatchTimeout));
+        string? uid = null;
+        try
+        {
+            var match = regex.Match(name);
+            uid = match.Success ? match.Groups[match.Groups.Count > 1 ? 1 : 0].Value : null;
+        }
+        catch (RegexMatchTimeoutException)
+        {
+            uid = null;
+        }
 
         string? type = null;
         var resolved = false;
@@ -184,7 +192,7 @@ internal static class UidTypeResolver
 
         foreach (var keyword in table.BlockingKeywords)
         {
-            if (keyword.Length > 0 && lower.Contains(keyword, StringComparison.Ordinal))
+            if (keyword.Length > 0 && name.Contains(keyword, StringComparison.OrdinalIgnoreCase))
                 return table.BlockingType;
         }
 
@@ -193,7 +201,7 @@ internal static class UidTypeResolver
 
         foreach (var fallback in table.NameFallbacks)
         {
-            var hit = fallback.Keywords.Any(k => k.Length > 0 && lower.Contains(k, StringComparison.Ordinal))
+            var hit = fallback.Keywords.Any(k => k.Length > 0 && name.Contains(k, StringComparison.OrdinalIgnoreCase))
                 || (fallback.UidPrefix.Length > 0 && uid is not null
                     && uid.StartsWith(fallback.UidPrefix, StringComparison.Ordinal))
                 || (fallback.UidTypeCode.Length > 0 && uid is not null

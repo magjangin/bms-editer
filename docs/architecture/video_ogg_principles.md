@@ -18,10 +18,10 @@
 - 비디오 파일이 속한 로컬 디렉토리를 `bms-video-preview.local`이라는 가상의 오리진(Origin)으로 매핑하여, 내부적으로 `https://bms-video-preview.local/video_name.mp4` 주소로 요청하여 HTML5 비디오 플레이어에 안전하게 로딩시킵니다.
 
 ### ③ JavaScript 인터랙션 및 프레임 동기화
-- 재생 위치는 33ms 마다 바뀌지만, WebView2 로 보내는 비동기 스크립트(`ExecuteScriptAsync`)는 **0.2초에 한 번**(또는 되감았을 때)만 보냅니다. 초당 30번 IPC 를 보내던 것을 줄였습니다.
+- 재생 위치는 화면 프레임(`RequestAnimationFrame`) 및 16ms `Render` 타이머로 갱신되지만, WebView2 로 보내는 비동기 스크립트(`ExecuteScriptAsync`)는 **0.2초에 한 번**(또는 되감았을 때)만 보냅니다. 매 프레임 IPC 를 보내던 것을 줄였습니다.
 - 브라우저 내부의 HTML5 `<video>` 요소의 재생 시각(`currentTime`)과 에디터 내부 재생 타이머의 절대 시각을 실시간으로 비교합니다.
 - **시간 허용 오차(Tolerance)** 를 넘을 때만 `currentTime` 을 보정합니다(재생 중 0.25초, 정지 중 0.06초). 재생(`play()`)·일시정지(`pause()`)·재생 배속(`playbackRate`)도 함께 맞춥니다.
-- WebView2 는 네이티브 창(HWND)이라 Avalonia 의 `ClipToBounds` 가 먹지 않습니다. 오른쪽 패널을 스크롤하면 영상이 패널 밖으로 삐져나올 수 있습니다([known_issues 25-2](../issues/known_issues.md)).
+- WebView2 는 네이티브 창(HWND)이라 Avalonia 의 `ClipToBounds` 가 먹지 않으므로, `VideoPreviewControl.UpdateBounds()` 가 조상 `ScrollViewer` 뷰포트 및 창 영역과 교차한 사각형으로 `_controller.Bounds` 를 직접 잘라내고, 완전히 벗어나면 숨깁니다.
 
 ---
 

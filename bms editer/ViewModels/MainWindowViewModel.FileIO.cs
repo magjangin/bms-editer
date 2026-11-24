@@ -120,7 +120,7 @@ public sealed partial class MainWindowViewModel
     }
 
     private bool IsOggLoadSuperseded(int request, int document) =>
-        request != _oggLoadRequest || document != DocumentGeneration;
+        _disposed || request != _oggLoadRequest || document != DocumentGeneration;
 
     public void LoadVideo(string filePath)
     {
@@ -157,6 +157,8 @@ public sealed partial class MainWindowViewModel
 
     public void ClearOgg()
     {
+        _oggLoadRequest++;
+        IsLoadingOgg = false;
         StopPlayback(resetCursor: true);
         _audioPlayer?.Dispose();
         _audioPlayer = null;
@@ -181,6 +183,7 @@ public sealed partial class MainWindowViewModel
         InvalidateWavTextsCache();
         ClearUndoHistory();
         SelectedWavItem = null;
+        SelectedHoldDiagnostic = null;
         _selectedNotes.Clear();
         NotifySelectionChanged();
 
@@ -261,42 +264,52 @@ public sealed partial class MainWindowViewModel
         // 비우고 채우는 동안 홀드 짝을 몇 번이고 다시 읽지 않게 끝에 한 번만 읽는다. (DeferHoldRecompute 참고)
         using var holdDeferral = DeferHoldRecompute();
 
-        ResetDocumentState();
-
-        // 노트·보존줄·마디길이·BPM 변화·키음표 등 차트 안의 모든 컬렉션이 여기서 한꺼번에 옮겨진다.
-        Chart.ReplaceContentWith(parsed.Chart);
-        PullHeaderFromChart();
-        InvalidateTimeline();
-        MeasureCount = Chart.MeasureCount;
-
-        // 읽어낸 인코딩을 기억해 두었다가 저장할 때 그대로 되돌려 쓴다.
-        DocumentEncoding = parsed.Encoding;
-
-        // 한 번에 갈아끼운다. 하나씩 Add 하면 항목마다 알림이 나가고,
-        // 통계·팔레트 창이 그때마다 전체 재집계를 돈다. (BulkObservableCollection 주석 참고)
-        WavList.ReplaceAll(parsed.WavItems);
-        _keySoundPlayer.PreloadAsync(Chart.WavTable.Values.ToArray());
-
-        // 예전에는 이 안내를 LastWarningMessage 에 넣었는데, 열기 경로에서는 아무도 그 값을 띄우지 않았다.
-        // 다음 저장이 값을 덮어써서 사용자는 한 번도 보지 못했다. 상태 표시줄에 남겨 둔다.
-        var missingWavs = parsed.WavItems.Count(w => w.IsMissing);
-        if (missingWavs > 0)
-            AddDocumentNotice($"⚠️ 경로에 없는 키음 {missingWavs}개 (목록의 ⚠️ 표시 참조)");
-
-        if (WavList.Count > 0)
+        var previousSuppress = _suppressDirtyTracking;
+        _suppressDirtyTracking = true;
+        try
         {
-            SelectedWavItem = WavList[0];
+            ResetDocumentState();
+
+            // 노트·보존줄·마디길이·BPM 변화·키음표 등 차트 안의 모든 컬렉션이 여기서 한꺼번에 옮겨진다.
+            Chart.ReplaceContentWith(parsed.Chart);
+            _chartMeasureCountCache = null;
+            PullHeaderFromChart();
+            InvalidateTimeline();
+            MeasureCount = Chart.MeasureCount;
+
+            // 읽어낸 인코딩을 기억해 두었다가 저장할 때 그대로 되돌려 쓴다.
+            DocumentEncoding = parsed.Encoding;
+
+            // 한 번에 갈아끼운다. 하나씩 Add 하면 항목마다 알림이 나가고,
+            // 통계·팔레트 창이 그때마다 전체 재집계를 돈다. (BulkObservableCollection 주석 참고)
+            WavList.ReplaceAll(parsed.WavItems);
+            _keySoundPlayer.PreloadAsync(Chart.WavTable.Values.ToArray());
+
+            // 예전에는 이 안내를 LastWarningMessage 에 넣었는데, 열기 경로에서는 아무도 그 값을 띄우지 않았다.
+            // 다음 저장이 값을 덮어써서 사용자는 한 번도 보지 못했다. 상태 표시줄에 남겨 둔다.
+            var missingWavs = parsed.WavItems.Count(w => w.IsMissing);
+            if (missingWavs > 0)
+                AddDocumentNotice($"⚠️ 경로에 없는 키음 {missingWavs}개 (목록의 ⚠️ 표시 참조)");
+
+            if (WavList.Count > 0)
+            {
+                SelectedWavItem = WavList[0];
+            }
+
+            CurrentFilePath = documentPath;
+            LastErrorMessage = null;
+
+            // 파일의 #BMSEDITER_PROFILE 을 따르고, 없으면 경로로 게임을 추정한다.
+            // 추정한 것은 저장할 때 파일에 적지 않는다. (ApplyProfileForDocument 참고)
+            ApplyProfileForDocument(documentPath);
+
+            // UI 렌더링 강제 업데이트 유도
+            NotifyNotesChanged();
         }
-
-        CurrentFilePath = documentPath;
-        LastErrorMessage = null;
-
-        // 파일의 #BMSEDITER_PROFILE 을 따르고, 없으면 경로로 게임을 추정한다.
-        // 추정한 것은 저장할 때 파일에 적지 않는다. (ApplyProfileForDocument 참고)
-        ApplyProfileForDocument(documentPath);
-
-        // UI 렌더링 강제 업데이트 유도
-        NotifyNotesChanged();
+        finally
+        {
+            _suppressDirtyTracking = previousSuppress;
+        }
         return true;
     }
 

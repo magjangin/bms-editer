@@ -96,7 +96,7 @@ public partial class MainWindow
     // 격자 편집 키(선택 해제·삭제·이동). 격자에서도 창에서도 같은 규칙을 쓴다.
     private void HandleEditorKey(KeyEventArgs e)
     {
-        if (DataContext is not MainWindowViewModel vm)
+        if (e.KeyModifiers != KeyModifiers.None || DataContext is not MainWindowViewModel vm)
             return;
 
         switch (e.Key)

@@ -67,9 +67,9 @@ public static class BmsWriter
         // 들어 있어서, 저장하면 #WAV01 이 두 줄로 늘어났다. 저장할 때마다 늘어나고,
         // 재생과 파일이 서로 다른 파일을 가리키게 된다.
         var uniqueWavItems = wavItems
-            .GroupBy(w => w.Key, StringComparer.OrdinalIgnoreCase)
+            .GroupBy(w => w.Key.PadLeft(keyWidth, '0'), StringComparer.OrdinalIgnoreCase)
             .Select(g => g.Last())
-            .OrderBy(w => w.Key, StringComparer.OrdinalIgnoreCase);
+            .OrderBy(w => w.Key.PadLeft(keyWidth, '0'), StringComparer.OrdinalIgnoreCase);
 
         foreach (var wav in uniqueWavItems)
         {

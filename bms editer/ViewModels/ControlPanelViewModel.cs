@@ -177,8 +177,8 @@ public sealed partial class ControlPanelViewModel : NoteStatsViewModel
 
         var proceed = await confirm(
             $"#{wav.Key} 를 쓰는 노트 {matches.Count}개를 지웁니다.\n\n" +
-            "되돌리기가 없어서 지운 노트는 되살릴 수 없습니다.\n\n" +
-            "그래도 지울까요?");
+            "(실행 후 Ctrl+Z로 되돌릴 수 있습니다.)\n\n" +
+            "진행할까요?");
 
         if (!proceed)
         {

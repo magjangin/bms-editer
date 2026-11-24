@@ -52,20 +52,19 @@ $$\text{seconds} = (\text{Measure} + \text{Position}) \times \frac{240.0}{\text{
 실제 코드는 이 식을 직접 쓰지 않고 **격자와 같은 `ChartTimeline`** 에 묻습니다. 그래야 BPM 변화·변박이 있는 차트에서도 노트가 제 격자선 위에 남습니다.
 
 #### [노트 위치 계산]
-위치는 [`NoteGridControl.ComputeNoteTPos`](../../bms%20editer/Views/Controls/NoteGridControl.cs) 한 곳에서 구합니다.
+위치는 [`NoteGridControl.Indexing.cs`](../../bms%20editer/Views/Controls/NoteGridControl.Indexing.cs) 의 `NoteRenderIndex` / `NoteAxis.Position` 한 곳에서 구합니다.
 
 * **음원이 있으면** `EffectiveTimeline.SecondsAt(Measure + Position)` 으로 시각을 구하고, `시각 / 음원 길이` 비율을 타임라인 길이에 곱합니다. 격자선과 **같은 시간축**이라 둘이 어긋나지 않습니다.
 * **음원이 없으면** 마디 높이가 곧 화면 높이라, `(Measure + Position) × 마디 높이` 로 구합니다(세로 뷰는 뒤집음).
 
 - **상호 작용**: BPM이 커지면 `seconds`가 짧아져 노트가 화면 왼쪽(세로뷰의 경우 아래쪽)으로 수축 이동하고, 격자선도 동일한 비율로 수축하므로 **노트가 자신이 속한 격자선 위에 밀착해 함께 움직입니다.**
 - 클릭한 자리를 마디 위치로 되돌릴 때도 같은 시간축의 역함수(`ChartTimeline.MeasurePositionAt`)를 씁니다. 키음 재생 시각도 `SecondsAt` 으로 구합니다.
-- 홀드 몸통의 양 끝도 각각 `ComputeNoteTPos` 로 구합니다. 마디 단위 선형 보간으로 늘리지 않습니다.
+- 홀드 몸통의 양 끝도 각각 같은 `NoteAxis.Position` 으로 구합니다. 마디 단위 선형 보간으로 늘리지 않습니다.
 
 ---
 
 ### 4. 음원 오프셋과의 관계
 음원 오프셋(`#BMSEDITER_OFFSET`, 오른쪽 패널의 「음원 오프셋」)은 **격자와 노트를 움직이지 않습니다.**
 음원에서 나온 것(파형 · 온셋 마커 · 재생 커서)만 그만큼 밀어 그립니다(`TimelineControlBase.AudioRatio`).
-**파형**을 눌러 재생 위치를 옮길 때는 반대로 오프셋을 빼서 음원 안의 위치로 되돌립니다(`TimelineControlBase.AudioSecondsAtRatio`).
-격자에서 가운데 버튼으로 끄는 스크럽(`MainWindow.Scrubbing`)과 재생바 자동 스크롤(`MainWindow.Viewport`)은 오프셋을 빼지 않습니다. 오프셋이 0 이 아니면 그만큼 커서가 누른 자리에서 떨어집니다([known_issues](../issues/known_issues.md#-2026-09-22-점검에서-찾은-것-확인-필요)).
+파형 클릭과 격자 가운데 버튼 스크럽 모두 `TimelineControlBase.PositionToAudioRatio` 를 통해 오프셋을 빼서 음원 안의 위치로 되돌리며, 재생바 자동 스크롤도 `PlaybackCursorRatio` 를 통해 오프셋을 일관되게 반영합니다.
 오프셋은 에디터 전용 헤더라 게임은 읽지 않습니다 → [beat_sync_workflow.md](../guides/beat_sync_workflow.md).

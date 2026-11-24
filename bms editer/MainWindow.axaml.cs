@@ -21,10 +21,11 @@ public partial class MainWindow : Window
         vm.ConfirmAsync = message => ConfirmWindow.ShowAsync(this, message, "확인");
         vm.PropertyChanged += OnViewModelPropertyChanged;
         vm.ScrollToRatioRequested += ScrollEditorToRatio;
-        vm.PlaybackFailed += message => _ = ConfirmWindow.ShowMessageAsync(this, message, "재생 실패");
+        vm.PlaybackFailed += OnPlaybackFailed;
         Waveform.ScrubRequested += OnWaveformScrubRequested;
+        EditorSurface.PointerCaptureLost += OnEditorSurfacePointerCaptureLost;
         Closing += OnWindowClosing;
-        Closed += (_, _) => (DataContext as IDisposable)?.Dispose();
+        Closed += OnWindowClosed;
         AddHandler(PointerPressedEvent, OnWindowPointerPressedTunnel, RoutingStrategies.Tunnel, handledEventsToo: true);
         AddHandler(DragDrop.DropEvent, OnWindowDrop);
         AddHandler(DragDrop.DragOverEvent, OnWindowDragOver);
@@ -91,7 +92,29 @@ public partial class MainWindow : Window
     // 새로 만들기·열기에는 확인창이 있었는데 정작 창 닫기에는 없었다.
     // Closing 은 await 할 수 없으므로, 일단 닫기를 취소하고 물어본 뒤
     // 사용자가 정말 닫겠다고 하면 그때 다시 Close() 한다.
+    private void OnPlaybackFailed(string message) =>
+        _ = ConfirmWindow.ShowMessageAsync(this, message, "재생 실패");
+
+    private void OnWindowClosed(object? sender, EventArgs e)
+    {
+        Waveform.ScrubRequested -= OnWaveformScrubRequested;
+        EditorSurface.PointerCaptureLost -= OnEditorSurfacePointerCaptureLost;
+
+        if (DataContext is MainWindowViewModel vm)
+        {
+            vm.PropertyChanged -= OnViewModelPropertyChanged;
+            vm.ScrollToRatioRequested -= ScrollEditorToRatio;
+            vm.PlaybackFailed -= OnPlaybackFailed;
+            vm.Dispose();
+        }
+        else
+        {
+            (DataContext as IDisposable)?.Dispose();
+        }
+    }
+
     private bool _isClosingConfirmed;
+    private bool _isClosingDialogOpen;
 
     private async void OnWindowClosing(object? sender, WindowClosingEventArgs e)
     {
@@ -99,41 +122,51 @@ public partial class MainWindow : Window
             return;
 
         e.Cancel = true;
+        if (_isClosingDialogOpen)
+            return;
 
-        var name = vm.CurrentFilePath is { } path ? Path.GetFileName(path) : "제목 없음";
-        var choice = await ConfirmWindow.ShowThreeWayAsync(
-            this,
-            $"'{name}' 의 바뀐 내용을 저장하지 않았습니다.\n\n저장하고 닫을까요?",
-            confirmText: "저장하고 닫기",
-            alternateText: "저장 안 함",
-            title: "종료");
-
-        switch (choice)
+        _isClosingDialogOpen = true;
+        try
         {
-            case ConfirmChoice.Cancel:
-                return;
+            var name = vm.CurrentFilePath is { } path ? Path.GetFileName(path) : "제목 없음";
+            var choice = await ConfirmWindow.ShowThreeWayAsync(
+                this,
+                $"'{name}' 의 바뀐 내용을 저장하지 않았습니다.\n\n저장하고 닫을까요?",
+                confirmText: "저장하고 닫기",
+                alternateText: "저장 안 함",
+                title: "종료");
 
-            case ConfirmChoice.Confirm:
-                var savePath = vm.CurrentFilePath ?? await PickSavePathAsync(vm);
-                if (savePath is null)
+            switch (choice)
+            {
+                case ConfirmChoice.Cancel:
                     return;
 
-                if (!vm.SaveBms(savePath))
-                {
-                    await ConfirmWindow.ShowMessageAsync(
-                        this, $"저장하지 못했습니다. 창을 닫지 않았습니다.\n\n{vm.LastErrorMessage}", "저장 실패");
-                    return;
-                }
+                case ConfirmChoice.Confirm:
+                    var savePath = vm.CurrentFilePath ?? await PickSavePathAsync(vm);
+                    if (savePath is null)
+                        return;
 
-                // 저장은 됐지만 알릴 것이 있으면(인코딩을 UTF-8 로 물렸다 등) 닫기 전에 보여준다.
-                // 예전에는 이 경로에서만 경고가 조용히 사라졌다.
-                if (vm.LastWarningMessage is { } warning)
-                    await ConfirmWindow.ShowMessageAsync(this, warning, "저장 완료");
-                break;
+                    if (!vm.SaveBms(savePath))
+                    {
+                        await ConfirmWindow.ShowMessageAsync(
+                            this, $"저장하지 못했습니다. 창을 닫지 않았습니다.\n\n{vm.LastErrorMessage}", "저장 실패");
+                        return;
+                    }
+
+                    // 저장은 됐지만 알릴 것이 있으면(인코딩을 UTF-8 로 물렸다 등) 닫기 전에 보여준다.
+                    // 예전에는 이 경로에서만 경고가 조용히 사라졌다.
+                    if (vm.LastWarningMessage is { } warning)
+                        await ConfirmWindow.ShowMessageAsync(this, warning, "저장 완료");
+                    break;
+            }
+
+            _isClosingConfirmed = true;
+            Close();
         }
-
-        _isClosingConfirmed = true;
-        Close();
+        finally
+        {
+            _isClosingDialogOpen = false;
+        }
     }
 
     // 재생 커서를 화면 프레임마다 옮긴다.

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Avalonia.Media;
 using bms_editer.Models;
 
 namespace bms_editer.Views.Controls;
@@ -45,9 +46,10 @@ public sealed partial class NoteGridControl
         public required double[] TailMeasurePositions { get; init; }
         public required double[] HeadSeconds { get; init; }
         public required double[] TailSeconds { get; init; }
-        public required string[] Kinds { get; init; }
+        public required IBrush[] BodyBrushes { get; init; }
+        public required IPen[] LinkPens { get; init; }
 
-        public int Count => Kinds.Length;
+        public int Count => BodyBrushes.Length;
     }
 
     // 홀드 오류(짝이 어긋난 노트) 그리기 전용 색인. 매 프레임 SecondsAt·레인 조회를 반복하지 않는다.
@@ -202,7 +204,8 @@ public sealed partial class NoteGridControl
         var tailMeasurePositions = new double[validCount];
         var headSeconds = new double[validCount];
         var tailSeconds = new double[validCount];
-        var kinds = new string[validCount];
+        var bodyBrushes = new IBrush[validCount];
+        var linkPens = new IPen[validCount];
 
         var idx = 0;
         for (var i = 0; i < links.Count; i++)
@@ -221,7 +224,8 @@ public sealed partial class NoteGridControl
             tailMeasurePositions[idx] = tailMP;
             headSeconds[idx] = timeline.SecondsAt(headMP);
             tailSeconds[idx] = timeline.SecondsAt(tailMP);
-            kinds[idx] = link.Kind;
+            bodyBrushes[idx] = GetHoldBrush(link.Kind);
+            linkPens[idx] = GetHoldLinkPen(link.Kind);
             idx++;
         }
 
@@ -236,7 +240,8 @@ public sealed partial class NoteGridControl
             TailMeasurePositions = tailMeasurePositions,
             HeadSeconds = headSeconds,
             TailSeconds = tailSeconds,
-            Kinds = kinds,
+            BodyBrushes = bodyBrushes,
+            LinkPens = linkPens,
         };
 
         return _holdRenderIndex;

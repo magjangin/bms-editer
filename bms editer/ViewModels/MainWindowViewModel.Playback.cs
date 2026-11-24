@@ -70,7 +70,10 @@ public sealed partial class MainWindowViewModel
     private bool PlayFrom(double seconds)
     {
         if (_audioPlayer is null)
+        {
+            DocumentNotice = "재생할 배경 음원(OGG)이 열려 있지 않습니다.";
             return false;
+        }
 
         var startSeconds = Math.Clamp(seconds, 0, OggDurationSeconds);
         _playbackNotes = GetSortedNotes();
@@ -242,6 +245,7 @@ public sealed partial class MainWindowViewModel
 
     private void StopPlayback(bool resetCursor, bool stopKeySounds = true)
     {
+        _playbackSpeedDebounceTimer.Stop();
         _playbackTimer.Stop();
         _audioPlayer?.Stop();
 

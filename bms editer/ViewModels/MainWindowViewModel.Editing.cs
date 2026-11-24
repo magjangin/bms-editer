@@ -27,9 +27,12 @@ public sealed partial class MainWindowViewModel
     private BmsNote[]? _sortedNotesCache;
     private double[]? _sortedNoteSecondsCache;
 
+    // PlaceNote / RemoveNote 의 O(N) 선형 탐색을 (LaneId, Measure) 버킷 조회로 줄인다.
+    private Dictionary<(string LaneId, int Measure), List<BmsNote>>? _noteLookupBuckets;
+
     private BmsNote[] GetSortedNotes()
     {
-        if (_sortedNotesCache is not null)
+        if (_sortedNotesCache is not null && _sortedNoteSecondsCache is not null)
             return _sortedNotesCache;
 
         var sorted = Chart.Notes.OrderBy(n => n.Measure + n.Position).ToArray();
@@ -43,11 +46,34 @@ public sealed partial class MainWindowViewModel
         return sorted;
     }
 
+    private List<BmsNote>? GetNotesInBucket(string laneId, int measure)
+    {
+        if (_noteLookupBuckets is null)
+        {
+            var buckets = new Dictionary<(string LaneId, int Measure), List<BmsNote>>();
+            foreach (var note in Chart.Notes)
+            {
+                var key = (note.LaneId, note.Measure);
+                if (!buckets.TryGetValue(key, out var list))
+                {
+                    list = new List<BmsNote>(4);
+                    buckets[key] = list;
+                }
+                list.Add(note);
+            }
+            _noteLookupBuckets = buckets;
+        }
+
+        return _noteLookupBuckets.TryGetValue((laneId, measure), out var bucket) ? bucket : null;
+    }
+
     // 노트가 바뀌었다고 알린다. 화면 갱신과 정렬 캐시 무효화가 늘 짝이어야 해서 한곳에 모은다.
     private void NotifyNotesChanged()
     {
         _sortedNotesCache = null;
         _sortedNoteSecondsCache = null;
+        _noteLookupBuckets = null;
+        _chartMeasureCountCache = null;
         _notesCache = Chart.Notes.ToArray();
         if (IsPlaying)
         {
@@ -59,6 +85,7 @@ public sealed partial class MainWindowViewModel
         // 모든 편집 경로가 여기를 지난다. 홀드 짝도 여기서 한 번에 다시 읽는다.
         // (삭제·이동·키음 교체·복제 어느 것이든 짝을 깰 수 있다)
         RecomputeHolds();
+        OnPropertyChanged(nameof(MinimumMeasureCount));
         OnPropertyChanged(nameof(Notes));
     }
 
@@ -477,10 +504,18 @@ public sealed partial class MainWindowViewModel
 
         var wavKey = SelectedWavItem.Key;
 
-        var existing = Chart.Notes.Find(n => 
-            n.Measure == args.Measure && 
-            n.LaneId == args.LaneId && 
-            Math.Abs(n.Position - args.Position) < 0.0001);
+        BmsNote? existing = null;
+        if (GetNotesInBucket(args.LaneId, args.Measure) is { } bucket)
+        {
+            foreach (var candidate in bucket)
+            {
+                if (Math.Abs(candidate.Position - args.Position) < 0.0001)
+                {
+                    existing = candidate;
+                    break;
+                }
+            }
+        }
 
         if (existing is not null)
         {
@@ -495,7 +530,6 @@ public sealed partial class MainWindowViewModel
             }
 
             PlayWavSound(wavKey);
-            NotifyNotesChanged();
             return;
         }
 
@@ -536,17 +570,17 @@ public sealed partial class MainWindowViewModel
         BmsNote? nearest = null;
         var nearestDistance = double.MaxValue;
 
-        foreach (var note in Chart.Notes)
+        if (GetNotesInBucket(args.LaneId, args.Measure) is { } removeBucket)
         {
-            if (note.Measure != args.Measure || note.LaneId != args.LaneId)
-                continue;
+            foreach (var note in removeBucket)
+            {
+                var distance = Math.Abs(note.Position - args.Position);
+                if (distance > tolerance || distance >= nearestDistance)
+                    continue;
 
-            var distance = Math.Abs(note.Position - args.Position);
-            if (distance > tolerance || distance >= nearestDistance)
-                continue;
-
-            nearest = note;
-            nearestDistance = distance;
+                nearest = note;
+                nearestDistance = distance;
+            }
         }
 
         if (nearest is null)

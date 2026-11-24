@@ -466,8 +466,15 @@ public sealed unsafe partial class KeySoundPlayer : IDisposable
             hdr->BytesRecorded = 0;
             hdr->Flags = 0;
 
-            WaveOutPrepareHeader(_waveOut, _headerPtrs[currentBufferIndex], sizeof(WaveHeader));
-            WaveOutWrite(_waveOut, _headerPtrs[currentBufferIndex], sizeof(WaveHeader));
+            if (WaveOutPrepareHeader(_waveOut, _headerPtrs[currentBufferIndex], sizeof(WaveHeader)) != 0 ||
+                WaveOutWrite(_waveOut, _headerPtrs[currentBufferIndex], sizeof(WaveHeader)) != 0)
+            {
+                // 오디오 장치 분리/오류 등으로 제출이 실패하면 헤더가 WHDR_DONE 에 영영 도달하지 못하므로
+                // 장치를 닫아 다음 루프에서 재오픈 복구할 수 있게 한다.
+                CloseWaveOut();
+                Thread.Sleep(30);
+                continue;
+            }
 
             _framesWritten += BufferFrames;
             currentBufferIndex = (currentBufferIndex + 1) % BufferCount;

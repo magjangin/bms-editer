@@ -17,7 +17,8 @@ public static partial class BmsParser
         // 02: 마디 길이 배율. 슬롯이 아니라 실수 하나가 통째로 온다. (#00002:0.75)
         if (string.Equals(channel, "02", StringComparison.OrdinalIgnoreCase))
         {
-            if (double.TryParse(data, NumberStyles.Float, CultureInfo.InvariantCulture, out var length) && length > 0)
+            if (double.TryParse(data, NumberStyles.Float, CultureInfo.InvariantCulture, out var length)
+                && double.IsFinite(length) && length > 0)
                 chart.MeasureLengths[measure] = length;
             return;
         }

@@ -43,20 +43,27 @@ public static partial class BmsParser
     {
         guessed = false;
 
-        if (Path.IsPathRooted(mediaPath))
-            return mediaPath;
-
-        var directPath = Path.GetFullPath(Path.Combine(baseDirectory, mediaPath));
-        if (File.Exists(directPath))
-            return directPath;
-
-        var fileName = Path.GetFileName(mediaPath);
-        if (fileNameIndex.Value.TryGetValue(fileName, out var indexedPath))
+        try
         {
-            guessed = true;
-            return indexedPath;
-        }
+            if (Path.IsPathRooted(mediaPath))
+                return mediaPath;
 
-        return directPath;
+            var directPath = Path.GetFullPath(Path.Combine(baseDirectory, mediaPath));
+            if (File.Exists(directPath))
+                return directPath;
+
+            var fileName = Path.GetFileName(mediaPath);
+            if (!string.IsNullOrEmpty(fileName) && fileNameIndex.Value.TryGetValue(fileName, out var indexedPath))
+            {
+                guessed = true;
+                return indexedPath;
+            }
+
+            return directPath;
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return mediaPath;
+        }
     }
 }

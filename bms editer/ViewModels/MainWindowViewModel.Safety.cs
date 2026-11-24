@@ -75,7 +75,7 @@ public sealed partial class MainWindowViewModel
             var sameDocument = previous?.OriginalPath == FullPathOrNull(documentPath);
             if (previous is not null && sameDocument && content == _lastAutoSnapshotContent)
             {
-                store.UpdateSession(previous);
+                await Task.Run(() => store.UpdateSession(previous));
                 return previous;
             }
 
@@ -92,7 +92,7 @@ public sealed partial class MainWindowViewModel
 
             // 쓰는 사이 사용자가 저장했으면 세션은 이미 "되살릴 것 없음"이다. 덮어쓰지 않는다.
             if (IsDirty)
-                store.UpdateSession(snapshot);
+                await Task.Run(() => store.UpdateSession(snapshot));
 
             return snapshot;
         }

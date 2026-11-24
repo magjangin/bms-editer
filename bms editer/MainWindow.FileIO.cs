@@ -23,7 +23,7 @@ public partial class MainWindow
             : Path.GetDirectoryName(filePathOrFolder);
     }
 
-    private async Task<IStorageFolder?> GetSuggestedFolderAsync(MainWindowViewModel? vm)
+    internal async Task<IStorageFolder?> GetSuggestedFolderAsync(MainWindowViewModel? vm)
     {
         var path = vm?.CurrentFilePath;
         var folder = !string.IsNullOrEmpty(path) ? Path.GetDirectoryName(path) : _lastOpenedFolder;

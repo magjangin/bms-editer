@@ -166,7 +166,7 @@ public sealed class GameProfileCatalog
         {
             try
             {
-                _ = new Regex(table.Pattern, RegexOptions.CultureInvariant);
+                _ = new Regex(table.Pattern, RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(200));
             }
             catch (ArgumentException ex)
             {

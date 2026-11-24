@@ -1,6 +1,5 @@
 using System;
 using System.Runtime.InteropServices;
-using NVorbis;
 using static bms_editer.Services.WinMmNative;
 
 namespace bms_editer.Services;
@@ -110,7 +109,7 @@ public sealed class OggAudioPlayer : IDisposable
     {
         Stop();
 
-        if (_pcmBytes.Length == 0)
+        if (_pcmBytes.Length == 0 || _sampleRate <= 0 || _channels <= 0)
             return;
 
         var speedClamped = Math.Clamp(speed, 0.05, 4.0);
@@ -209,9 +208,13 @@ public sealed class OggAudioPlayer : IDisposable
 
     private int SecondsToByteOffset(double seconds, int blockAlign)
     {
-        var clampedSeconds = Math.Clamp(seconds, 0, DurationSeconds);
-        var byteOffset = (int)(clampedSeconds * _sampleRate * blockAlign);
-        return Math.Clamp(byteOffset - (byteOffset % blockAlign), 0, _pcmBytes.Length);
+        if (blockAlign <= 0 || !double.IsFinite(seconds))
+            return 0;
+
+        var clampedSeconds = Math.Clamp(seconds, 0, Math.Max(0, DurationSeconds));
+        var byteOffset = (long)(clampedSeconds * _sampleRate * blockAlign);
+        var aligned = byteOffset - (byteOffset % blockAlign);
+        return (int)Math.Clamp(aligned, 0, _pcmBytes.Length);
     }
 
     private static void ThrowIfFailed(int result)

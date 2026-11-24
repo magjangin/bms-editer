@@ -195,10 +195,26 @@ public sealed partial class MainWindowViewModel
             return;
         }
 
+        if ((SelectedProfile is null || SelectedProfile.IsNone)
+            && HoldResult.Links.Count == 0
+            && HoldResult.Diagnostics.Count == 0
+            && _holdNotes.Count == 0
+            && HoldProblemNotes.Count == 0
+            && string.IsNullOrEmpty(HoldSummaryText))
+        {
+            return;
+        }
+
         var result = HoldPairingEngine.Pair(Chart.Notes, BuildWavTexts(), SelectedProfile);
 
         HoldResult = result;
-        _holdNotes = new HashSet<BmsNote>(result.Links.SelectMany(link => new[] { link.Head, link.Tail }));
+        var holdNotes = new HashSet<BmsNote>(result.Links.Count * 2);
+        foreach (var link in result.Links)
+        {
+            holdNotes.Add(link.Head);
+            holdNotes.Add(link.Tail);
+        }
+        _holdNotes = holdNotes;
         HoldProblemNotes = result.Diagnostics
             .Where(d => d.Severity == HoldDiagnosticSeverity.Error)
             .Select(d => d.Note)

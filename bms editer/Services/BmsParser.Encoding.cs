@@ -116,7 +116,7 @@ public static partial class BmsParser
             }
 
             var text = candidate.GetString(bytes);
-            var resolved = CountResolvableMedia(text, directory, fileNameIndex.Value);
+            var resolved = CountResolvableMedia(text, directory, fileNameIndex);
             var score = ScoreLegacyText(text);
 
             if (resolved > bestResolved || (resolved == bestResolved && score > bestScore))
@@ -137,7 +137,7 @@ public static partial class BmsParser
         return (SplitLines(bestText), bestEncoding);
     }
 
-    private static int CountResolvableMedia(string text, string directory, Dictionary<string, string> fileNameIndex)
+    private static int CountResolvableMedia(string text, string directory, Lazy<Dictionary<string, string>> fileNameIndex)
     {
         var found = 0;
 
@@ -157,16 +157,17 @@ public static partial class BmsParser
 
             try
             {
-                if (fileNameIndex.ContainsKey(Path.GetFileName(mediaPath)))
+                if (directory.Length > 0 && File.Exists(Path.Combine(directory, mediaPath)))
                 {
                     found++;
                     continue;
                 }
 
-                if (directory.Length > 0 && File.Exists(Path.Combine(directory, mediaPath)))
+                var fileName = Path.GetFileName(mediaPath);
+                if (!string.IsNullOrEmpty(fileName) && fileNameIndex.Value.ContainsKey(fileName))
                     found++;
             }
-            catch (ArgumentException)
+            catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
             {
                 // 깨진 파일명에 경로로 못 쓰는 글자가 섞인 경우. 못 찾은 것으로 친다.
             }

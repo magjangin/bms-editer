@@ -38,6 +38,7 @@ public sealed record SnapshotInfo(
 
         try
         {
+            Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
             return Encoding.GetEncoding(CodePage);
         }
         catch (Exception ex) when (ex is ArgumentException or NotSupportedException)
@@ -160,8 +161,18 @@ public sealed class DocumentSnapshotStore
 
         var bytes = File.ReadAllBytes(filePath);
         var latest = ListSnapshots(filePath, SnapshotKind.BeforeSave).FirstOrDefault();
-        if (latest is not null && File.ReadAllBytes(latest.SnapshotPath).AsSpan().SequenceEqual(bytes))
-            return null;
+        if (latest is not null)
+        {
+            try
+            {
+                if (File.ReadAllBytes(latest.SnapshotPath).AsSpan().SequenceEqual(bytes))
+                    return null;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // 직전 사본을 읽지 못하면 새 사본을 남긴다.
+            }
+        }
 
         return WriteSnapshotBytes(filePath, bytes, SnapshotKind.BeforeSave, codePage: 0, hasPreamble: false);
     }
@@ -377,7 +388,12 @@ public sealed class DocumentSnapshotStore
         var tempPath = $"{path}.{Guid.NewGuid():N}.tmp";
         try
         {
-            File.WriteAllBytes(tempPath, bytes);
+            using (var stream = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None))
+            {
+                stream.Write(bytes, 0, bytes.Length);
+                stream.Flush(flushToDisk: true);
+            }
+
             File.Move(tempPath, path, overwrite: true);
         }
         catch

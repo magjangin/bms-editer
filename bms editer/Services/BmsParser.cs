@@ -123,7 +123,8 @@ public static partial class BmsParser
             var bpmMatch = BpmRegex().Match(line);
             if (bpmMatch.Success)
             {
-                if (double.TryParse(bpmMatch.Groups[1].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var tempBpm))
+                if (double.TryParse(bpmMatch.Groups[1].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var tempBpm)
+                    && double.IsFinite(tempBpm) && tempBpm > 0)
                 {
                     parsedBpm = tempBpm;
                 }
@@ -134,7 +135,7 @@ public static partial class BmsParser
             if (extendedBpmMatch.Success)
             {
                 if (double.TryParse(extendedBpmMatch.Groups[2].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var tableBpm)
-                    && tableBpm > 0)
+                    && double.IsFinite(tableBpm) && tableBpm > 0)
                 {
                     chart.BpmTable[extendedBpmMatch.Groups[1].Value.ToUpperInvariant()] = tableBpm;
                 }

@@ -49,24 +49,39 @@ public partial class NoteStatsViewModel : OwnerObservingViewModel
             Refresh();
     }
 
+    private Dictionary<string, string>? _wavFileNamesCache;
+
     // 키음을 추가·삭제하면 번호에 딸린 파일명 표시가 달라진다.
-    protected override void OnWavListChanged() => Refresh();
+    protected override void OnWavListChanged()
+    {
+        _wavFileNamesCache = null;
+        Refresh();
+    }
 
     // 목록을 통째로 갈아끼우기 직전과 직후. 고른 줄을 지켜야 하는 창이 여기에 끼어든다.
     protected virtual void OnBeforeRefresh() { }
 
     protected virtual void OnAfterRefresh() { }
 
-    protected void Refresh()
+    private Dictionary<string, string> GetWavFileNames()
     {
-        var chart = Owner.Chart;
+        if (_wavFileNamesCache is not null)
+            return _wavFileNamesCache;
 
         // 키음 번호 -> 파일명. 같은 번호가 두 번 정의돼 있으면 마지막 것을 쓴다.
         var fileNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (var item in Owner.WavList)
         {
-            fileNames[item.Key] = Path.GetFileName(item.FilePath);
+            fileNames[item.Key] = item.FileName;
         }
+        _wavFileNamesCache = fileNames;
+        return fileNames;
+    }
+
+    protected void Refresh()
+    {
+        var chart = Owner.Chart;
+        var fileNames = GetWavFileNames();
 
         var laneCounts = new Dictionary<string, int>();
         var wavCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);

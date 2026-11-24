@@ -94,6 +94,7 @@ public sealed partial class WavPaletteViewModel : OwnerObservingViewModel
 
     private void RaiseViewModeFlags()
     {
+        OnPropertyChanged(nameof(ViewModeIndex));
         OnPropertyChanged(nameof(IsListMode));
         OnPropertyChanged(nameof(IsMediumMode));
         OnPropertyChanged(nameof(IsLargeMode));

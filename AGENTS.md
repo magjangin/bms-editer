@@ -99,8 +99,8 @@
   ```powershell
   dotnet test
   ```
-  *(현재 513개 단위/스모크 테스트 100% 통과 필수)*
+  *(현재 539개 단위/스모크 테스트 100% 통과 필수)*
 * **배포 산출물 빌드**:
   ```powershell
-  dotnet publish -c Release -p:PublishProfile=win-x64
+  dotnet publish "bms editer/bms editer.csproj" -p:PublishProfile=win-x64
   ```

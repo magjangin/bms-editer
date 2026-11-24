@@ -140,16 +140,18 @@ public sealed class DirtyTrackingTests : IDisposable
     }
 
     [Fact]
-    public void 제목_표시줄이_파일명과_수정_표시를_보여준다()
+    public void 제목_표시줄이_폴더명과_파일명과_수정_표시를_보여준다()
     {
         var vm = new MainWindowViewModel();
         Assert.Equal("제목 없음 - rhythm bms editer", vm.WindowTitle);
 
-        vm.LoadBms(WriteChart());
-        Assert.Equal("chart.bms - rhythm bms editer", vm.WindowTitle);
+        var path = WriteChart();
+        var folder = Path.GetFileName(Path.GetDirectoryName(path));
+        vm.LoadBms(path);
+        Assert.Equal($"{folder}/chart.bms - rhythm bms editer", vm.WindowTitle);
 
         vm.Title = "바뀐 제목";
-        Assert.Equal("*chart.bms - rhythm bms editer", vm.WindowTitle);
+        Assert.Equal($"*{folder}/chart.bms - rhythm bms editer", vm.WindowTitle);
     }
 
     [Fact]

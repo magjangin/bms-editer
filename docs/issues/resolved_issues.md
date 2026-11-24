@@ -5,16 +5,20 @@
 
 > ✅ **해결된 핵심 과제**
 > * **A. 조건 블록(`#RANDOM`/`#IF`/`#SWITCH`)**: 갈래(`BranchId`)와 원래 줄 순서를 추적해 갈래별로 나눠 저장합니다. (2026-09-22 점검에서 줄 배치에 따라 저장 순서가 섞이는 경우를 찾았습니다 → [known_issues A](known_issues.md#-a-조건-블록-저장-순서-남은-것))
-> * **B. 키음 믹싱 재생**: WAV (8/16/24/32bit PCM, IEEE Float, Extensible) 및 OGG 사전 디코딩(`WavDecoder`), `KeySoundPlayer` 다중 채널(`waveOut`) 믹싱 재생 (화음 및 연속 발음 지원). 지연은 [known_issues 의 🟡 항목](known_issues.md#-키음이-배경음보다-늦게-울릴-수-있다).
+> * **B. 키음 믹싱 재생**: WAV (8/16/24/32bit PCM, IEEE Float, Extensible) 및 OGG 사전 디코딩(`WavDecoder`), `KeySoundPlayer` 다중 채널(`waveOut`) 믹싱 재생 (화음 및 연속 발음 지원). 지연은 [L](#-l-프레임-드랍-및-재생-병목-전체-점검-2026-11-09)에서 실측 0.9ms로 해결.
 > * **D. 렌더링 할당 줄이기**: 마디·레인 라벨(`FormattedText`) 캐시, `Notes` 배열 캐시, `NoteStats` 단일 순회. 뷰포트 컬링은 시도했다가 **렌더 무결성 문제로 되돌렸습니다**(`10e1937`) → [known_issues D](known_issues.md#-d-렌더링-비용).
 > * **F. 🎛️ 컨트롤 패널**: 📊 통계 창(보기 전용)은 그대로 두고, 같은 집계를 물려받은 공구함을 툴바에 더했습니다 → [F](#-f-컨트롤-패널-집계에서-키음으로-노트-찾기)
 > * **v0.1.4 게임 프로파일 & 홀드 자동 페어링**: JSON 프로파일 규칙으로 홀드·게이트·페어리 등의 짝을 읽어 격자에 몸통으로 그리고, 편집할 때마다 짝을 검사합니다([사양](../specifications/hold_pairing_spec.md)).
 > * **G. 안전장치 (S-1~S-5·S-7)**: 예외가 나도 앱이 꺼지지 않고 비상 저장, 2분마다 자동 저장과 비정상 종료 뒤 복구, 저장 이력 10벌, 오류 기록은 `%LocalAppData%`, 검색 창의 많은 일괄 작업은 먼저 묻기 → [G](#-g-안전장치)
 > * **H. 2026-09-28 점검**: 폴더를 연달아 열 때 앞 곡 음원이 붙던 문제, 음원이 마디 수보다 길 때 클릭이 엉뚱한 자리에 찍히던 문제, `#PLAYER 4`·`#RANK 4` 가 바뀌던 문제, 곡 폴더 이름으로 게임을 잘못 추정하던 문제, 프로파일 JSON 의 `null` 하나에 앱이 안 켜지던 문제 등 7건 → [H](#-h-2026-09-28-점검에서-찾아-고친-것)
 > * **I. 2026-10-01 점검의 작은 것**: 마디 번호 한 줄 때문에 차트가 안 열리던 문제, 터키어 문화권에서 키가 어긋나던 문제, 검색 창의 마디 범위·"숨기기" 필터, 타임라인 길이 공식의 복사본, 메뉴 액세스 키 등 10건 → [I](#-i-2026-10-01-점검에서-찾아-고친-작은-것)
-> * **M. 2026-11 rhythm bms editer 리브랜딩, 아이콘 및 전면 감사 버그 수정**: 브랜드 개편, 멀티사이즈 고해상도 아이콘 생성, #SWITCH/#CASE 분기문 격리 버그 해결, 누락 키음 ⚠️ 뱃지, BGM/키음 볼륨 제어, 드래그앤드롭 및 폴더 기억 (테스트 480개 통과) → [M](#-m-rhythm-bms-editer-리브랜딩-앱-아이콘-재생성-및-전면-감사-버그-수정-2026-11)
-> * **N. 2026-11-14 전체 파일 감사·병목 개선**: 이중 CR 줄바꿈 정상화, 열기 시 홀드 짝짓기 1회로, 홀드 짝짓기 O(N²)→O(N), 키음 디코딩 작업 중복 제거, 범위 선택 색인 재사용, 열기 경고 상태 표시줄 표시, 시간축 상한 (테스트 507개 통과) → [N](#-n-전체-파일-감사병목-개선-2026-11-14)
 > * **J. 2026-10-16 재생 및 편집 안전성 긴급 패치**: 재생 멈추는 클릭이 노트를 찍거나 지우는 문제(P-1), 새 차트 열 때 재생 정지 누락(S-8), 정지 시 키음 잔향 지속(S-9), 곡 끝에서 재생 시 처음 복귀(P-8), 정적 브러시 멀티스레드 렌더 동시성 버그 해결 → [J](#-j-재생-및-편집-안전성-긴급-패치)
+> * **K. 2026-11-07 사용성·재생 안정성 및 빌드 환경 개선**: 격자 스크럽 오프셋, OGG 잔존 정리, G/D 단축키, Space 포커스 독립성, 키음 캐시 정리, MSB3277 경고 0개 → [K](#-k-사용성재생-안정성-및-빌드-환경-개선-2026-11-07)
+> * **L. 2026-11-09 프레임 드랍 및 재생 병목 전체 점검**: 재생 커서 전용 층, 격자/노트 컬링, 샘플 단위 키음 예약(지연 37.4ms → 0.9ms), 소프트 리미터 → [L](#-l-프레임-드랍-및-재생-병목-전체-점검-2026-11-09)
+> * **M. 2026-11 rhythm bms editer 리브랜딩, 아이콘 및 전면 감사 버그 수정**: 브랜드 개편, 멀티사이즈 고해상도 아이콘 생성, #SWITCH/#CASE 분기문 격리 버그 해결, 누락 키음 ⚠️ 뱃지, BGM/키음 볼륨 제어, 드래그앤드롭 및 폴더 기억 → [M](#-m-rhythm-bms-editer-리브랜딩-앱-아이콘-재생성-및-전면-감사-버그-수정-2026-11)
+> * **N. 2026-11-14 전체 파일 감사·병목 개선**: 이중 CR 줄바꿈 정상화, 열기 시 홀드 짝짓기 1회로, 홀드 짝짓기 O(N²)→O(N), 키음 디코딩 작업 중복 제거, 범위 선택 색인 재사용, 열기 경고 상태 표시줄 표시, 시간축 상한 → [N](#-n-전체-파일-감사병목-개선-2026-11-14)
+> * **O. 2026-11-14 전체 코드베이스 리팩토링·병목 제거 및 Undo/Redo 구현**: `NoteGridControl` 3분할, `WinMmNative`·`ToolWindowInputHelper` 통합, 100단계 Undo/Redo(메모리 공유·재생 중 비활성화) → [O](#-o-전체-코드베이스-리팩토링병목-제거-및-undoredo-구현-2026-11-14)
+> * **P. 2026-11-24 전체 파일 감사·업데이트 내성 강화 및 v0.1.7 릴리즈**: BPM 변경 후 재생 크래시 수정, `waveOut` 오류 자동 복구, WebView2 `ScrollViewer` 교차 클리핑(25-2) 및 COM 내성, `PlaceNote`/`RemoveNote` 버킷 조회, `BmsWavItem.IsMissing` 캐싱, 창 제목 폴더명(S-13), 음원 없음 안내(P-7), PUMP IT UP RISE 5키 정정 (테스트 **539개** 통과) → [P](#-p-전체-파일-감사-업데이트-내성-강화-및-v017-릴리즈-2026-11-24)
 
 ---
 
@@ -67,7 +71,7 @@
 > 📊 통계 창은 **보기 전용으로 남겨 두었습니다.** 숫자만 볼 때 잘못 눌러 수백 개가 바뀌는 일이 없고,
 > 집계 규칙은 `NoteStatsViewModel` 한 곳뿐이라 두 창의 숫자가 갈라지지 않습니다.
 
-> 되돌리기가 아직 없으므로([C](known_issues.md#-c-undo--redo)), 컨트롤 패널의 **일괄 삭제는 늘 먼저 물어봅니다.**
+> (구현 당시에는 되돌리기가 없어서) 컨트롤 패널의 **일괄 삭제는 늘 먼저 물어봅니다.** (현재는 `Ctrl+Z` 되돌리기도 함께 지원합니다 → [O](#-o-전체-코드베이스-리팩토링병목-제거-및-undoredo-구현-2026-11-14))
 > (검색 창의 [삭제]·[번호 일괄 변경]은 20개 이상일 때만 묻습니다 — S-5, `aa685e4`)
 > 확인 창을 띄울 길이 없으면(`ConfirmAsync` 가 없으면) 아무것도 지우지 않습니다.
 
@@ -77,9 +81,9 @@
 
 ## 🛟 G. 안전장치
 
-`aa685e4` 에서 2026-09-23 점검의 S-1~S-5·S-7 을 한꺼번에 고쳤습니다([점검 때 적었던 원래 기록](#-점검-때-적었던-원래-기록)). S-6(좌클릭 즉시 배치)은 되돌리기([C](known_issues.md#-c-undo--redo))의 몫이라 남겨 두었습니다.
+`aa685e4` 에서 2026-09-23 점검의 S-1~S-5·S-7 을 한꺼번에 고쳤습니다([점검 때 적었던 원래 기록](#-점검-때-적었던-원래-기록)). S-6(좌클릭 즉시 배치)은 이후 [O](#-o-전체-코드베이스-리팩토링병목-제거-및-undoredo-구현-2026-11-14)의 Undo/Redo로 해결되었습니다.
 
-**파일은 전부 `%LocalAppData%\bms editer\` 아래에 있습니다.** 파일 메뉴의 **[자동 저장·오류 기록 폴더 열기]** 로 바로 열립니다.
+**파일은 전부 `%LocalAppData%\rhythm bms editer\` 아래에 있습니다** (구버전 `bms editer` 폴더는 자동 마이그레이션). 파일 메뉴의 **[자동 저장·오류 기록 폴더 열기]** 로 바로 열립니다.
 
 | 폴더 | 무엇이 있나 |
 |------|-------------|
@@ -294,7 +298,7 @@
 
 ---
 
-## 🛠️ K. 사용성·재생 안정성 및 빌드 환경 개선 (2026-11-07)
+## 🔧 K. 사용성·재생 안정성 및 빌드 환경 개선 (2026-11-07)
 
 * **4번 (격자 스크럽 & 커서 추적 오프셋 누락 해결)**:
   - 파형 컨트롤과 달리 메인 창 격자 표면 스크러빙(`ScrubFromEditorSurface`)과 재생바 뷰포트 자동 추적(`FollowPlaybackCursorIfNeeded`)에서 `AudioOffsetSeconds`가 누락되어 오프셋 설정 시 커서 위치가 어긋나던 문제를 `vm.PlaybackCursorRatio` 및 오프셋 계산식 보정으로 일치시켰습니다.
@@ -404,8 +408,7 @@
 총 507개 단위·스모크 테스트 통과(새 회귀 테스트 18개는 `AuditRegressionTests`).
 
 ### 1. 저장소 위생
-* **N-1: 이중 CR 줄바꿈 정상화**: `KeySoundPlayer.cs`·`BmsParser.cs`·`MainWindow.axaml` 등 7개 파일이 `
-` 으로 저장돼 git 이 바이너리(`-text`)로 다뤘다. 그래서 `ef66b44`·`6b26505` 의 diff 가 파일 통째 교체로만 보였다. 줄바꿈만 정상화하고 `.gitattributes`(`* text=auto`)로 재발을 막았다.
+* **N-1: 이중 CR 줄바꿈 정상화**: `KeySoundPlayer.cs`·`BmsParser.cs`·`MainWindow.axaml` 등 7개 파일이 `\r\r\n` 으로 저장돼 git 이 바이너리(`-text`)로 다뤘다. 그래서 `ef66b44`·`6b26505` 의 diff 가 파일 통째 교체로만 보였다. 줄바꿈만 정상화하고 `.gitattributes`(`* text=auto`)로 재발을 막았다.
 * **N-2: MainWindow 부분 클래스 들여쓰기**: file-scoped namespace 인데 멤버가 8칸이었다. 공백만 고쳤다.
 
 ### 2. 병목
@@ -428,7 +431,7 @@
 
 ---
 
-## 🛠️ O. 전체 코드베이스 리팩토링·병목 제거 및 Undo/Redo 구현 (2026-11-14)
+## 🔧 O. 전체 코드베이스 리팩토링·병목 제거 및 Undo/Redo 구현 (2026-11-14)
 
 총 511개 단위·스모크 테스트 통과(새 회귀 테스트 4개 포함, 경고 0개).
 
@@ -463,3 +466,33 @@
 * **O-8: 재생 중에는 되돌리기·다시 실행을 끈다**:
   - `Undo()`/`Redo()` 는 재생 중 아무것도 하지 않는데 `CanUndo`/`CanRedo` 가 재생 여부를 보지 않아 메뉴가 켜져 있었습니다. 이제 `IsPlaying` 이면 꺼지고, `OnIsPlayingChanged` 에서 명령 상태를 다시 알립니다.
 * 회귀 테스트 2개 추가(`AuditRegressionTests`), 총 513개 통과.
+
+---
+
+## 🧱 P. 전체 파일 감사, 업데이트 내성 강화 및 v0.1.7 릴리즈 (2026-11-24)
+
+총 **539개** 단위·스모크 테스트 100% 통과(새 회귀 테스트 10개 추가, 빌드 경고 0개).
+
+### 1. 치명 버그 및 오디오·복구·UI 내성 강화
+* **P-1 (치명): BPM 변경 후 재생 시 `IndexOutOfRangeException` 크래시 수정**
+  - `MainWindowViewModel.InvalidateTimeline()` 이 `_sortedNoteSecondsCache` 만 비우고 `_sortedNotesCache` 를 남겨 두어, BPM 변경 뒤 재재생 시 `_playbackNoteSeconds` 가 빈 배열이 되던 결함을 수정했습니다. 재생 중 BPM 변경 시에도 `_playbackNotes`/`_playbackNoteSeconds` 를 즉시 재구축합니다.
+* **P-2: `KeySoundPlayer` `waveOut` 오류 시 믹서 스레드 영구 데드락 방지**
+  - `WaveOutPrepareHeader`/`WaveOutWrite` 반환값이 실패(`!= 0`)이면 `CloseWaveOut()` 후 다음 루프에서 장치를 재오픈 복구하도록 보강했습니다.
+* **P-3: `DocumentSnapshotStore` 복구 인코딩·원자적 플러시 강화**
+  - `SnapshotInfo.GetEncoding()` 에서 `CodePagesEncodingProvider` 등록을 보장해 앱 시작 직후 CP932/CP949 복구 시 인코딩이 유실되던 문제를 막고, `WriteAtomically` 에 `Flush(flushToDisk: true)` 와 `CopyBeforeOverwrite` IO 예외 방어를 추가했습니다.
+* **P-4: `VideoPreviewControl` `ScrollViewer` 교차 클리핑(25-2) 및 WebView2 COM 내성**
+  - 조상 `ScrollViewer.ScrollChanged`, `TopLevel.ScalingChanged`, `Window.PositionChanged` 를 구독하고 `UpdateBounds()` 가 조상 뷰포트·창 경계와 교차 클리핑하도록 구현했습니다.
+  - WebView2 COM 호출부 예외 방어, `ProcessFailed` 처리, `ExecuteScriptAsync` 미관찰 예외 차단, `Render()` 로컬 좌표(`new Rect(Bounds.Size)`) 보정을 적용했습니다.
+* **P-5: `WavDecoder`·`OggDecoder`·`OggAudioPlayer`·`ChartTimeline`·`BmsParser`·`BmsWriter` 입력 내성**
+  - `WavDecoder.DecodeOgg` 잔여 샘플 인덱스 오류 수정, `data`-선행 WAV 지원, 미지원 청크 `stream.Seek` (불필요한 힙 할당 제거), `NaN`/오버플로우 방어.
+  - `OggDecoder`/`OggAudioPlayer` `long` 기반 버퍼/오프셋 계산 및 0채널 가드.
+  - `BmsParser`/`ChartTimeline` `double.IsFinite`·`NaN` 가드 및 잘못된 `#WAV` 경로 예외 방어.
+  - `BmsWriter` 2자리/3자리 동일 번호(`01`/`001`) `#WAV` 중복 출력 방지, `UidTypeResolver` 대소문자 비교 수정 및 정규식 타임아웃(ReDoS 방어).
+  - `AppDataPaths` `Lazy<string>` 1회 마이그레이션, `ErrorLog` `FileMode.CreateNew` 원자적 생성, `WavKey.Format` 음수/범위 가드.
+
+### 2. 병목 제거 및 편집·사용성 개선
+* **P-6: `PlaceNote` / `RemoveNote` O(N) 선형 탐색 제거** — `(LaneId, Measure)` 지연 버킷 캐시 도입, 동일 키음 재클릭 시 무변경 Dirty 방지.
+* **P-7: `BmsWavItem.IsMissing` 캐싱 & `HoldRenderIndex` 브러시/펜 사전 캐싱 & `NoteStatsViewModel` 파일명 맵 캐싱** — UI 바인딩 시 반복 `File.Exists()` I/O 와 매 프레임 `lock`/딕셔너리 조회 제거.
+* **P-8: `MainWindowViewModel` 상태·수치 안정화** — `ClearOgg()`/`Dispose()` 시 진행 중 OGG 로드 무효화, `UndoRedo` 시 `MeasureCount` 복원, 핵심 수치 프로퍼티(`Bpm`·`PlaybackSpeed`·`AudioOffsetMs`·`BeatSplit`·`GridMeasure`·`RowHeight`) `IsFinite` + `Math.Clamp` 방어, `AutoSaveInBackgroundAsync` 세션 쓰기 백그라운드화.
+* **P-9: 잔여 UX 항목 해결** — 창 제목에 곡 폴더명 병기(`S-13`), 배경 음원 없이 재생 시 상태 표시줄 안내(`P-7`), 검색 창 3자리 차트 전환 시 `WavKeyTo` 자동 `"ZZZ"` 갱신, `PointerCaptureLost` 복구, `HandleEditorKey` 수식키 가드, `WavPaletteWindow` 마지막 폴더 기억 연동, `MainWindow.axaml` 슬라이더 `Focusable="False"` 통일.
+* **P-10: PUMP IT UP RISE 5키 채널 매핑 정정(`16, 11~14`) 및 전체 문서·링크 최신화**.

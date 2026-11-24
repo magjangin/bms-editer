@@ -274,7 +274,7 @@ HoldPairingResult Pair(IReadOnlyList<BmsNote> notes,
 
 ### 홀드 몸통 ([`NoteGridControl.DrawHoldBodies`](../../bms%20editer/Views/Controls/NoteGridControl.cs))
 
-* 시작·끝의 화면 좌표를 **각각** 노트와 같은 `ComputeNoteTPos`(= `ChartTimeline.SecondsAt(measure + position)`) 로 구합니다.
+* 시작·끝의 화면 좌표를 **각각** 노트와 같은 `NoteAxis.Position`(= `ChartTimeline.SecondsAt(measure + position)`) 로 구합니다.
 * **마디 단위 선형 보간으로 몸통을 늘리지 않습니다.** BPM 변화(`#xxx03`/`#xxx08`)나 변박(`#xxx02`) 구간을 지나는 홀드의 끝이 어긋납니다.
   [`bpm_sync_principles.md`](../architecture/bpm_sync_principles.md) 가 같은 이유로 만들어진 규칙입니다.
 * 세로·가로 보기 둘 다 그립니다. 몸통은 레인 폭의 44% 로 레인 가운데에 놓여, 몸통 위의 다른 노트가 묻히지 않습니다.
@@ -355,9 +355,9 @@ HoldPairingResult Pair(IReadOnlyList<BmsNote> notes,
 | **P1** | `KeyValue` + 페어링 엔진 + 검사기 + 몸통 렌더 | ✅ v0.1.4 |
 | **P2** | `FileNameKeyword` | ✅ v0.1.4 |
 | **P3** | 출현 순서 방식(`FileNameBase`·`FileNameUid` + `Alternate`) + `ParityBreak` | ✅ v0.1.4 |
-| **P4** | 드래그로 홀드 배치(§13) | ⬜ 되돌리기(Undo) 뒤로 미룸 |
+| **P4** | 드래그로 홀드 배치(§13) | ⬜ 예정 (Undo/Redo 구현 완료로 착수 가능) |
 
-P0~P3 은 **읽고 보여주기만** 하므로 되돌리기가 없어도 안전합니다. P4 만 파일을 바꾸므로 [B-1 되돌리기](../issues/authoring_time.md) 뒤입니다.
+P0~P3 은 **읽고 보여주기만** 하는 단계이며, P4 는 파일을 직접 바꾸는 편집 기능입니다([B-1 되돌리기](../issues/authoring_time.md) 완료).
 
 ### 수용 조건
 

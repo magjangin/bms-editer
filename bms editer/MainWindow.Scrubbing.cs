@@ -53,6 +53,11 @@ public partial class MainWindow
         ScrubFromEditorSurface(e, isFinal: true);
     }
 
+    private void OnEditorSurfacePointerCaptureLost(object? sender, PointerCaptureLostEventArgs e)
+    {
+        _isSurfaceScrubbing = false;
+    }
+
     private void ScrubFromEditorSurface(PointerEventArgs e, bool isFinal)
     {
         if (DataContext is not MainWindowViewModel vm || vm.OggDurationSeconds <= 0)

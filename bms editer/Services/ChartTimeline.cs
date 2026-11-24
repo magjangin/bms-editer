@@ -33,12 +33,14 @@ public sealed class ChartTimeline
 
     public ChartTimeline(double baseBpm, IReadOnlyDictionary<int, double> measureLengths, IEnumerable<BpmChange> bpmChanges)
     {
-        _baseBpm = baseBpm > 0 ? baseBpm : 120.0;
-        _measureLengths = measureLengths.ToDictionary(kv => kv.Key, kv => kv.Value);
+        _baseBpm = double.IsFinite(baseBpm) && baseBpm > 0 ? baseBpm : 120.0;
+        _measureLengths = measureLengths
+            .Where(kv => double.IsFinite(kv.Value) && kv.Value > 0)
+            .ToDictionary(kv => kv.Key, kv => kv.Value);
         _bpmAtMeasureStart = new List<double> { _baseBpm };
 
         _changesByMeasure = bpmChanges
-            .Where(c => c.Bpm > 0)
+            .Where(c => double.IsFinite(c.Bpm) && c.Bpm > 0 && double.IsFinite(c.Position))
             .GroupBy(c => c.Measure)
             .ToDictionary(g => g.Key, g => g.OrderBy(c => c.Position).ToList());
 
@@ -61,7 +63,7 @@ public sealed class ChartTimeline
 
     // 마디 하나의 길이 배율. 1.0 이 4/4다. (#xxx02)
     public double GetMeasureLength(int measure) =>
-        _measureLengths.TryGetValue(measure, out var length) && length > 0 ? length : 1.0;
+        _measureLengths.TryGetValue(measure, out var length) && double.IsFinite(length) && length > 0 ? length : 1.0;
 
     // 마디 위치(마디 + 마디 안 0~1)를 곡 시작부터의 초로 바꾼다.
     public double SecondsAt(double measurePosition)
@@ -107,8 +109,11 @@ public sealed class ChartTimeline
     // 곡 시작부터의 초를 마디 위치로 되돌린다. 클릭한 자리를 마디로 옮길 때 쓴다.
     public double MeasurePositionAt(double seconds)
     {
-        if (seconds <= 0)
+        if (double.IsNaN(seconds) || seconds <= 0)
             return 0;
+
+        if (double.IsPositiveInfinity(seconds))
+            return MaxMeasure;
 
         var measure = FindMeasureContaining(seconds);
 

@@ -1,6 +1,7 @@
 using System;
 using System.Globalization;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Avalonia;
@@ -36,6 +37,10 @@ public sealed class VideoPreviewControl : Control, IDisposable
     private FormattedText? _cachedStatusFormattedText;
     private int _videoRequestVersion;
 
+    private ScrollViewer? _ancestorScrollViewer;
+    private TopLevel? _attachedTopLevel;
+    private Window? _attachedWindow;
+
     public VideoPreviewControl()
     {
         ClipToBounds = true;
@@ -43,7 +48,7 @@ public sealed class VideoPreviewControl : Control, IDisposable
 
     public override void Render(DrawingContext context)
     {
-        context.FillRectangle(BackgroundBrush, Bounds);
+        context.FillRectangle(BackgroundBrush, new Rect(Bounds.Size));
         if (!_hasVideo || _webView is null)
         {
             if (_cachedStatusFormattedText is null || _cachedStatusText != _statusText)
@@ -73,12 +78,44 @@ public sealed class VideoPreviewControl : Control, IDisposable
         _lastAppliedBounds = null;
 
         LayoutUpdated += OnLayoutUpdated;
+
+        _ancestorScrollViewer = this.FindAncestorOfType<ScrollViewer>();
+        if (_ancestorScrollViewer is not null)
+            _ancestorScrollViewer.ScrollChanged += OnAncestorScrollChanged;
+
+        _attachedTopLevel = TopLevel.GetTopLevel(this);
+        if (_attachedTopLevel is not null)
+            _attachedTopLevel.ScalingChanged += OnScalingChanged;
+
+        _attachedWindow = _attachedTopLevel as Window;
+        if (_attachedWindow is not null)
+            _attachedWindow.PositionChanged += OnWindowPositionChanged;
+
         _ = EnsureWebViewAsync();
     }
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
         LayoutUpdated -= OnLayoutUpdated;
+
+        if (_ancestorScrollViewer is not null)
+        {
+            _ancestorScrollViewer.ScrollChanged -= OnAncestorScrollChanged;
+            _ancestorScrollViewer = null;
+        }
+
+        if (_attachedTopLevel is not null)
+        {
+            _attachedTopLevel.ScalingChanged -= OnScalingChanged;
+            _attachedTopLevel = null;
+        }
+
+        if (_attachedWindow is not null)
+        {
+            _attachedWindow.PositionChanged -= OnWindowPositionChanged;
+            _attachedWindow = null;
+        }
+
         Dispose();
         base.OnDetachedFromVisualTree(e);
     }
@@ -91,21 +128,29 @@ public sealed class VideoPreviewControl : Control, IDisposable
         _statusText = "비디오 로딩 중";
         InvalidateVisual();
 
-        await EnsureWebViewAsync();
-        if (_disposed || version != _videoRequestVersion)
-            return;
-
-        if (_webView is null)
+        try
         {
-            _statusText = "비디오 엔진 초기화 실패";
-            InvalidateVisual();
-            return;
-        }
+            await EnsureWebViewAsync();
+            if (_disposed || version != _videoRequestVersion)
+                return;
 
-        MapVideoFolder(filePath);
-        _webView.NavigateToString(BuildVideoHtml(filePath, _lastRequestedSeconds));
-        UpdateBounds();
-        PauseAt(_lastRequestedSeconds);
+            if (_webView is null)
+            {
+                _statusText = "비디오 엔진 초기화 실패";
+                InvalidateVisual();
+                return;
+            }
+
+            MapVideoFolder(filePath);
+            _webView.NavigateToString(BuildVideoHtml(filePath, _lastRequestedSeconds));
+            UpdateBounds();
+            PauseAt(_lastRequestedSeconds);
+        }
+        catch (Exception ex) when (ex is COMException or ObjectDisposedException or InvalidOperationException)
+        {
+            _statusText = "비디오 로드 오류";
+            InvalidateVisual();
+        }
     }
 
     public async void ClearVideo()
@@ -117,11 +162,18 @@ public sealed class VideoPreviewControl : Control, IDisposable
         _statusText = "VIDEO";
         InvalidateVisual();
 
-        await EnsureWebViewAsync();
-        if (_disposed || version != _videoRequestVersion)
-            return;
+        try
+        {
+            await EnsureWebViewAsync();
+            if (_disposed || version != _videoRequestVersion)
+                return;
 
-        _webView?.NavigateToString(BuildEmptyHtml());
+            _webView?.NavigateToString(BuildEmptyHtml());
+        }
+        catch (Exception ex) when (ex is COMException or ObjectDisposedException or InvalidOperationException)
+        {
+            // 컨트롤러가 이미 닫힌 경우 무시한다.
+        }
     }
 
     private double _playbackRate = 1.0;
@@ -189,9 +241,24 @@ public sealed class VideoPreviewControl : Control, IDisposable
     public void Dispose()
     {
         _disposed = true;
-        _webView = null;
-        _controller?.Close();
-        _controller = null;
+        if (_webView is not null)
+        {
+            _webView.ProcessFailed -= OnWebViewProcessFailed;
+            _webView = null;
+        }
+
+        if (_controller is not null)
+        {
+            try
+            {
+                _controller.Close();
+            }
+            catch (Exception ex) when (ex is COMException or ObjectDisposedException or InvalidOperationException)
+            {
+                // 종료 중 WebView2 COM 해제 오류는 무시한다.
+            }
+            _controller = null;
+        }
     }
 
     private async Task EnsureWebViewAsync()
@@ -241,6 +308,7 @@ public sealed class VideoPreviewControl : Control, IDisposable
             _controller.IsVisible = IsEffectivelyVisible;
 
             _webView = _controller.CoreWebView2;
+            _webView.ProcessFailed += OnWebViewProcessFailed;
             _webView.Settings.AreDefaultContextMenusEnabled = false;
             _webView.Settings.AreDevToolsEnabled = false;
             _webView.NavigateToString(BuildEmptyHtml());
@@ -263,6 +331,50 @@ public sealed class VideoPreviewControl : Control, IDisposable
 
     private void OnLayoutUpdated(object? sender, EventArgs e) => UpdateBounds();
 
+    private void OnAncestorScrollChanged(object? sender, ScrollChangedEventArgs e) => UpdateBounds();
+
+    private void OnScalingChanged(object? sender, EventArgs e) => UpdateBounds();
+
+    private void OnWindowPositionChanged(object? sender, PixelPointEventArgs e)
+    {
+        if (_controller is null)
+            return;
+
+        try
+        {
+            _controller.NotifyParentWindowPositionChanged();
+        }
+        catch (Exception ex) when (ex is COMException or ObjectDisposedException or InvalidOperationException)
+        {
+            // 컨트롤러가 닫힌 상태면 무시한다.
+        }
+    }
+
+    private void OnWebViewProcessFailed(object? sender, CoreWebView2ProcessFailedEventArgs e)
+    {
+        if (_webView is not null)
+        {
+            _webView.ProcessFailed -= OnWebViewProcessFailed;
+            _webView = null;
+        }
+
+        if (_controller is not null)
+        {
+            try
+            {
+                _controller.Close();
+            }
+            catch (Exception ex) when (ex is COMException or ObjectDisposedException or InvalidOperationException)
+            {
+            }
+            _controller = null;
+        }
+
+        _initializationTask = null;
+        _statusText = "비디오 엔진이 중단되었습니다";
+        InvalidateVisual();
+    }
+
     private void UpdateBounds()
     {
         if (_controller is null)
@@ -276,14 +388,30 @@ public sealed class VideoPreviewControl : Control, IDisposable
         if (origin is null)
             return;
 
-        var scale = topLevel.RenderScaling;
-        var bounds = new DrawingRectangle(
-            (int)Math.Round(origin.Value.X * scale),
-            (int)Math.Round(origin.Value.Y * scale),
-            Math.Max(1, (int)Math.Round(Bounds.Width * scale)),
-            Math.Max(1, (int)Math.Round(Bounds.Height * scale)));
+        // WebView2 HWND 는 Avalonia ClipToBounds 의 영향을 받지 않으므로,
+        // 조상 ScrollViewer 뷰포트 및 창 클라이언트 영역과 교차한 사각형으로 직접 잘라낸다. (25-2)
+        var visibleRect = new Rect(origin.Value, Bounds.Size);
+        if (_ancestorScrollViewer is not null)
+        {
+            var scrollOrigin = _ancestorScrollViewer.TranslatePoint(new Point(0, 0), topLevelVisual);
+            if (scrollOrigin is not null)
+            {
+                var scrollRect = new Rect(scrollOrigin.Value, _ancestorScrollViewer.Bounds.Size);
+                visibleRect = visibleRect.Intersect(scrollRect);
+            }
+        }
 
-        var isVisible = IsEffectivelyVisible && Bounds.Width > 0 && Bounds.Height > 0;
+        visibleRect = visibleRect.Intersect(new Rect(new Point(0, 0), topLevel.Bounds.Size));
+
+        var scale = topLevel.RenderScaling;
+        var isVisible = IsEffectivelyVisible && visibleRect.Width > 0 && visibleRect.Height > 0;
+        var bounds = isVisible
+            ? new DrawingRectangle(
+                (int)Math.Round(visibleRect.X * scale),
+                (int)Math.Round(visibleRect.Y * scale),
+                Math.Max(1, (int)Math.Round(visibleRect.Width * scale)),
+                Math.Max(1, (int)Math.Round(visibleRect.Height * scale)))
+            : new DrawingRectangle(0, 0, 1, 1);
 
         // LayoutUpdated 는 창 어디서든 배치가 돌면 불린다. 바뀐 게 없으면 COM 호출을 보내지 않는다.
         if (bounds == _lastAppliedBounds && isVisible == _lastAppliedVisibility)
@@ -292,9 +420,20 @@ public sealed class VideoPreviewControl : Control, IDisposable
         _lastAppliedBounds = bounds;
         _lastAppliedVisibility = isVisible;
 
-        _controller.IsVisible = isVisible;
-        _controller.Bounds = bounds;
-        _controller.NotifyParentWindowPositionChanged();
+        try
+        {
+            _controller.IsVisible = isVisible;
+            if (isVisible)
+            {
+                _controller.Bounds = bounds;
+                _controller.NotifyParentWindowPositionChanged();
+            }
+        }
+        catch (Exception ex) when (ex is COMException or ObjectDisposedException or InvalidOperationException)
+        {
+            _controller = null;
+            _webView = null;
+        }
     }
 
     private DrawingRectangle? _lastAppliedBounds;
@@ -305,7 +444,17 @@ public sealed class VideoPreviewControl : Control, IDisposable
         if (!_hasVideo || _webView is null)
             return;
 
-        _ = _webView.ExecuteScriptAsync(script);
+        try
+        {
+            var task = _webView.ExecuteScriptAsync(script);
+            _ = task.ContinueWith(
+                static t => _ = t.Exception,
+                TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously);
+        }
+        catch (Exception ex) when (ex is COMException or ObjectDisposedException or InvalidOperationException)
+        {
+            // 컨트롤러 종료 중 스크립트 실패는 무시한다.
+        }
     }
 
     private void MapVideoFolder(string filePath)

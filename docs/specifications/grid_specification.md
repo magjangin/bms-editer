@@ -40,7 +40,7 @@ BMS 에디터가 처음 구동되거나 차트가 초기화될 때, **마디와 
 `NoteGridControl` 과 `OggWaveformControl` 은 이 열거 결과를 받아 그리기만 하므로 동기화 기준이 완전히 일원화되어 있습니다.
 격자선 계산이 이 함수 밖에서 다시 생기지 않게 하십시오. 규칙은 [`GridLineTests`](../../bms%20editer.Tests/GridLineTests.cs) 가 좌표로 고정합니다.
 
-### 3. 마우스 클릭 배치 시의 스냅 처리 — [`NoteGridControl.PlacementAt`](../../bms%20editer/Views/Controls/NoteGridControl.cs)
+### 3. 마우스 클릭 배치 시의 스냅 처리 — [`NoteGridControl.PlacementAt`](../../bms%20editer/Views/Controls/NoteGridControl.Input.cs)
 
 편집 모드에서 좌클릭으로 노트를 찍거나 우클릭으로 지울 때, 누른 자리를 레인·마디·마디 안 위치로 바꾸는 일은 `PlacementAt` **한 곳**이 맡습니다.
 클릭한 자리를 마디 위치로 되돌리는 일은 격자를 그린 것과 **같은 시간축**(`ChartTimeline.MeasurePositionAt`)이 맡습니다.

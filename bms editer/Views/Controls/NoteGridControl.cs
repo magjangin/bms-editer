@@ -237,6 +237,7 @@ public sealed partial class NoteGridControl : TimelineControlBase
         PointerPressed += OnPointerPressed;
         PointerMoved += OnPointerMovedForSelection;
         PointerReleased += OnPointerReleased;
+        PointerCaptureLost += OnPointerCaptureLost;
     }
 
     protected override Size MeasureOverride(Size availableSize)
@@ -456,18 +457,17 @@ public sealed partial class NoteGridControl : TimelineControlBase
 
             var headLane = holdIndex.HeadLanes[i];
             var tailLane = holdIndex.TailLanes[i];
-            var kind = holdIndex.Kinds[i];
 
             if (headLane == tailLane)
             {
                 var body = ComputeHoldBodyRect(headLane * laneThickness, laneThickness, headPos, tailPos, isHorizontal);
-                context.FillRectangle(GetHoldBrush(kind), body);
+                context.FillRectangle(holdIndex.BodyBrushes[i], body);
             }
             else
             {
                 // 채널을 건너 맺어지는 짝(게임이 여러 채널을 레인 하나로 모으는 게이트 같은 경우)은 선으로 잇는다.
                 context.DrawLine(
-                    GetHoldLinkPen(kind),
+                    holdIndex.LinkPens[i],
                     LaneCenter(headLane, headPos, laneThickness),
                     LaneCenter(tailLane, tailPos, laneThickness));
             }

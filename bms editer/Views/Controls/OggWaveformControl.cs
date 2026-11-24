@@ -53,6 +53,14 @@ public sealed class OggWaveformControl : TimelineControlBase
         PointerPressed += OnPointerPressed;
         PointerMoved += OnPointerMoved;
         PointerReleased += OnPointerReleased;
+        PointerCaptureLost += OnPointerCaptureLost;
+    }
+
+    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+    {
+        base.OnPropertyChanged(change);
+        if (change.Property == TimelineProperty || change.Property == DurationSecondsProperty || change.Property == BpmProperty)
+            _measureLabelCache.Clear();
     }
 
     protected override Size MeasureOverride(Size availableSize)
@@ -171,6 +179,11 @@ public sealed class OggWaveformControl : TimelineControlBase
         _isScrubbing = false;
         e.Pointer.Capture(null);
         RequestScrub(PositionAlongTimeline(e.GetCurrentPoint(this).Position), isFinal: true, e);
+    }
+
+    private void OnPointerCaptureLost(object? sender, PointerCaptureLostEventArgs e)
+    {
+        _isScrubbing = false;
     }
 
     private double PositionAlongTimeline(Point position) => IsHorizontalView ? position.X : position.Y;

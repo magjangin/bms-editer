@@ -574,4 +574,171 @@ public sealed class AuditRegressionTests : IDisposable
             .GetAwaiter()
             .GetResult();
     }
+
+    // ── v0.1.7 전면 감사·내성 강화 회귀 테스트 ─────────────────────────────
+
+    [Fact]
+    public void BPM_변경_후_재생해도_정렬_시각_캐시_불일치로_크래시하지_않는다()
+    {
+        var vm = new MainWindowViewModel();
+        vm.LoadBms(WriteChart("#BPM 120\r\n#WAV01 a.wav\r\n#00111:0100\r\n"));
+
+        // 첫 정렬 캐시 생성
+        var getSorted = typeof(MainWindowViewModel).GetMethod(
+            "GetSortedNotes", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+        var sorted1 = (BmsNote[])getSorted.Invoke(vm, null)!;
+        Assert.Single(sorted1);
+
+        // BPM 변경 -> InvalidateTimeline 호출
+        vm.Bpm = 180;
+
+        var sorted2 = (BmsNote[])getSorted.Invoke(vm, null)!;
+        var secondsField = typeof(MainWindowViewModel).GetField(
+            "_sortedNoteSecondsCache", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+        var seconds = (double[]?)secondsField.GetValue(vm);
+
+        Assert.Single(sorted2);
+        Assert.NotNull(seconds);
+        Assert.Single(seconds!);
+        Assert.Equal(vm.Timeline.SecondsAt(1.0), seconds![0], 6);
+    }
+
+    [Fact]
+    public void 같은_키음_위를_다시_클릭해도_IsDirty가_켜지지_않는다()
+    {
+        var vm = new MainWindowViewModel();
+        vm.LoadBms(WriteChart("#BPM 120\r\n#WAV01 a.wav\r\n#00111:0100\r\n"));
+        Assert.False(vm.IsDirty);
+
+        vm.SelectedWavItem = vm.WavList[0];
+        vm.PlaceNoteCommand.Execute(new NotePlacementArgs("11", 1, 0.0));
+
+        Assert.False(vm.IsDirty);
+    }
+
+    [Fact]
+    public void Undo로_마디_범위_밖_노트가_복원되면_MeasureCount가_함께_늘어난다()
+    {
+        var vm = new MainWindowViewModel();
+        vm.LoadBms(WriteChart("#BPM 120\r\n#WAV01 a.wav\r\n#08011:0100\r\n"));
+        Assert.True(vm.MeasureCount >= 81);
+
+        vm.DeleteNotes(vm.Chart.Notes.ToArray());
+        vm.MeasureCount = 40;
+        Assert.Equal(40, vm.MeasureCount);
+
+        vm.UndoCommand.Execute(null);
+        Assert.Single(vm.Chart.Notes);
+        Assert.True(vm.MeasureCount >= 81);
+    }
+
+    [Fact]
+    public void 검색창이_열린_상태에서_3자리_차트로_바꾸면_WavKeyTo_상한이_ZZZ로_따라간다()
+    {
+        var vm = new MainWindowViewModel();
+        vm.LoadBms(WriteChart("#BPM 120\r\n#WAV01 a.wav\r\n#00111:0100\r\n"));
+
+        using var search = new NoteSearchViewModel(vm);
+        Assert.Equal("ZZ", search.WavKeyTo);
+
+        vm.LoadBms(WriteChart("#BPM 120\r\n#WAV100 a.wav\r\n#00111:100000\r\n"));
+        Assert.Equal("ZZZ", search.WavKeyTo);
+        Assert.Single(search.FindMatches());
+    }
+
+    [Fact]
+    public void 핵심_수치_프로퍼티에_NaN이나_범위밖_값을_넣어도_안전하게_클램핑된다()
+    {
+        var vm = new MainWindowViewModel();
+
+        vm.Bpm = double.NaN;
+        Assert.Equal(120.0, vm.Bpm);
+        vm.Bpm = -50;
+        Assert.Equal(1.0, vm.Bpm);
+
+        vm.PlaybackSpeed = double.PositiveInfinity;
+        Assert.Equal(1.0, vm.PlaybackSpeed);
+        vm.PlaybackSpeed = 0.0;
+        Assert.Equal(0.1, vm.PlaybackSpeed);
+
+        vm.AudioOffsetMs = double.NaN;
+        Assert.Equal(0.0, vm.AudioOffsetMs);
+
+        vm.BeatSplit = 0;
+        Assert.Equal(1, vm.BeatSplit);
+        vm.GridMeasure = -5;
+        Assert.Equal(1, vm.GridMeasure);
+    }
+
+    [Fact]
+    public void ChartTimeline은_NaN과_Infinity_입력을_안전하게_처리한다()
+    {
+        var timeline = new ChartTimeline(
+            double.NaN,
+            new Dictionary<int, double> { [1] = double.PositiveInfinity, [2] = -1.0 },
+            new[] { new BpmChange(1, 0.5, double.PositiveInfinity) });
+
+        Assert.Equal(120.0, timeline.BaseBpm);
+        Assert.Equal(1.0, timeline.GetMeasureLength(1));
+        Assert.Equal(1.0, timeline.GetMeasureLength(2));
+        Assert.Equal(0.0, timeline.MeasurePositionAt(double.NaN));
+        Assert.Equal(10000.0, timeline.MeasurePositionAt(double.PositiveInfinity));
+    }
+
+    [Fact]
+    public void BmsWriter는_2자리와_3자리_동일_번호_WAV를_중복_출력하지_않는다()
+    {
+        var chart = new BmsChart();
+        var wavs = new[]
+        {
+            new BmsWavItem { Key = "01", FilePath = Path.Combine(_directory, "old.wav"), SourceText = "old.wav" },
+            new BmsWavItem { Key = "001", FilePath = Path.Combine(_directory, "new.wav"), SourceText = "new.wav" },
+        };
+
+        var output = BmsWriter.Write(chart, "T", "A", "G", 120, 0, 2, "1", wavs, Path.Combine(_directory, "out.bms"));
+        var wavLines = output.Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries)
+            .Where(l => l.StartsWith("#WAV001 ", StringComparison.Ordinal))
+            .ToArray();
+
+        Assert.Single(wavLines);
+        Assert.Contains("new.wav", wavLines[0]);
+    }
+
+    [Fact]
+    public void WavKey_Format은_음수나_범위초과에도_예외를_던지지_않는다()
+    {
+        Assert.Equal("00", WavKey.Format(-10, 2));
+        Assert.Equal("ZZ", WavKey.Format(999999, 2));
+        Assert.Throws<ArgumentOutOfRangeException>(() => WavKey.Format(1, 0));
+    }
+
+    [Fact]
+    public void NoteGridControl_PlacementAt은_음수_좌표나_0_마디에서_안전하게_null을_반환한다()
+    {
+        var grid = new NoteGridControl
+        {
+            Lanes = new[] { new LaneDefinition("11", "1"), new LaneDefinition("12", "2") },
+            MeasureCount = 8,
+            Bpm = 120,
+            LaneWidth = 40,
+            HorizontalZoom = 1.0,
+        };
+
+        // 음수 X (-10) 는 0번 레인이 아니라 null 이어야 한다.
+        Assert.Null(grid.PlacementAt(new Avalonia.Point(-10, 10)));
+
+        // MeasureCount <= 0 에서도 예외 없이 null
+        grid.MeasureCount = 0;
+        Assert.Null(grid.PlacementAt(new Avalonia.Point(10, 10)));
+    }
+
+    [Fact]
+    public void DocumentSnapshotStore_GetEncoding은_CP932와_CP949를_항상_복원한다()
+    {
+        var cp932 = new SnapshotInfo("a.bms", null, SnapshotKind.Auto, DateTime.UtcNow, 932, false);
+        var cp949 = new SnapshotInfo("b.bms", null, SnapshotKind.Auto, DateTime.UtcNow, 949, false);
+
+        Assert.Equal(932, cp932.GetEncoding()?.CodePage);
+        Assert.Equal(949, cp949.GetEncoding()?.CodePage);
+    }
 }

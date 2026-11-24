@@ -56,6 +56,7 @@
 | 뮤즈 대시 | 4곡 | 44 (홀드 44) | 0 | |
 | DEFLATE | 1곡 | **0** | 0 | 차트에 홀드가 없어 **홀드 규칙은 실제 차트로 확인되지 않았다** |
 | UNBEATABLE | 1곡 (+사본 1) | **0** | 0 | 위와 같다 |
+| PUMP IT UP RISE | 0곡 (미설치/미확인) | — | 0 | `PIURiseCustom` 오라클과 단위 테스트로 검증 (`HoldPairingTests`·`GameOracles`) |
 
 ---
 

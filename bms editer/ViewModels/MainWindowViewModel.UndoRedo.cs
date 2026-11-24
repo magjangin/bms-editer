@@ -147,6 +147,7 @@ public sealed partial class MainWindowViewModel
         }
 
         NotifyNotesChanged();
+        UpdateMeasureCountFromAudio();
         NotifySelectionChanged();
     }
 

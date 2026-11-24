@@ -44,6 +44,10 @@ public sealed partial class NoteSearchViewModel : OwnerObservingViewModel
 
     private int MaxKeyValue => WavKey.MaxValue(KeyWidth);
 
+    private int _lastKeyWidth;
+    private bool _areNoteTypeFiltersUsable;
+    private bool _isHiddenFilterUsable;
+
     public NoteSearchViewModel(MainWindowViewModel owner) : base(owner)
     {
         foreach (var lane in owner.Chart.Lanes)
@@ -51,47 +55,107 @@ public sealed partial class NoteSearchViewModel : OwnerObservingViewModel
             Lanes.Add(new LaneFilterItem(lane));
         }
 
+        _lastKeyWidth = KeyWidth;
         _wavKeyFrom = ToBase36(1);
-        _wavKeyTo = new string('Z', KeyWidth);
+        _wavKeyTo = new string('Z', _lastKeyWidth);
         _replacementWavKey = ToBase36(1);
+        RecomputeFilterUsability(notify: false);
     }
 
     public ObservableCollection<LaneFilterItem> Lanes { get; } = new();
 
-    // "롱"·"숨기기" 필터를 쓸 수 있는지.
-    //
-    // BmsParser 는 편집 대상인 건반 채널(11~18)만 노트로 만들고 전부 Normal 로 둔다.
-    // 롱노트는 노트 종류가 아니라 게임 프로파일이 읽어낸 홀드 짝(MainWindowViewModel.HoldLinks)으로 드러난다.
-    // 해당되는 노트가 없을 때 눌러도 아무 일이 없는 버튼을 켜 두면
-    // "조건을 잘못 넣었나" 하고 사용자만 헤매므로, 해당되는 노트가 생기기 전까지는 잠근다.
-    //
-    // "롱" 필터만 이 값으로 잠근다. "숨기기"는 아래 IsHiddenFilterUsable 이 따로 정한다.
-    // 예전에는 둘이 같은 값을 써서, 홀드가 잡히면 "숨기기"도 켜졌지만 숨긴 노트를 만드는 곳이 없어 늘 0개였다.
-    public bool AreNoteTypeFiltersUsable =>
-        Owner.HoldLinks.Count > 0
-        || Owner.Chart.Notes.Any(n => n.Type is NoteType.LongStart or NoteType.LongEnd);
+    public bool AreNoteTypeFiltersUsable
+    {
+        get
+        {
+            RecomputeFilterUsability(notify: false);
+            return _areNoteTypeFiltersUsable;
+        }
+    }
 
     public string NoteTypeFilterHint => AreNoteTypeFiltersUsable
         ? "노트 종류로 거릅니다 (롱 = 게임 프로파일로 짝지어진 홀드의 시작·끝)"
         : "짝지어진 홀드가 없어 잠겨 있습니다. 오른쪽 패널에서 게임 프로파일을 고르면 홀드 짝을 읽습니다";
 
     // 숨긴 노트(NoteType.Invisible)가 실제로 있을 때만 쓸 수 있다. 이 에디터는 숨긴 노트를 만들지 않으므로 보통은 잠겨 있다.
-    public bool IsHiddenFilterUsable => Owner.Chart.Notes.Any(n => n.Type == NoteType.Invisible);
+    public bool IsHiddenFilterUsable
+    {
+        get
+        {
+            RecomputeFilterUsability(notify: false);
+            return _isHiddenFilterUsable;
+        }
+    }
 
     public string HiddenFilterHint => IsHiddenFilterUsable
         ? "숨긴 노트로 거릅니다"
         : "숨긴 노트가 없어 잠겨 있습니다";
+
+    private void RecomputeFilterUsability(bool notify)
+    {
+        var hasLong = Owner.HoldLinks.Count > 0;
+        var hasHidden = false;
+
+        if (!hasLong || !hasHidden)
+        {
+            foreach (var note in Owner.Chart.Notes)
+            {
+                if (!hasLong && note.Type is NoteType.LongStart or NoteType.LongEnd)
+                    hasLong = true;
+                if (!hasHidden && note.Type == NoteType.Invisible)
+                    hasHidden = true;
+                if (hasLong && hasHidden)
+                    break;
+            }
+        }
+
+        if (notify)
+        {
+            if (_areNoteTypeFiltersUsable != hasLong)
+            {
+                _areNoteTypeFiltersUsable = hasLong;
+                OnPropertyChanged(nameof(AreNoteTypeFiltersUsable));
+                OnPropertyChanged(nameof(NoteTypeFilterHint));
+            }
+
+            if (_isHiddenFilterUsable != hasHidden)
+            {
+                _isHiddenFilterUsable = hasHidden;
+                OnPropertyChanged(nameof(IsHiddenFilterUsable));
+                OnPropertyChanged(nameof(HiddenFilterHint));
+            }
+        }
+        else
+        {
+            _areNoteTypeFiltersUsable = hasLong;
+            _isHiddenFilterUsable = hasHidden;
+        }
+    }
 
     // 짝은 프로파일을 바꾸거나 노트를 고칠 때마다 다시 읽힌다(메인 뷰모델의 RecomputeHolds).
     protected override void OnOwnerPropertyChanged(string? propertyName)
     {
         if (propertyName is nameof(MainWindowViewModel.HoldLinks) or nameof(MainWindowViewModel.Notes))
         {
-            OnPropertyChanged(nameof(AreNoteTypeFiltersUsable));
-            OnPropertyChanged(nameof(NoteTypeFilterHint));
-            OnPropertyChanged(nameof(IsHiddenFilterUsable));
-            OnPropertyChanged(nameof(HiddenFilterHint));
+            RecomputeFilterUsability(notify: true);
+            SyncKeyWidthRangeIfDefault();
         }
+    }
+
+    protected override void OnWavListChanged() => SyncKeyWidthRangeIfDefault();
+
+    // 창을 연 채 2자리 <-> 3자리 차트로 전환했을 때 기본 상한("ZZ" <-> "ZZZ")을 따라가게 한다.
+    private void SyncKeyWidthRangeIfDefault()
+    {
+        var currentWidth = KeyWidth;
+        if (currentWidth == _lastKeyWidth)
+            return;
+
+        var previousDefaultMax = new string('Z', _lastKeyWidth);
+        if (string.Equals(WavKeyTo.Trim(), previousDefaultMax, StringComparison.OrdinalIgnoreCase))
+            WavKeyTo = new string('Z', currentWidth);
+
+        _lastKeyWidth = currentWidth;
     }
 
     // 대상 노트 - 선택 상태
@@ -197,9 +261,9 @@ public sealed partial class NoteSearchViewModel : OwnerObservingViewModel
         var matches = FindMatches();
 
         if (matches.Count >= ConfirmThreshold && !await ConfirmBulkAsync(
-                $"조건에 맞는 노트 {matches.Count}개를 지웁니다.\n\n" +
-                "되돌리기가 없어서 지운 노트는 되살릴 수 없습니다.\n\n" +
-                "그래도 지울까요?",
+                $"조건에 맞는 노트 {matches.Count}개를 한꺼번에 지웁니다.\n\n" +
+                "(실행 후 Ctrl+Z로 되돌릴 수 있습니다.)\n\n" +
+                "진행할까요?",
                 "지우지 않았습니다."))
         {
             return;
@@ -285,9 +349,9 @@ public sealed partial class NoteSearchViewModel : OwnerObservingViewModel
         // 이미 그 번호인 노트는 바뀌지 않으므로 세지 않는다.
         var toChange = matches.Count(note => !string.Equals(note.WavKey, normalizedKey, StringComparison.OrdinalIgnoreCase));
         if (toChange >= ConfirmThreshold && !await ConfirmBulkAsync(
-                $"조건에 맞는 노트 {toChange}개의 키음 번호를 {normalizedKey}(으)로 바꿉니다.\n\n" +
-                "되돌리기가 없어서 원래 번호로 되돌릴 수 없습니다.\n\n" +
-                "그래도 바꿀까요?",
+                $"조건에 맞는 노트 {toChange}개의 키음 번호를 {normalizedKey}(으)로 한꺼번에 바꿉니다.\n\n" +
+                "(실행 후 Ctrl+Z로 되돌릴 수 있습니다.)\n\n" +
+                "진행할까요?",
                 "바꾸지 않았습니다."))
         {
             return;

@@ -70,14 +70,16 @@ public sealed partial class NoteGridControl
     public NotePlacementArgs? PlacementAt(Point point)
     {
         var lanes = Lanes;
-        if (lanes is null || lanes.Count == 0)
+        if (lanes is null || lanes.Count == 0 || MeasureCount <= 0)
             return null;
 
         var laneThickness = LaneWidth * HorizontalZoom;
         var timelineLength = GetTimelineHeight();
+        if (laneThickness <= 0 || timelineLength <= 0)
+            return null;
 
         var thicknessPos = IsHorizontalView ? point.Y : point.X;
-        var clickedLaneIndex = (int)(thicknessPos / laneThickness);
+        var clickedLaneIndex = (int)Math.Floor(thicknessPos / laneThickness);
         if (clickedLaneIndex < 0 || clickedLaneIndex >= lanes.Count)
             return null;
 
@@ -191,6 +193,17 @@ public sealed partial class NoteGridControl
             SelectNotesCommand.Execute(args);
         }
 
+        InvalidateVisual();
+    }
+
+    private void OnPointerCaptureLost(object? sender, PointerCaptureLostEventArgs e)
+    {
+        if (_dragStartPoint is null)
+            return;
+
+        _dragStartPoint = null;
+        _dragCurrentPoint = null;
+        _isAdditiveDrag = false;
         InvalidateVisual();
     }
 }

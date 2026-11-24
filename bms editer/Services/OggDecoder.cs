@@ -62,19 +62,32 @@ public static class OggDecoder
         int samplesRead;
         while ((samplesRead = reader.ReadSamples(floatBuffer, 0, floatBuffer.Length)) > 0)
         {
-            var needed = byteOffset + (samplesRead * sizeof(short));
+            var chunkBytes = (long)samplesRead * sizeof(short);
+            var neededLong = (long)byteOffset + chunkBytes;
+            if (neededLong > Array.MaxLength)
+                throw new InvalidOperationException("OGG PCM 크기가 허용 범위를 넘었습니다.");
+
+            var needed = (int)neededLong;
 
             // granule 값이 어긋난 파일에서 디코더가 예상보다 더 내보내는 일이 실제로 있다.
             // 예전에는 고정 크기 배열에 bytes[byteOffset++] 로 그냥 써서
             // IndexOutOfRangeException 이 났고, LoadOgg 가 삼켜 "로드 실패"로만 보였다.
             if (needed > bytes.Length)
-                Array.Resize(ref bytes, Math.Max(needed, bytes.Length * 2));
+            {
+                var doubled = (long)bytes.Length * 2;
+                var newLength = (int)Math.Min(Array.MaxLength, Math.Max(neededLong, doubled));
+                Array.Resize(ref bytes, newLength);
+            }
 
             // 바이트를 하나씩 끊어 쓰지 않고 short 로 바로 쓴다. waveOut 이 받는 PCM16 은
             // 리틀 엔디언이고 Windows 도 리틀 엔디언이라 결과 바이트는 예전과 같다.
             var destination = MemoryMarshal.Cast<byte, short>(bytes.AsSpan(byteOffset, samplesRead * sizeof(short)));
             for (var i = 0; i < samplesRead; i++)
-                destination[i] = (short)(Math.Clamp(floatBuffer[i], -1f, 1f) * short.MaxValue);
+            {
+                var sample = floatBuffer[i];
+                var safe = float.IsFinite(sample) ? Math.Clamp(sample, -1f, 1f) : 0f;
+                destination[i] = (short)(safe * short.MaxValue);
+            }
 
             byteOffset = needed;
         }

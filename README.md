@@ -4,10 +4,14 @@ BMS(Be-Music Source) 차트를 시각적으로 확인하고 편집할 수 있는
 OGG 배경 오디오 파형(Waveform) 로딩, 온셋(Onset) 분석에 따른 그리드 씽크 시각화, 그리고 WAV 키음 미리듣기 기능을 제공합니다.
 
 > [!NOTE]
-> **v0.1.6 릴리스**: **rhythm bms editer** 리브랜딩 및 앱 아이콘 전면 개편(1024x1024 PNG / 16~256px 멀티사이즈 ICO). BGM & 키음 독립 볼륨 조절 슬라이더, 키음 목록 누락(⚠️)/추측 경로(🔍) 상태 뱃지, 파일/폴더 드래그 앤 드롭 및 대화상자 마지막 폴더 기억, `#SWITCH`/`#CASE` 분기문 격리 버그 해결, AppData 자동 마이그레이션 적용 (총 480개 단위/스모크 테스트 100% 통과). → [resolved_issues M](docs/issues/resolved_issues.md#-m-2026-11-rhythm-bms-editer-리브랜딩-아이콘-및-전면-감사-버그-수정)
->
-> > [!NOTE]
-> > **v0.1.5 릴리스**: 재생 및 편집 안전성 긴급 패치(재생 정지 클릭 시 노트 오염 방지 P-1, 차트 전환 시 재생 정지 누락 S-8, 정지 시 키음 잔향 정지 S-9, 곡 끝에서 Space 시 처음 복귀 P-8, 렌더 브러시 스레드 동시성 안정화) 및 전체 점검에서 찾은 10건(마디 번호 한 줄 파싱 오류, 터키어 문화권 키 어긋남, 검색 창 마디 범위·숨기기 필터, 메뉴 Alt 키 등)을 고쳤습니다. → [resolved_issues J](docs/issues/resolved_issues.md#-j-재생-및-편집-안전성-긴급-패치) · [resolved_issues I](docs/issues/resolved_issues.md#-i-2026-10-01-점검에서-찾아-고친-작은-것)
+> **v0.1.7 릴리스**: 전체 파일 감사·업데이트 내성 강화·병목 제거 및 **PUMP IT UP RISE** 5키(`16, 11~14`) 게임 프로파일 정식 탑재!
+> 100단계 **Undo / Redo** (`Ctrl+Z` / `Ctrl+Y` / `Ctrl+Shift+Z`, 스냅숏 메모리 공유), BPM 변경 후 재생 크래시 수정, WebView2 `ScrollViewer` 교차 클리핑(25-2) 및 COM 예외 방어, `waveOut` 오류 자동 복구, `PlaceNote`/`RemoveNote` 버킷 조회 최적화, 창 제목에 곡 폴더명 병기(S-13), 음원 없음 재생 안내(P-7) 등 전면 개선 완료 (총 **539개** 단위/스모크 테스트 100% 통과). → [resolved_issues P](docs/issues/resolved_issues.md#-p-전체-파일-감사-업데이트-내성-강화-및-v017-릴리즈-2026-11-24)
+
+> [!NOTE]
+> **v0.1.6 릴리스**: **rhythm bms editer** 리브랜딩 및 앱 아이콘 전면 개편(1024x1024 PNG / 16~256px 멀티사이즈 ICO). BGM & 키음 독립 볼륨 조절 슬라이더, 키음 목록 누락(⚠️)/추측 경로(🔍) 상태 뱃지, 파일/폴더 드래그 앤 드롭 및 대화상자 마지막 폴더 기억, `#SWITCH`/`#CASE` 분기문 격리 버그 해결, AppData 자동 마이그레이션 적용. → [resolved_issues M](docs/issues/resolved_issues.md#-m-rhythm-bms-editer-리브랜딩-앱-아이콘-재생성-및-전면-감사-버그-수정-2026-11)
+
+> [!NOTE]
+> **v0.1.5 릴리스**: 재생 및 편집 안전성 긴급 패치(재생 정지 클릭 시 노트 오염 방지 P-1, 차트 전환 시 재생 정지 누락 S-8, 정지 시 키음 잔향 정지 S-9, 곡 끝에서 Space 시 처음 복귀 P-8, 렌더 브러시 스레드 동시성 안정화) 및 전체 점검에서 찾은 10건(마디 번호 한 줄 파싱 오류, 터키어 문화권 키 어긋남, 검색 창 마디 범위·숨기기 필터, 메뉴 Alt 키 등)을 고쳤습니다. → [resolved_issues J](docs/issues/resolved_issues.md#-j-재생-및-편집-안전성-긴급-패치) · [resolved_issues I](docs/issues/resolved_issues.md#-i-2026-10-01-점검에서-찾아-고친-작은-것)
 
 > [!NOTE]
 > **v0.1.4 릴리스**: 게임 프로파일 기반 홀드/게이트/페어리 자동 페어링 및 격자 몸통(Body) 렌더링이 추가되었습니다.
@@ -44,6 +48,8 @@ OGG 배경 오디오 파형(Waveform) 로딩, 온셋(Onset) 분석에 따른 그
 
 5. **단축키**
    - `Space` 재생/정지 · `Delete` 선택 삭제 · `Esc` 선택 해제 · 방향키 노트 이동
+   - `Ctrl+Z` 되돌리기 · `Ctrl+Y` / `Ctrl+Shift+Z` 다시 실행 (최대 100단계)
+   - `G` 격자에 맞추기 토글 · `D` 수직위치 고정 토글
    - `Ctrl+N` 새로 만들기 · `Ctrl+O` 열기 · `Ctrl+S` 저장 · `Ctrl+Shift+S` 다른 이름으로 저장
    - `Ctrl`/`Shift` + 드래그로 기존 선택에 더하기 (편집 모드에서도 됩니다)
    - 메뉴는 `Alt+F`(파일) · `Alt+E`(편집) · `Alt+P`(재생) · `Alt+M`(미디어)로 엽니다.
@@ -79,7 +85,7 @@ OGG 배경 오디오 파형(Waveform) 로딩, 온셋(Onset) 분석에 따른 그
    - 툴바의 🧰 버튼으로 여는 조건 검색 창. 결과를 격자에서 바로 보도록 모드리스로 동작합니다.
    - 조건: 대상 노트(선택/미선택 · 일반/롱 · 숨기기/보이기), 마디 범위, 키음 번호 범위(base-36 `01`~`ZZ`), 열(레인) 선택.
    - 조건에 맞는 노트를 한 번에 **선택 / 삭제**하거나, 키음 **번호를 일괄 변경**할 수 있습니다.
-   - 삭제·번호 변경은 대상이 20개 이상이면 개수를 보여 주고 먼저 묻습니다(되돌리기가 아직 없습니다).
+   - 삭제·번호 변경은 대상이 20개 이상이면 개수를 보여 주고 먼저 묻습니다(실행 후 `Ctrl+Z` 로 되돌릴 수 있습니다).
 
 12. **실시간 노트 통계 (📊) 와 컨트롤 패널 (🎛️)**
    - 툴바의 **📊** 는 **보기 전용** 통계 창입니다. 숫자만 확인할 때 씁니다.
@@ -87,7 +93,7 @@ OGG 배경 오디오 파형(Waveform) 로딩, 온셋(Onset) 분석에 따른 그
    - 개수가 0인 레인·키음은 목록에서 빼고, 노트가 실제로 가리키는 번호만 집계합니다. (두 창이 같은 집계를 쓰므로 숫자가 갈라지지 않습니다)
    - **레인/키음별 일괄 선택 · 포커스**: 줄을 고르고 [레인 노트 선택]·[키음 노트 선택](또는 줄을 두 번 클릭)을 누르면 해당 노트를 격자에서 한꺼번에 선택하고, 그 노트가 화면 밖이면 **그 자리로 스크롤**합니다.
    - **키음 미리듣기**: 줄을 고르면 바로 들려주고([고르면 미리듣기] 체크), [미리듣기 ▶]로 다시 들을 수 있습니다.
-   - **번호 일괄 교체 · 일괄 삭제**: 고른 번호를 쓰는 노트의 키음 번호를 한꺼번에 바꾸거나 지웁니다. 되돌리기가 아직 없으므로 **삭제는 먼저 확인**을 받고, 교체 후에는 바뀐 번호 줄을 고른 채로 두어 곧바로 이어 작업할 수 있습니다.
+   - **번호 일괄 교체 · 일괄 삭제**: 고른 번호를 쓰는 노트의 키음 번호를 한꺼번에 바꾸거나 지웁니다. 실수 방지를 위해 **삭제는 먼저 확인**을 받으며(`Ctrl+Z` 되돌리기 지원), 교체 후에는 바뀐 번호 줄을 고른 채로 두어 곧바로 이어 작업할 수 있습니다.
    - 편집으로 집계가 다시 돌아도 고르고 있던 줄은 번호로 다시 잡으므로 선택이 풀리지 않습니다.
 
 13. **재생 배속 조절(0.1x ~ 1.0x)과 키음 끄기/켜기**
@@ -99,7 +105,7 @@ OGG 배경 오디오 파형(Waveform) 로딩, 온셋(Onset) 분석에 따른 그
    - 자세한 사용 순서는 [박자 맞추기 작업 가이드](docs/guides/beat_sync_workflow.md)에 있습니다.
    - **음원 오프셋 (-200 ~ +200ms)과 ⚡ 오프셋 자동 맞춤**: 파형·온셋·재생 커서만 밀고 격자·노트는 그대로 둡니다. 온셋이 16분 격자에 가장 잘 붙는 값을 자동으로 찾습니다.
      저장하면 `#BMSEDITER_OFFSET` 으로 남지만 **게임은 이 헤더를 읽지 않으므로**, 게임까지 맞추려면 음원을 자르십시오.
-   - ⚠️ 키음은 믹서 버퍼 때문에 배경음보다 조금 늦게 들릴 수 있습니다(실물 확인 중). 어긋남 판단은 배속을 낮춰서 하십시오.
+   - **키음 정밀 예약**: 키음 믹서는 장치의 재생 위치(`waveOutGetPosition`)를 기준으로 0.25초 앞서 샘플 단위로 예약합니다(실측 지연 약 0.9ms).
 
 14. **게임 프로파일 기반 홀드/게이트/페어리 자동 페어링 및 몸통 렌더링 (v0.1.4)**
    - 게임별 규칙(JSON 프로파일)에 따라 슬롯 키음 값(`KeyValue`) 또는 파일명 키워드(`FileNameKeyword`)로 롱노트 시작·끝과 게이트/아크를 자동 감지.
@@ -112,7 +118,7 @@ OGG 배경 오디오 파형(Waveform) 로딩, 온셋(Onset) 분석에 따른 그
    - 저장 안 된 변경이 있으면 **2분마다 자동 저장**합니다. 앱이 죽으면 다음에 켤 때 **"작업 복구"** 를 물어, 마지막 자동 저장본을 원래 파일 자리의 "저장 안 됨(`*`)" 문서로 되살립니다. 원래 파일은 [저장]을 눌러야 바뀝니다.
    - 예상하지 못한 오류가 나도 앱이 꺼지지 않습니다. 그 자리에서 비상 저장한 뒤 [계속 작업] / [끄기] 를 묻습니다.
    - [저장]할 때마다 덮어쓰기 직전의 파일을 **저장 이력**으로 남깁니다(문서마다 최근 10벌).
-   - 파일은 모두 `%LocalAppData%` 의 `bms editer` 폴더(`recovery` · `logs`)에 있고, **파일 메뉴 → [자동 저장·오류 기록 폴더 열기]** 로 바로 열립니다. 스냅숏은 원래 곡 폴더 기준 경로로 적혀 있어, 곡 폴더에 복사해 넣으면 그대로 열립니다.
+   - 파일은 모두 `%LocalAppData%` 의 `rhythm bms editer` 폴더(`recovery` · `logs`)에 있고, **파일 메뉴 → [자동 저장·오류 기록 폴더 열기]** 로 바로 열립니다. 스냅숏은 원래 곡 폴더 기준 경로로 적혀 있어, 곡 폴더에 복사해 넣으면 그대로 열립니다.
    - 자세한 동작: [resolved_issues G. 안전장치](docs/issues/resolved_issues.md#-g-안전장치) · 한계: [known_issues 🛟 안전장치의 한계](docs/issues/known_issues.md#-안전장치의-한계)
 
 ---
@@ -155,27 +161,29 @@ dotnet publish "bms editer/bms editer.csproj" -p:PublishProfile=win-x64
 ---
 
 ## 📂 프로젝트 구조 (Project Structure)
-- **`Profiles`**: 게임별 레인 및 홀드/게이트/페어리 페어링 규칙 JSON 정의 파일 모음 (`startrail`, `stargazer`, `gunvolt`, `deflate`, `unbeatable` 등).
+- **`Profiles`**: 게임별 레인 및 홀드/게이트/페어리 페어링 규칙 JSON 정의 파일 모음 (`startrail`, `stargazer`, `gunvolt`, `deflate`, `pump_it_up_rise`, `unbeatable`, `muse_dash`).
 - **`Models`**: `BmsChart`, `BmsNote`, `LaneDefinition`, `GameProfile`, `HoldModels` 등 차트 및 프로파일 데이터 모델.
-- **`ViewModels`**: MVVM 아키텍처 기반의 메인 윈도우 상태 관리 및 액션 흐름 제어 (`MainWindowViewModel.Holds.cs` 등 분할 구성).
+- **`ViewModels`**: MVVM 아키텍처 기반의 메인 윈도우 상태 관리 및 액션 흐름 제어 (`MainWindowViewModel.Holds.cs`, `MainWindowViewModel.UndoRedo.cs` 등 분할 구성).
 - **`Services`**:
   - `BmsParser`: BMS 차트 데이터 파일 분석기.
   - `BmsWriter`: `Chart` 데이터를 `.bms` 텍스트 포맷으로 직렬화하는 저장 엔진.
   - `SafeFileWriter`: 임시 파일에 다 쓴 뒤에만 바꿔치기하는 원자적 저장.
-  - `DocumentSnapshotStore` · `ErrorLog`: 자동 저장본·저장 이력·비정상 종료 감지와 오류 기록 (`%LocalAppData%` 아래).
+  - `DocumentSnapshotStore` · `ErrorLog`: 자동 저장본·저장 이력·비정상 종료 감지와 오류 기록 (`%LocalAppData%\rhythm bms editer` 아래).
   - `ChartTimeline`: 마디 위치 ↔ 시각 변환. BPM 변화와 마디 길이를 여기서만 다룹니다.
   - `WavDecoder`: WAV/OGG 파일을 44100Hz 16-bit Stereo PCM으로 통일 디코딩.
   - `KeySoundPlayer`: Win32 `waveOut` 기반 실시간 다중 채널(폴리포닉) 키음 믹서 플레이어.
+  - `WinMmNative`: `KeySoundPlayer`와 `OggAudioPlayer`가 공유하는 Win32 `winmm.dll` 네이티브 브리지.
   - `WavKey`: 키음 번호(base-36)의 파싱·서식·자릿수 판별 규칙. 뷰모델들이 여기 하나만 봅니다.
   - `OggDecoder`: OGG를 PCM16으로 한 번만 푸는 곳. 재생과 파형이 그 결과를 나눠 씁니다.
   - `OggAudioPlayer`: `winmm.dll` 기반의 로우 레벨 PCM 배경음 재생 엔진.
   - `OggPeakLoader`: 다운샘플링 피크 및 온셋 계산기.
   - **`Holds`**: `GameProfileCatalog`(프로파일 카탈로그), `HoldPairingEngine`(짝 맞추기 엔진), `HoldPolicies`(매칭 정책), `HoldRoleClassifier`(키음/파일명 기반 역할 분류기).
-- **`Views/Controls`**:
-  - `TimelineControlBase`: 공통 타임라인 조절 파라미터를 담당하는 베이스 클래스.
-  - `NoteGridControl`: 채보 격자판, 단노트 및 홀드 몸통(Hold Body) 렌더러.
+- **`Views/Controls` & `Views`**:
+  - `TimelineControlBase`: 공통 타임라인 조절 파라미터 및 `PlaybackCursorLayer`를 담당하는 베이스 클래스.
+  - `NoteGridControl` (`NoteGridControl.cs`, `NoteGridControl.Indexing.cs`, `NoteGridControl.Input.cs`): 채보 격자판, 단노트 및 홀드 몸통(Hold Body) 렌더러·색인·입력.
   - `OggWaveformControl`: 배경 파형 및 온셋 가이드 라인 렌더러.
   - `VideoPreviewControl`: WebView2 기반 BGA 비디오 동기화 프리뷰 컨트롤.
+  - `ToolWindowInputHelper`: 메인 창 및 보조 창 공통 단축키·입력 포커스 판정 헬퍼.
 
 ---
 
@@ -192,8 +200,9 @@ dotnet publish "bms editer/bms editer.csproj" -p:PublishProfile=win-x64
 | **모딩 가이드** | [muse_dash.md](docs/guides/muse_dash.md) | 뮤즈 대시 (Il2Cpp) 커스텀 채보 매핑 및 영구 보존(Archive) 가이드. |
 | **모딩 가이드** | [gunvolt_records_cychronicle.md](docs/guides/gunvolt_records_cychronicle.md) | 건볼트 레코즈 사이크로니클 (Mono) 6레인 채보 및 플릭/페어리 가이드. |
 | **모딩 가이드** | [deflate.md](docs/guides/deflate.md) | DEFLATE 플레이 4레인 + 드롭 레인 채보, `#WAV` 파일명 키워드 기반 홀드 작성 가이드. |
+| **모딩 가이드** | [pump_it_up_rise.md](docs/guides/pump_it_up_rise.md) | PUMP IT UP RISE (Il2Cpp) 5키(`16, 11~14`) 채보 및 파일명 키워드 기반 홀드 작성 가이드. |
 | **코드 설명서** | [code_explanation.md](docs/architecture/code_explanation.md) | 소스 파일별 역할, 구조 및 컴포넌트 상세 설명서. |
-| **품질/이슈** | [known_issues.md](docs/issues/known_issues.md) | **남은 일.** 🧨 실사용에서 터지는 자리(재생 정지·키음 표시 등), 🎧 재생할 때 걸리는 것, Undo/Redo, 키음 지연, 점검에서 찾은 확인 필요 항목, 실물 확인 체크리스트가 여기 있습니다. |
+| **품질/이슈** | [known_issues.md](docs/issues/known_issues.md) | **남은 일.** 아직 남아 있는 과제(조건 블록 저장 순서, 미등록 `#WAV` 격자 구분, 팔레트 역할 뱃지, 드래그 홀드 배치 등)와 실물 확인 체크리스트. |
 | **품질/이슈** | [resolved_issues.md](docs/issues/resolved_issues.md) | **해결한 것.** 조건 블록·키음 믹싱 재생·🎛️ 컨트롤 패널·🛟 안전장치 등 해결한 과제의 방식과 커밋별 고친 기록. |
 | **품질/이슈** | [authoring_time.md](docs/issues/authoring_time.md) | ⚠️ **작성 시간 경고.** 만들 수는 있지만 오래 걸립니다(뮤즈 대시 340노트 = 약 4시간). 실측 기록과 원인 분석, **찾고 있는 개선 후보**. |
 | **사양** | [grid_specification.md](docs/specifications/grid_specification.md) | 마디 내부 그리드 분할 규칙과 기본 동작 사양. |

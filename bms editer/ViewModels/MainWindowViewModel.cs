@@ -77,10 +77,23 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
     }
 
     // 음원을 타임라인에서 뒤로 미는 양(ms).
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(AudioOffsetSeconds))]
-    [NotifyPropertyChangedFor(nameof(PlaybackCursorRatio))]
     private double _audioOffsetMs;
+    public double AudioOffsetMs
+    {
+        get => _audioOffsetMs;
+        set
+        {
+            var safe = double.IsFinite(value) ? Math.Clamp(value, -60000.0, 60000.0) : 0.0;
+            if (SetProperty(ref _audioOffsetMs, safe))
+            {
+                OnPropertyChanged(nameof(AudioOffsetSeconds));
+                OnPropertyChanged(nameof(PlaybackCursorRatio));
+                Chart.Header.AudioOffsetMs = safe;
+                MarkDirty();
+                FlashGridSync();
+            }
+        }
+    }
 
     public double AudioOffsetSeconds => AudioOffsetMs / 1000.0;
 
@@ -88,13 +101,6 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
         OggDurationSeconds <= 0
             ? 0.0
             : Math.Clamp((PlaybackPositionSeconds + AudioOffsetSeconds) / OggDurationSeconds, 0, 1);
-
-    partial void OnAudioOffsetMsChanged(double value)
-    {
-        Chart.Header.AudioOffsetMs = value;
-        MarkDirty();
-        FlashGridSync();
-    }
 
     [RelayCommand]
     private void DetectAudioOffset()
@@ -166,7 +172,24 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
     [ObservableProperty] private string _title = string.Empty;
     [ObservableProperty] private string _artist = string.Empty;
     [ObservableProperty] private string _genre = string.Empty;
-    [ObservableProperty] private double _bpm = 120.0;
+
+    private double _bpm = 120.0;
+    public double Bpm
+    {
+        get => _bpm;
+        set
+        {
+            var safe = double.IsFinite(value) ? Math.Clamp(value, 1.0, 9999.0) : 120.0;
+            if (SetProperty(ref _bpm, safe))
+            {
+                Chart.Header.Bpm = safe;
+                MarkDirty();
+                InvalidateTimeline();
+                UpdateMeasureCountFromAudio();
+                FlashGridSync();
+            }
+        }
+    }
 
     // 콤보박스 인덱스(0=Single, 1=Couple, 2=Double, 3=Battle). 파일의 #PLAYER 값보다 하나 작다.
     [ObservableProperty] private int _player;
@@ -175,9 +198,36 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
 
     // 격자 패널
     [ObservableProperty] private int _measureCount = 32;
-    [ObservableProperty] private int _rowHeight = 16;
-    [ObservableProperty] private int _beatSplit = 16;
-    [ObservableProperty] private int _gridMeasure = 4;
+
+    private int _rowHeight = 16;
+    public int RowHeight
+    {
+        get => _rowHeight;
+        set => SetProperty(ref _rowHeight, Math.Clamp(value, 1, 256));
+    }
+
+    private int _beatSplit = 16;
+    public int BeatSplit
+    {
+        get => _beatSplit;
+        set
+        {
+            if (SetProperty(ref _beatSplit, Math.Clamp(value, 1, 192)))
+                OnPropertyChanged(nameof(GridDisplay));
+        }
+    }
+
+    private int _gridMeasure = 4;
+    public int GridMeasure
+    {
+        get => _gridMeasure;
+        set
+        {
+            if (SetProperty(ref _gridMeasure, Math.Clamp(value, 1, 64)))
+                OnPropertyChanged(nameof(GridDisplay));
+        }
+    }
+
     [ObservableProperty] private double _verticalZoom = 8.0;
     [ObservableProperty] private double _horizontalZoom = 1.50;
     [ObservableProperty] private double _waveformHorizontalZoom = 1.00;
@@ -192,21 +242,26 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
     [ObservableProperty] private int _wavPaletteViewModeIndex = 2;
 
     // 재생 배속 (0.1x ~ 1.0x) 및 키음 활성화 여부
-    [ObservableProperty] private double _playbackSpeed = 1.0;
+    private double _playbackSpeed = 1.0;
+    public double PlaybackSpeed
+    {
+        get => _playbackSpeed;
+        set
+        {
+            var safe = double.IsFinite(value) ? Math.Clamp(value, 0.1, 1.0) : 1.0;
+            if (SetProperty(ref _playbackSpeed, safe) && IsPlaying)
+            {
+                _playbackSpeedDebounceTimer.Stop();
+                _playbackSpeedDebounceTimer.Start();
+            }
+        }
+    }
+
     [ObservableProperty] private bool _isKeySoundEnabled = true;
 
     public string KeySoundToggleText => IsKeySoundEnabled ? "🔊 키음 소리 켜짐" : "🔇 키음 소리 끄기";
 
     partial void OnIsKeySoundEnabledChanged(bool value) => OnPropertyChanged(nameof(KeySoundToggleText));
-
-    partial void OnPlaybackSpeedChanged(double value)
-    {
-        if (!IsPlaying)
-            return;
-
-        _playbackSpeedDebounceTimer.Stop();
-        _playbackSpeedDebounceTimer.Start();
-    }
 
     public MainWindowViewModel()
     {
@@ -249,9 +304,6 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
 
     public string GridDisplay => $"{BeatSplit}/{Math.Max(1, GridMeasure)}";
 
-    partial void OnBeatSplitChanged(int value) => OnPropertyChanged(nameof(GridDisplay));
-    partial void OnGridMeasureChanged(int value) => OnPropertyChanged(nameof(GridDisplay));
-
     // 화면에 묶인 헤더 값이 바뀌면 문서를 고친 것이다.
     partial void OnTitleChanged(string value) => MarkDirty();
     partial void OnArtistChanged(string value) => MarkDirty();
@@ -259,15 +311,6 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
     partial void OnLevelChanged(string value) => MarkDirty();
     partial void OnPlayerChanged(int value) => MarkDirty();
     partial void OnRankChanged(int value) => MarkDirty();
-
-    partial void OnBpmChanged(double value)
-    {
-        Chart.Header.Bpm = value;
-        MarkDirty();
-        InvalidateTimeline();
-        UpdateMeasureCountFromAudio();
-        FlashGridSync();
-    }
 
     private void FlashGridSync()
     {
@@ -290,7 +333,13 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
     public void InvalidateTimeline()
     {
         _timeline = null;
+        _sortedNotesCache = null;
         _sortedNoteSecondsCache = null;
+        if (IsPlaying)
+        {
+            _playbackNotes = GetSortedNotes();
+            _playbackNoteSeconds = _sortedNoteSecondsCache ?? Array.Empty<double>();
+        }
         OnPropertyChanged(nameof(Timeline));
     }
 
@@ -309,9 +358,14 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
         return Math.Max(1, (int)Math.Ceiling(endMeasurePosition - 1e-6));
     }
 
+    private int? _chartMeasureCountCache;
+
     // 차트 안의 노트와 보존줄이 요구하는 마디 수.
     private int GetChartMeasureCount()
     {
+        if (_chartMeasureCountCache is { } cached)
+            return cached;
+
         var maxMeasure = 0;
 
         foreach (var note in Chart.Notes)
@@ -323,7 +377,8 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
                 maxMeasure = Math.Max(maxMeasure, raw.Measure);
         }
 
-        return maxMeasure + 1;
+        _chartMeasureCountCache = maxMeasure + 1;
+        return _chartMeasureCountCache.Value;
     }
 
     // 이 문서가 가질 수 있는 가장 작은 마디 수. 오디오와 차트 중 큰 쪽을 따른다.
@@ -386,17 +441,37 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
     private bool _isDirty;
 
     // 제목 표시줄. 어떤 파일을 열었고 저장했는지가 여기 말고는 드러나는 곳이 없다.
+    // 여러 곡이 같은 파일명(예: hwa2.bms)을 쓰는 경우가 많아 상위 곡 폴더명을 함께 보여 준다. (S-13)
     public string WindowTitle
     {
         get
         {
-            var name = CurrentFilePath is { } path ? System.IO.Path.GetFileName(path) : "제목 없음";
+            string name;
+            if (CurrentFilePath is { } path)
+            {
+                var fileName = System.IO.Path.GetFileName(path);
+                var parentDir = System.IO.Path.GetFileName(System.IO.Path.GetDirectoryName(path));
+                name = string.IsNullOrEmpty(parentDir) ? fileName : $"{parentDir}/{fileName}";
+            }
+            else
+            {
+                name = "제목 없음";
+            }
+
             return $"{(IsDirty ? "*" : "")}{name} - rhythm bms editer";
         }
     }
 
+    private bool _suppressDirtyTracking;
+
     // 문서를 고쳤다고 표시한다. 노트·헤더·키음이 바뀌는 모든 자리에서 부른다.
-    public void MarkDirty() => IsDirty = true;
+    public void MarkDirty()
+    {
+        if (_suppressDirtyTracking)
+            return;
+
+        IsDirty = true;
+    }
 
     public void MarkClean()
     {
