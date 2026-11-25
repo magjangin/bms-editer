@@ -32,7 +32,7 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
     private string? _currentFilePath;
     private readonly DispatcherTimer _playbackTimer;
     private readonly DispatcherTimer _gridSyncFlashTimer;
-    private readonly DispatcherTimer _playbackSpeedDebounceTimer;
+    private readonly DispatcherTimer _playbackRestartDebounceTimer;
     private OggAudioPlayer? _audioPlayer;
     private DateTimeOffset _playbackStartedAt;
     private double _playbackStartSeconds;
@@ -54,10 +54,14 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
         get => _bgmVolume;
         set
         {
-            var clamped = Math.Clamp(value, 0.0, 1.0);
+            var clamped = double.IsFinite(value) ? Math.Clamp(value, 0.0, 1.0) : 1.0;
             if (SetProperty(ref _bgmVolume, clamped))
             {
                 _audioPlayer?.SetVolume(clamped);
+
+                // 배경음 음량은 표본에 곱해 두는 값이라(OggAudioPlayer.SetVolume 참고) 재생 중이면
+                // 지금 자리에서 다시 틀어야 들린다. 슬라이더를 끄는 동안 매번 다시 틀지 않게 배속처럼 미룬다.
+                RestartPlaybackSoon();
             }
         }
     }
@@ -249,12 +253,20 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
         set
         {
             var safe = double.IsFinite(value) ? Math.Clamp(value, 0.1, 1.0) : 1.0;
-            if (SetProperty(ref _playbackSpeed, safe) && IsPlaying)
-            {
-                _playbackSpeedDebounceTimer.Stop();
-                _playbackSpeedDebounceTimer.Start();
-            }
+            if (SetProperty(ref _playbackSpeed, safe))
+                RestartPlaybackSoon();
         }
+    }
+
+    // 재생 중이면 잠시 뒤 지금 자리에서 다시 튼다. 배속·배경음 음량처럼 장치를 다시 열어야 반영되는 값이 쓴다.
+    // 슬라이더를 끄는 동안 들어오는 값마다 장치를 닫았다 열면 딸깍거리므로 손을 멈출 때까지 미룬다.
+    private void RestartPlaybackSoon()
+    {
+        if (!IsPlaying)
+            return;
+
+        _playbackRestartDebounceTimer.Stop();
+        _playbackRestartDebounceTimer.Start();
     }
 
     [ObservableProperty] private bool _isKeySoundEnabled = true;
@@ -277,10 +289,10 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
             UpdatePlaybackPosition();
         };
 
-        _playbackSpeedDebounceTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(80) };
-        _playbackSpeedDebounceTimer.Tick += (_, _) =>
+        _playbackRestartDebounceTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(80) };
+        _playbackRestartDebounceTimer.Tick += (_, _) =>
         {
-            _playbackSpeedDebounceTimer.Stop();
+            _playbackRestartDebounceTimer.Stop();
             if (IsPlaying)
                 PlayFrom(PlaybackPositionSeconds);
         };
@@ -497,7 +509,7 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
 
         StopPlayback(resetCursor: false);
         _playbackTimer.Stop();
-        _playbackSpeedDebounceTimer.Stop();
+        _playbackRestartDebounceTimer.Stop();
         _gridSyncFlashTimer.Stop();
         _audioPlayer?.Dispose();
         _keySoundPlayer.Dispose();

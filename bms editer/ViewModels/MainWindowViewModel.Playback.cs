@@ -245,7 +245,7 @@ public sealed partial class MainWindowViewModel
 
     private void StopPlayback(bool resetCursor, bool stopKeySounds = true)
     {
-        _playbackSpeedDebounceTimer.Stop();
+        _playbackRestartDebounceTimer.Stop();
         _playbackTimer.Stop();
         _audioPlayer?.Stop();
 

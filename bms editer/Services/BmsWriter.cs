@@ -104,17 +104,7 @@ public static class BmsWriter
         foreach (var group in groups)
         {
             var notes = group.OrderBy(n => n.Position).ToList();
-            var resolution = ComputeResolution(notes);
-            var slots = new string[resolution];
-            for (var i = 0; i < resolution; i++)
-                slots[i] = emptySlot;
-
-            foreach (var note in notes)
-            {
-                var index = Math.Clamp((int)Math.Round(note.Position * resolution), 0, resolution - 1);
-                var code = note.WavKey;
-                slots[index] = code.Length >= keyWidth ? code.Substring(0, keyWidth) : code.PadLeft(keyWidth, '0');
-            }
+            var slots = FillSlots(notes, ComputeResolution(notes), keyWidth, emptySlot);
 
             var measureTag = group.Key.Measure.ToString("000", CultureInfo.InvariantCulture);
             var lIndex = laneOrder.TryGetValue(group.Key.LaneId, out var o) ? o + 1 : 100;
@@ -142,6 +132,72 @@ public static class BmsWriter
 
         return sb.ToString();
     }
+
+    // 노트를 한 줄의 칸에 나눠 넣는다.
+    //
+    // 칸 수는 위치를 정확히 나타낼 수 있는 최소 분할이지만 1920 에서 멈춘다. 격자에 붙이지 않고 찍은 노트는
+    // 1/1920 보다 가까이 붙어 있을 수 있고, 그러면 둘이 같은 칸으로 반올림됐다. 예전에는 뒤의 것이
+    // 앞의 것을 덮어써서 **저장할 때 노트 하나가 아무 경고 없이 사라졌다.**
+    // 이제 위치가 실제로 다른 두 노트가 부딪히면 가장 가는 칸(1920)으로 다시 나누고,
+    // 그래도 부딪히면 가장 가까운 빈 칸으로 비켜 놓는다(어긋남은 1/1920 마디, 120BPM 에서 약 1ms).
+    // 위치까지 똑같은 두 노트는 BMS 로 나타낼 수 없으므로 예전처럼 뒤의 것이 남는다.
+    private static string[] FillSlots(IReadOnlyList<BmsNote> notes, int resolution, int keyWidth, string emptySlot)
+    {
+        while (true)
+        {
+            var slots = new string[resolution];
+            var slotPositions = new double[resolution];
+            Array.Fill(slots, emptySlot);
+            Array.Fill(slotPositions, double.NaN);
+            var collided = false;
+
+            foreach (var note in notes)
+            {
+                var index = Math.Clamp((int)Math.Round(note.Position * resolution), 0, resolution - 1);
+                var occupant = slotPositions[index];
+
+                if (!double.IsNaN(occupant) && Math.Abs(occupant - note.Position) > SamePositionTolerance)
+                {
+                    if (resolution < MaxResolutionDenominator)
+                    {
+                        collided = true;
+                        break;
+                    }
+
+                    index = FindNearestFreeSlot(slotPositions, index);
+                    if (index < 0)
+                        continue;
+                }
+
+                slots[index] = FormatKey(note.WavKey, keyWidth);
+                slotPositions[index] = note.Position;
+            }
+
+            if (!collided)
+                return slots;
+
+            resolution = MaxResolutionDenominator;
+        }
+    }
+
+    // 같은 자리로 볼 위치 차이. ToDenominator 의 허용오차와 같다.
+    private const double SamePositionTolerance = 1e-6;
+
+    private static int FindNearestFreeSlot(double[] slotPositions, int index)
+    {
+        for (var distance = 1; distance < slotPositions.Length; distance++)
+        {
+            if (index + distance < slotPositions.Length && double.IsNaN(slotPositions[index + distance]))
+                return index + distance;
+            if (index - distance >= 0 && double.IsNaN(slotPositions[index - distance]))
+                return index - distance;
+        }
+
+        return -1;
+    }
+
+    private static string FormatKey(string code, int keyWidth) =>
+        code.Length >= keyWidth ? code.Substring(0, keyWidth) : code.PadLeft(keyWidth, '0');
 
     private static void AppendIfPresent(StringBuilder sb, string tag, string value)
     {

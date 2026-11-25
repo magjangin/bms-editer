@@ -6,6 +6,13 @@ namespace bms_editer.Services;
 
 public static partial class BmsParser
 {
+    // 하위 폴더 색인의 한계. 곡 폴더의 키음은 많아야 두세 단계 아래 있고 수천 개를 넘지 않는다.
+    //
+    // 한계가 없을 때는 바탕 화면·다운로드·드라이브 루트에 둔 차트를 열면(그리고 키음 하나라도
+    // 적힌 자리에 없으면) 그 아래 디스크 전체를 훑었다. 열기는 UI 스레드에서 돌아서 그동안 창이 멈췄다.
+    internal const int MediaIndexMaxDepth = 4;
+    internal const int MediaIndexMaxFiles = 20000;
+
     private static Dictionary<string, string> BuildFileNameIndex(string directory)
     {
         var index = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -15,14 +22,19 @@ public static partial class BmsParser
         var options = new EnumerationOptions
         {
             RecurseSubdirectories = true,
+            MaxRecursionDepth = MediaIndexMaxDepth,
             IgnoreInaccessible = true,
             AttributesToSkip = FileAttributes.ReparsePoint
         };
 
         try
         {
+            var visited = 0;
             foreach (var path in Directory.EnumerateFiles(directory, "*", options))
             {
+                if (++visited > MediaIndexMaxFiles)
+                    break;
+
                 var fileName = Path.GetFileName(path);
                 if (!index.ContainsKey(fileName))
                     index[fileName] = path;

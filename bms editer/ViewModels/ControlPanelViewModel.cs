@@ -154,8 +154,8 @@ public sealed partial class ControlPanelViewModel : NoteStatsViewModel
 
     // 고른 키음을 쓰는 노트를 전부 지운다.
     //
-    // **되돌릴 수 없다.** 되돌리기가 아직 없어서, 한 번에 수백 개가 사라질 수 있는
-    // 이 버튼만은 먼저 물어본다. 확인 창을 띄울 길이 없으면 아무것도 하지 않는다.
+    // Ctrl+Z 로 되돌릴 수 있지만(DeleteNotes 가 기록을 남긴다), 한 번에 수백 개가 사라질 수 있고
+    // 화면 밖의 노트까지 지워져 알아채기 어려워서 먼저 물어본다. 확인 창을 띄울 길이 없으면 아무것도 하지 않는다.
     [RelayCommand(CanExecute = nameof(HasWavSelection))]
     private async Task DeleteWavNotesAsync()
     {

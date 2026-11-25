@@ -1,5 +1,6 @@
 using System;
 using System.Runtime.InteropServices;
+using System.Threading;
 using static bms_editer.Services.WinMmNative;
 
 namespace bms_editer.Services;
@@ -40,15 +41,60 @@ public sealed class OggAudioPlayer : IDisposable
         set => SetVolume(value);
     }
 
+    // 다음 Play 부터 이 크기로 낸다. 재생 중에 바꾼 값을 바로 들리게 하려면 다시 Play 해야 한다.
+    //
+    // 예전에는 waveOutSetVolume 으로 장치 음량을 바꿨다. Vista 이후 그 값은 핸들 하나가 아니라
+    // **이 프로세스의 오디오 세션 전체**의 음량이라(실측: 핸들 A 에 25% → 핸들 B 도 25%),
+    // 배경음 음량을 내리면 키음까지 같은 비율로 작아졌고 0 이면 키음도 아예 안 들렸다.
+    // 이제 표본 자체를 줄여서 키음 장치와 완전히 따로 논다.
     public void SetVolume(double volume)
     {
-        _volume = Math.Clamp(volume, 0.0, 1.0);
-        if (_waveOut != IntPtr.Zero)
-        {
-            var vol = (ushort)(_volume * 0xFFFF);
-            var dwVolume = ((uint)vol << 16) | vol;
-            WaveOutSetVolume(_waveOut, dwVolume);
-        }
+        var safe = double.IsFinite(volume) ? Math.Clamp(volume, 0.0, 1.0) : 1.0;
+        if (safe == _volume)
+            return;
+
+        _volume = safe;
+        _scaledPcm = null;
+    }
+
+    // 지금 음량으로 줄인 PCM. 음량이 1 이면 원본을 그대로 쓰고 만들지 않는다.
+    // 재생 위치를 옮길 때마다(스크럽) 곡 전체를 새로 줄이지 않도록 음량이 바뀔 때까지 들고 있는다.
+    private byte[]? _scaledPcm;
+
+    private byte[] GetPlaybackPcm()
+    {
+        if (_volume >= 1.0)
+            return _pcmBytes;
+
+        return _scaledPcm ??= ScalePcm16(_pcmBytes, _volume);
+    }
+
+    // PCM16 표본에 음량을 곱한 새 배열. 1/32768 단위 고정소수로 곱해 곡 전체도 수십 ms 안에 끝난다.
+    internal static byte[] ScalePcm16(byte[] source, double volume)
+    {
+        var result = new byte[source.Length];
+        var gain = (int)Math.Round(Math.Clamp(volume, 0.0, 1.0) * 32768.0);
+        if (gain == 0)
+            return result;
+
+        var sampleBytes = source.Length - (source.Length % sizeof(short));
+        var input = MemoryMarshal.Cast<byte, short>(source.AsSpan(0, sampleBytes));
+        var output = MemoryMarshal.Cast<byte, short>(result.AsSpan(0, sampleBytes));
+        for (var i = 0; i < input.Length; i++)
+            output[i] = (short)((input[i] * gain) >> 15);
+
+        return result;
+    }
+
+    // 예전 버전은 세션 음량을 배경음 음량으로 낮춘 채 끝났을 수 있다. 그 값은 Windows 가 앱별로 기억해서,
+    // 이번 버전이 손대지 않으면 키음·배경음이 이유 없이 작게 남는다. 실행마다 처음 한 번만 되돌린다.
+    // (예전 버전도 재생할 때마다 이 값을 덮어썼으므로 사용자의 볼륨 믹서 설정을 새로 해치지 않는다)
+    private static int _sessionVolumeReset;
+
+    private static void ResetLegacySessionVolumeOnce(IntPtr waveOut)
+    {
+        if (Interlocked.Exchange(ref _sessionVolumeReset, 1) == 0)
+            WaveOutSetVolume(waveOut, 0xFFFFFFFF);
     }
 
     private int BlockAlign => _channels * _bitsPerSample / 8;
@@ -130,10 +176,12 @@ public sealed class OggAudioPlayer : IDisposable
         if (byteCount <= 0)
             return;
 
+        var pcm = GetPlaybackPcm();
+
         ThrowIfFailed(WaveOutOpen(out _waveOut, -1, ref format, IntPtr.Zero, IntPtr.Zero, 0));
         try
         {
-            SetVolume(_volume);
+            ResetLegacySessionVolumeOnce(_waveOut);
 
             var leadInFrames = (int)Math.Round(Math.Max(0, leadInSeconds) * _sampleRate);
             if (leadInFrames > 0)
@@ -153,7 +201,7 @@ public sealed class OggAudioPlayer : IDisposable
                 _leadInSeconds = leadInFrames / (double)_sampleRate;
             }
 
-            _dataHandle = GCHandle.Alloc(_pcmBytes, GCHandleType.Pinned);
+            _dataHandle = GCHandle.Alloc(pcm, GCHandleType.Pinned);
             _header = new WaveHeader
             {
                 Data = _dataHandle.AddrOfPinnedObject() + startByte,

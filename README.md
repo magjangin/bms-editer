@@ -4,8 +4,9 @@ BMS(Be-Music Source) 차트를 시각적으로 확인하고 편집할 수 있는
 OGG 배경 오디오 파형(Waveform) 로딩, 온셋(Onset) 분석에 따른 그리드 씽크 시각화, 그리고 WAV 키음 미리듣기 기능을 제공합니다.
 
 > [!NOTE]
-> **v0.1.7 릴리스**: 전체 파일 감사·업데이트 내성 강화·병목 제거 및 **PUMP IT UP RISE** 5키(`16, 11~14`) 게임 프로파일 정식 탑재!
-> 100단계 **Undo / Redo** (`Ctrl+Z` / `Ctrl+Y` / `Ctrl+Shift+Z`, 스냅숏 메모리 공유), BPM 변경 후 재생 크래시 수정, WebView2 `ScrollViewer` 교차 클리핑(25-2) 및 COM 예외 방어, `waveOut` 오류 자동 복구, `PlaceNote`/`RemoveNote` 버킷 조회 최적화, 창 제목에 곡 폴더명 병기(S-13), 음원 없음 재생 안내(P-7) 등 전면 개선 완료 (총 **539개** 단위/스모크 테스트 100% 통과). → [resolved_issues P](docs/issues/resolved_issues.md#-p-전체-파일-감사-업데이트-내성-강화-및-v017-릴리즈-2026-11-24)
+> **v0.1.8 릴리스**: 전체 파일 감사·업데이트 내성 강화 — 폴더 끌어다 놓기 시 저장 확인 누락(작업 유실) 수정, `Ctrl+O` 로 연 차트에 같은 폴더 음원·영상 자동 연결(같은 음원은 재디코딩 생략), **배경음 음량이 키음까지 줄이던 문제 해결**(배경음은 표본 단위 음량), 저장 시 아주 가까운 두 노트가 하나로 합쳐지던 문제, 키음 경로 탐색 깊이 제한 (총 **547개** 단위/스모크 테스트 100% 통과). → [resolved_issues Q](docs/issues/resolved_issues.md#-q-전체-파일-감사-업데이트-내성-강화-및-v018-릴리즈-2026-11-25)
+>
+> 이전 v0.1.7: 100단계 **Undo / Redo**, PUMP IT UP RISE 5키(`16, 11~14`) 프로파일, BPM 변경 후 재생 크래시 수정, WebView2 클리핑(25-2), `waveOut` 오류 자동 복구 → [resolved_issues P](docs/issues/resolved_issues.md#-p-전체-파일-감사-업데이트-내성-강화-및-v017-릴리즈-2026-11-24)
 
 > [!NOTE]
 > **v0.1.6 릴리스**: **rhythm bms editer** 리브랜딩 및 앱 아이콘 전면 개편(1024x1024 PNG / 16~256px 멀티사이즈 ICO). BGM & 키음 독립 볼륨 조절 슬라이더, 키음 목록 누락(⚠️)/추측 경로(🔍) 상태 뱃지, 파일/폴더 드래그 앤 드롭 및 대화상자 마지막 폴더 기억, `#SWITCH`/`#CASE` 분기문 격리 버그 해결, AppData 자동 마이그레이션 적용. → [resolved_issues M](docs/issues/resolved_issues.md#-m-rhythm-bms-editer-리브랜딩-앱-아이콘-재생성-및-전면-감사-버그-수정-2026-11)
