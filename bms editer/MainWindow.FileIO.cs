@@ -124,11 +124,6 @@ public partial class MainWindow
         if (folderPath is null || !Directory.Exists(folderPath))
             return;
 
-        // 확인은 **고를 것을 다 고른 뒤에** 받는다. 먼저 물으면, 선택을 취소해도
-        // 이미 "버리시겠습니까"에 답한 뒤라 사용자만 헷갈린다.
-        if (!await vm.ConfirmDiscardIfNeededAsync("현재 작업 중인 내용이 모두 사라집니다.\n폴더를 열까요?"))
-            return;
-
         await LoadFolderMediaAsync(vm, folderPath);
     }
 
@@ -190,10 +185,19 @@ public partial class MainWindow
         if (!await vm.ConfirmDiscardIfNeededAsync("현재 작업 중인 내용이 모두 사라집니다.\n파일을 열까요?"))
             return;
 
-        if (vm.LoadBms(path))
-            RememberFolder(path);
-        else
+        if (!vm.LoadBms(path))
+        {
             await ConfirmWindow.ShowMessageAsync(this, $"파일을 열지 못했습니다.\n\n{vm.LastErrorMessage}", "열기 실패");
+            return;
+        }
+
+        RememberFolder(path);
+
+        // 끌어다 놓기·탐색기 열기와 똑같이 같은 폴더의 음원·영상을 붙인다.
+        // 예전에는 이 경로만 빠져서, 다른 곡을 대화상자로 열면 앞 곡의 음원과 파형이 그대로 남아
+        // 새 차트를 남의 음원에 맞춰 편집하게 됐다. 같은 음원이 이미 물려 있으면 다시 풀지 않는다.
+        if (Path.GetDirectoryName(path) is { Length: > 0 } folder)
+            await LoadCompanionMediaAsync(vm, folder);
     }
 
     private async void OnSaveFileClick(object? sender, RoutedEventArgs e)
@@ -269,7 +273,7 @@ public partial class MainWindow
         return safe.Trim('.').Length == 0 ? "chart" : safe;
     }
 
-    private async Task LoadFolderMediaAsync(MainWindowViewModel vm, string folderPath)
+    internal async Task LoadFolderMediaAsync(MainWindowViewModel vm, string folderPath)
     {
         RememberFolder(folderPath);
         var folderName = new DirectoryInfo(folderPath).Name;
@@ -284,6 +288,14 @@ public partial class MainWindow
                 "폴더 열기");
             return;
         }
+
+        // 확인은 **열 차트가 있다는 걸 안 뒤에** 받는다. 먼저 물으면, 차트가 없는 폴더에서도
+        // "버리시겠습니까"에 답하게 되고 그다음에 "차트가 없어 그대로 뒀다"를 보게 된다.
+        //
+        // 폴더 열기 버튼과 폴더 끌어다 놓기가 모두 이 길을 지난다. 예전에는 버튼 쪽에서만 물어서,
+        // 폴더를 창에 끌어다 놓으면 저장 안 한 작업이 확인 없이 통째로 사라졌다.
+        if (!await vm.ConfirmDiscardIfNeededAsync("현재 작업 중인 내용이 모두 사라집니다.\n폴더를 열까요?"))
+            return;
 
         var bmsPath = PickByFolderName(candidates, folderName);
 
@@ -301,20 +313,21 @@ public partial class MainWindow
         await LoadCompanionMediaAsync(vm, folderPath);
     }
 
-    // 차트와 같은 폴더의 음원·영상을 붙인다. 폴더 열기와 자동 저장본 복구가 같이 쓴다.
+    // 차트와 같은 폴더의 음원·영상을 붙인다. 파일·폴더 열기, 끌어다 놓기, 탐색기 열기, 자동 저장본 복구가 같이 쓴다.
     private async Task LoadCompanionMediaAsync(MainWindowViewModel vm, string folderPath)
     {
         var document = vm.DocumentGeneration;
 
         var oggPath = FindBestFile(folderPath, OggExtensions);
-        if (oggPath is not null)
-        {
-            if (await vm.LoadOggAsync(oggPath) == OggLoadResult.Failed)
-                await ConfirmWindow.ShowMessageAsync(this, $"OGG를 불러오지 못했습니다.\n\n{vm.LastErrorMessage}", "OGG 로드 실패");
-        }
-        else
+        if (oggPath is null)
         {
             vm.ClearOgg();
+        }
+        // 같은 곡 폴더의 다른 난이도 차트를 열 때는 음원이 그대로다. 5분짜리 곡이면 다시 푸는 데 수 초가 걸린다.
+        // 파일이 그 사이 바뀌었으면(DAW 에서 다시 뽑았으면) IsSameOggLoaded 가 false 라 새로 읽는다.
+        else if (!vm.IsSameOggLoaded(oggPath) && await vm.LoadOggAsync(oggPath) == OggLoadResult.Failed)
+        {
+            await ConfirmWindow.ShowMessageAsync(this, $"OGG를 불러오지 못했습니다.\n\n{vm.LastErrorMessage}", "OGG 로드 실패");
         }
 
         // 음원을 읽는 사이 다른 문서를 열었으면 이 폴더의 영상도 붙이지 않는다.

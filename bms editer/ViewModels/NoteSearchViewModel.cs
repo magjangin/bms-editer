@@ -251,7 +251,8 @@ public sealed partial class NoteSearchViewModel : OwnerObservingViewModel
 
     // 이 개수 이상을 한 번에 지우거나 바꿀 때는 먼저 묻는다. (알려진 문제 S-5)
     //
-    // 되돌리기가 없어서, 조건을 넓게 잡은 채 누르면 수백 개가 한 번에 사라졌다.
+    // 되돌리기(Ctrl+Z)가 생기기 전에는 조건을 넓게 잡은 채 누르면 수백 개가 한 번에 사라졌다.
+    // 지금은 되돌릴 수 있지만, 화면 밖 노트까지 바뀌어 알아채기 어려우므로 많을 때는 여전히 묻는다.
     // 몇 개만 손볼 때까지 매번 물으면 번거로우므로 많을 때만 묻는다.
     public const int ConfirmThreshold = 20;
 

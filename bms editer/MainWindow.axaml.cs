@@ -53,6 +53,7 @@ public partial class MainWindow : Window
         var first = files[0]!;
         if (Directory.Exists(first))
         {
+            // 저장 안 한 작업이 있으면 LoadFolderMediaAsync 가 열 차트를 찾은 뒤에 묻는다.
             await LoadFolderMediaAsync(vm, first);
             return;
         }

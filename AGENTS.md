@@ -66,6 +66,14 @@
     - 6개 노트 편집 경로(`PlaceNote`·`RemoveNote`·`DeleteNotes`·`MoveSelectedNotes`·`ReplaceWavKey`·`CopyNotesByMeasureOffset`)는 `NoteSnapshot[]` + 선택 인덱스로 `MainWindowViewModel.UndoRedo.cs` 에 기록됩니다(100단계, `ResetDocumentState` 시 초기화). 새 노트 편집 경로를 추가할 때는 반드시 스냅숏 캡처·기록을 연결하십시오.
     - 기록마다 곡 전체를 두 벌 들지 않도록, 이번 "편집 전"이 앞 기록의 "편집 후"와 같으면 그 배열을 공유합니다(`RecordNoteHistory`). 스냅숏 배열은 기록된 뒤 절대 제자리에서 고치면 안 됩니다. 재생 중에는 `CanUndo`/`CanRedo` 가 false 입니다.
     - `NoteGridControl` 은 렌더링(`NoteGridControl.cs`)·색인 캐시(`NoteGridControl.Indexing.cs`, `NoteRenderIndex`·`HoldRenderIndex`·`HoldProblemRenderIndex`)·포인터 입력(`NoteGridControl.Input.cs`)으로 분리되어 있습니다.
+16. **배경음 음량은 표본에 곱한다 (`OggAudioPlayer.ScalePcm16`) — `waveOutSetVolume` 금지**:
+    - `waveOutSetVolume` 은 핸들이 아니라 **프로세스 오디오 세션 전체** 음량입니다(실측: 핸들 A 25% → 핸들 B 도 `0x40004000`). 배경음 슬라이더로 쓰면 키음까지 같이 줄어듭니다. 배경음은 음량을 곱한 PCM 사본을 재생하고(음량이 바뀔 때만 다시 만듦), 재생 중 음량 변경은 `RestartPlaybackSoon()` 으로 80ms 미뤘다가 현재 자리에서 다시 틉니다. 키음 음량은 `KeySoundPlayer` 믹서 게인입니다. 예외는 실행당 첫 재생 한 번 세션 음량을 100% 로 되돌리는 `ResetLegacySessionVolumeOnce` 뿐입니다(예전 버전이 낮춰 둔 값 복구).
+17. **문서를 여는 모든 경로는 같은 두 관문을 지난다 (`LoadFolderMediaAsync` / `LoadCompanionMediaAsync`)**:
+    - 버튼·`Ctrl+O`·끌어다 놓기·탐색기 열기·복구가 각자 확인과 음원 붙이기를 구현하면 한쪽이 빠집니다(실제로 폴더 드롭은 저장 확인 없이 작업을 버렸고, `Ctrl+O` 는 앞 곡 음원을 남겼습니다). 저장 확인은 `ConfirmDiscardIfNeededAsync` 로 **열 차트가 있다는 걸 안 뒤에**, 같은 폴더 음원·영상은 `LoadCompanionMediaAsync` 로 붙입니다. 같은 음원은 `IsSameOggLoaded`(경로+크기+수정 시각)로 다시 풀지 않습니다.
+18. **저장 시 칸 충돌은 1920 분할 → 가까운 빈 칸 (`BmsWriter.FillSlots`)**:
+    - 격자 없이 찍은 노트는 1/1920 마디보다 가까울 수 있습니다. 덮어쓰면 노트가 조용히 사라지므로, 위치가 다른 노트가 부딪히면 가장 가는 분할로 다시 나누고 그래도 부딪히면 옆 빈 칸으로 비킵니다. 부딪힘이 없으면 예전처럼 최소 분할을 씁니다(원본 줄 모양 보존).
+19. **키음 경로 색인은 깊이 4·파일 2만 개에서 멈춘다 (`BmsParser.MediaIndexMaxDepth`/`MediaIndexMaxFiles`)**:
+    - 열기는 UI 스레드에서 돕니다. 바탕 화면·드라이브 루트에 둔 차트에서 무제한 재귀하면 창이 멈춥니다. 한계를 늘릴 때는 열기를 백그라운드로 옮기는 것부터 하십시오.
 
 ---
 
@@ -84,6 +92,10 @@
   - Avalonia 12.0.5에서는 `e.Data`가 `e.DataTransfer`(`IDataTransfer`)로 개편되었으며, `DataFormats.Files` 대신 `DataFormat.File`과 `TryGetFiles()`, `IStorageItem.TryGetLocalPath()`를 사용하는 현대적 API로 구현해야 합니다.
 * ❌ **미리듣기(`KeySoundPlayer.Play`)까지 디코딩 중복 제거**:
   - 재생 중 노트(`ScheduleIfDecoded`)는 파일당 백그라운드 작업 하나로 묶었지만, 미리듣기에도 같은 묶음을 쓰면 재생 예약이 먼저 풀기 시작한 파일을 사용자가 눌렀을 때 소리가 조용히 사라집니다. 미리듣기는 드물고 하나하나 들려야 하므로 예전처럼 둡니다.
+* ❌ **`waveOutSetVolume` 으로 배경음 음량만 따로 조절**:
+  - Vista 이후 이 API 는 프로세스 세션 음량이라 키음(`KeySoundPlayer`)까지 같이 줄었습니다(v0.1.6~v0.1.7). 핸들을 달리 열어도 같습니다. 표본에 곱하는 방식만 독립적입니다(Rationale 16).
+* ❌ **헤드리스 창 테스트에서 고친(dirty) 문서를 든 채 `window.Close()`**:
+  - "저장하고 닫을까요?" 대화상자가 떠서 테스트 호스트가 끝나지 않습니다(5분 넘게 멈춤). 닫기 전에 `vm.MarkClean()` 하십시오.
 * ❌ **`CommunityToolkit.Mvvm` `OnPropertyChanging(ref T)` 부분 메서드 시도**:
   - 소스 생성기가 `ref` 형태의 부분 메서드를 지원하지 않으므로, 유효성 검사 및 클램핑이 필요한 프로퍼티는 수동 getter/setter와 `SetProperty`를 사용하는 것이 가장 안정적입니다.
 
@@ -99,7 +111,7 @@
   ```powershell
   dotnet test
   ```
-  *(현재 539개 단위/스모크 테스트 100% 통과 필수)*
+  *(현재 547개 단위/스모크 테스트 100% 통과 필수)*
 * **배포 산출물 빌드**:
   ```powershell
   dotnet publish "bms editer/bms editer.csproj" -p:PublishProfile=win-x64

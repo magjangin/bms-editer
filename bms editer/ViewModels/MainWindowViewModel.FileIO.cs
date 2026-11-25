@@ -67,6 +67,9 @@ public sealed partial class MainWindowViewModel
         var request = ++_oggLoadRequest;
         var document = DocumentGeneration;
 
+        // 읽기 **전에** 재 둔다. 읽는 사이 파일이 바뀌면 다음 비교에서 다르게 나와 다시 읽게 된다.
+        var stamp = TryStampFile(filePath);
+
         OggWaveform waveform;
         OggAudioPlayer audioPlayer;
 
@@ -114,6 +117,7 @@ public sealed partial class MainWindowViewModel
         OggPeaks = waveform.Peaks;
         OggOnsets = waveform.Onsets;
         OggFileName = Path.GetFileName(filePath);
+        _loadedOggStamp = stamp;
         UpdateMeasureCountFromAudio();
         LastErrorMessage = null;
         return OggLoadResult.Loaded;
@@ -121,6 +125,36 @@ public sealed partial class MainWindowViewModel
 
     private bool IsOggLoadSuperseded(int request, int document) =>
         _disposed || request != _oggLoadRequest || document != DocumentGeneration;
+
+    // 지금 물려 있는 음원 파일과, 읽을 때의 크기·수정 시각.
+    private OggFileStamp? _loadedOggStamp;
+
+    private readonly record struct OggFileStamp(string FullPath, long Length, DateTime LastWriteUtc);
+
+    // 이 파일이 지금 물려 있는 음원과 같은지. 경로만이 아니라 크기·수정 시각까지 같아야 같다고 본다.
+    //
+    // 같은 곡 폴더의 차트를 이어서 열 때 음원을 다시 풀지 않으려고 쓴다. 경로만 보면
+    // DAW 에서 음원을 다시 뽑은 뒤 차트를 다시 열어도 옛 음원이 남는다.
+    public bool IsSameOggLoaded(string filePath) =>
+        _audioPlayer is not null
+        && _loadedOggStamp is { } loaded
+        && TryStampFile(filePath) is { } current
+        && string.Equals(loaded.FullPath, current.FullPath, StringComparison.OrdinalIgnoreCase)
+        && loaded.Length == current.Length
+        && loaded.LastWriteUtc == current.LastWriteUtc;
+
+    private static OggFileStamp? TryStampFile(string filePath)
+    {
+        try
+        {
+            var info = new FileInfo(filePath);
+            return info.Exists ? new OggFileStamp(info.FullName, info.Length, info.LastWriteTimeUtc) : null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+        {
+            return null;
+        }
+    }
 
     public void LoadVideo(string filePath)
     {
@@ -162,6 +196,7 @@ public sealed partial class MainWindowViewModel
         StopPlayback(resetCursor: true);
         _audioPlayer?.Dispose();
         _audioPlayer = null;
+        _loadedOggStamp = null;
         OggFileName = null;
         OggPeaks = null;
         OggOnsets = null;

@@ -7,16 +7,21 @@
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <ApplicationIcon>Assets\icon.ico</ApplicationIcon>
-    <Version>0.1.7</Version>
-    <AssemblyVersion>0.1.7.0</AssemblyVersion>
-    <FileVersion>0.1.7.0</FileVersion>
-    <InformationalVersion>0.1.7</InformationalVersion>
+    <Version>0.1.8</Version>
+    <AssemblyVersion>0.1.8.0</AssemblyVersion>
+    <FileVersion>0.1.8.0</FileVersion>
+    <InformationalVersion>0.1.8</InformationalVersion>
     <Product>rhythm bms editer</Product>
     <Company>magjangin</Company>
     <Description>Rhythm BMS Chart Editor for Rhythm Games</Description>
     <NoWarn>$(NoWarn);MSB3277</NoWarn>
     <MSBuildWarningsAsMessages>$(MSBuildWarningsAsMessages);MSB3277</MSBuildWarningsAsMessages>
   </PropertyGroup>
+
+  <!-- 단위 테스트가 창의 내부 경로(폴더 열기 등)와 오디오 도우미를 직접 부를 수 있게 한다. -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="bms editer.Tests" />
+  </ItemGroup>
 
   <ItemGroup>
     <AvaloniaResource Include="Assets\**" />
