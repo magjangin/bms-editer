@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
@@ -163,8 +164,10 @@ public static partial class BmsParser
                     continue;
                 }
 
+                // .wav 로 적혔지만 .ogg 만 있는 키음도 "찾은 것"으로 센다. (ResolveMediaPath 와 같은 규칙)
                 var fileName = Path.GetFileName(mediaPath);
-                if (!string.IsNullOrEmpty(fileName) && fileNameIndex.Value.ContainsKey(fileName))
+                if (!string.IsNullOrEmpty(fileName)
+                    && (fileNameIndex.Value.ContainsKey(fileName) || AlternateAudioNames(fileName).Any(fileNameIndex.Value.ContainsKey)))
                     found++;
             }
             catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)

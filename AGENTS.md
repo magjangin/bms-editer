@@ -52,27 +52,31 @@
    - 믹서는 40ms 버퍼 3개를 앞서 채웁니다. 재생 중 노트를 그냥 넣으면 대기열 뒤에 붙어 배경음보다 늦습니다. `waveOutGetPosition`으로 얻은 재생 프레임에 남은 시간을 더해 시작 프레임을 정하고, 믹서가 그 프레임에 섞습니다. 앞서 보는 양은 `KeySoundLookaheadSeconds`(0.25초, 실제 시간)이고 대기열보다 커야 합니다. 두 장치의 시계가 돌기 전의 위치 값은 믿을 수 없으므로 그동안은 예약하지 않습니다. 시작 지점 바로 뒤의 노트를 위해 `OggAudioPlayer.Play`의 `leadInSeconds`로 곡 앞에 0.2초 무음을 넣으며, 무음 동안 `GetPlayedSeconds`는 음수입니다.
 9. **재생 관련 변경은 실제 출력으로 측정**:
    - 무음 PCM이나 단위 테스트로는 키음 타이밍·음량을 알 수 없습니다. 실제로 `d7775f9`는 테스트를 전부 통과하면서 키음을 37ms에서 111ms로 늦췄습니다. 왼쪽 채널 배경음 클릭과 오른쪽 채널 키음 클릭을 프로세스 루프백(`VAD\\Process_Loopback`)으로 녹음해 시차를 재십시오. 시스템 전체 루프백은 다른 앱 소리가 섞입니다. 곡 중간만 재지 말고 재생 시작 직후, 40ms 미만의 짧은 소리, 곡 끝 경계를 함께 재십시오.
-10. **스위치/케이스 분기 스택 격리 (`switchStack`)**:
+10. **조건 블록 저장은 "블록 밖 = 마디 순, 블록 안 = 원문 순" (`BmsWriter.Write`)**:
+    - 제어 줄을 다른 줄과 함께 마디 순으로 섞으면 여러 마디에 걸친 `#IF` 사이로 블록 밖 줄이 끼어들어 조건부가 됩니다(2026-11-23 수정 전 실제 동작). 블록 안 줄(`IsControlFlow || BranchId > 0`)은 `Order`(원문 줄 번호)로만 정렬하고, 원문 줄이 없는 갈래 노트는 같은 갈래의 마지막 줄 바로 뒤에 둡니다.
+11. **키음 확장자 대체 (`BmsParser.AlternateAudioNames`)**:
+    - `.wav`↔`.ogg` 만 서로 바꿔 찾습니다(디코더가 읽는 두 형식). 바꿔 찾은 경로는 `IsPathGuessed` 라 저장 때 원문 이름을 지킵니다. 하위 폴더 색인은 `MediaIndexMaxDepth`(4)·`MediaIndexMaxFiles`(2만 개)까지만 훑습니다(Rationale 21).
+12. **스위치/케이스 분기 스택 격리 (`switchStack`)**:
     - `#SWITCH` 구문 안의 다중 `#CASE`/`#DEF`는 내부에서 새 `branchId`를 할당받지만, 구문이 종료되는 `#ENDSW`에서는 반드시 부모 분기 ID(최상위는 0)로 복구되어야 합니다. `switchStack`(`Stack<bool>`)을 도입하여 분기 내 케이스 교체 및 블록 종료 시 정상 중립 분기로 복원하도록 보장합니다.
-11. **마지막 작업 폴더 기억 (`RememberFolder`) 및 드래그 앤 드롭**:
+13. **마지막 작업 폴더 기억 (`RememberFolder`) 및 드래그 앤 드롭**:
     - 파일 열기 대화상자에서 매번 루트로 돌아가는 사용성 불편을 방지하기 위해 파일/폴더를 열거나 저장할 때마다 마지막 경로를 메모리에 보존하여 다음 탐색기의 `SuggestedStartLocation`으로 사용합니다.
-12. **문서를 여는 동안 홀드 짝짓기 미루기 (`DeferHoldRecompute`)**:
+14. **문서를 여는 동안 홀드 짝짓기 미루기 (`DeferHoldRecompute`)**:
     - 열기 한 번에 노트 알림·키음 목록 교체·프로파일 적용이 각자 `RecomputeHolds`를 불러 곡 전체 짝짓기가 4~5번 돌았습니다. `LoadDocument`는 `using var _ = DeferHoldRecompute();`로 묶어 끝에 한 번만 짝짓습니다. 여러 단계를 거치는 새 경로(일괄 편집 등)도 같은 방식으로 묶으십시오.
-13. **열기 안내는 `DocumentNotice`, 저장 안내는 `LastWarningMessage`**:
+15. **열기 안내는 `DocumentNotice`, 저장 안내는 `LastWarningMessage`**:
     - `LastWarningMessage`는 저장 직후 창이 대화상자로 띄우는 값이고 다음 저장이 덮어씁니다. 열 때 알게 된 것(없는 키음, 폴더에 차트가 여럿)은 상태 표시줄의 `DocumentNotice`에 넣습니다. 문서를 비우면 지워지므로 열기 **뒤에** `AddDocumentNotice`로 덧붙여야 합니다.
-14. **줄바꿈은 `.gitattributes`(`* text=auto`)가 관리**:
+16. **줄바꿈은 `.gitattributes`(`* text=auto`)가 관리**:
     - 한때 7개 파일이 `\r\r\n`으로 저장돼 git이 바이너리로 취급했고 diff가 통째 교체로 보였습니다. 파이썬 등으로 파일을 쓸 때 텍스트 모드로 읽은 뒤 `\r\n`을 덧붙이지 마십시오. `git ls-files --eol`에서 소스가 `i/lf`인지 확인하십시오.
-15. **Undo/Redo 히스토리 및 부분 클래스 구조 (`MainWindowViewModel.UndoRedo.cs` / `NoteGridControl.*.cs`)**:
+17. **Undo/Redo 히스토리 및 부분 클래스 구조 (`MainWindowViewModel.UndoRedo.cs` / `NoteGridControl.*.cs`)**:
     - 6개 노트 편집 경로(`PlaceNote`·`RemoveNote`·`DeleteNotes`·`MoveSelectedNotes`·`ReplaceWavKey`·`CopyNotesByMeasureOffset`)는 `NoteSnapshot[]` + 선택 인덱스로 `MainWindowViewModel.UndoRedo.cs` 에 기록됩니다(100단계, `ResetDocumentState` 시 초기화). 새 노트 편집 경로를 추가할 때는 반드시 스냅숏 캡처·기록을 연결하십시오.
     - 기록마다 곡 전체를 두 벌 들지 않도록, 이번 "편집 전"이 앞 기록의 "편집 후"와 같으면 그 배열을 공유합니다(`RecordNoteHistory`). 스냅숏 배열은 기록된 뒤 절대 제자리에서 고치면 안 됩니다. 재생 중에는 `CanUndo`/`CanRedo` 가 false 입니다.
     - `NoteGridControl` 은 렌더링(`NoteGridControl.cs`)·색인 캐시(`NoteGridControl.Indexing.cs`, `NoteRenderIndex`·`HoldRenderIndex`·`HoldProblemRenderIndex`)·포인터 입력(`NoteGridControl.Input.cs`)으로 분리되어 있습니다.
-16. **배경음 음량은 표본에 곱한다 (`OggAudioPlayer.ScalePcm16`) — `waveOutSetVolume` 금지**:
+18. **배경음 음량은 표본에 곱한다 (`OggAudioPlayer.ScalePcm16`) — `waveOutSetVolume` 금지**:
     - `waveOutSetVolume` 은 핸들이 아니라 **프로세스 오디오 세션 전체** 음량입니다(실측: 핸들 A 25% → 핸들 B 도 `0x40004000`). 배경음 슬라이더로 쓰면 키음까지 같이 줄어듭니다. 배경음은 음량을 곱한 PCM 사본을 재생하고(음량이 바뀔 때만 다시 만듦), 재생 중 음량 변경은 `RestartPlaybackSoon()` 으로 80ms 미뤘다가 현재 자리에서 다시 틉니다. 키음 음량은 `KeySoundPlayer` 믹서 게인입니다. 예외는 실행당 첫 재생 한 번 세션 음량을 100% 로 되돌리는 `ResetLegacySessionVolumeOnce` 뿐입니다(예전 버전이 낮춰 둔 값 복구).
-17. **문서를 여는 모든 경로는 같은 두 관문을 지난다 (`LoadFolderMediaAsync` / `LoadCompanionMediaAsync`)**:
+19. **문서를 여는 모든 경로는 같은 두 관문을 지난다 (`LoadFolderMediaAsync` / `LoadCompanionMediaAsync`)**:
     - 버튼·`Ctrl+O`·끌어다 놓기·탐색기 열기·복구가 각자 확인과 음원 붙이기를 구현하면 한쪽이 빠집니다(실제로 폴더 드롭은 저장 확인 없이 작업을 버렸고, `Ctrl+O` 는 앞 곡 음원을 남겼습니다). 저장 확인은 `ConfirmDiscardIfNeededAsync` 로 **열 차트가 있다는 걸 안 뒤에**, 같은 폴더 음원·영상은 `LoadCompanionMediaAsync` 로 붙입니다. 같은 음원은 `IsSameOggLoaded`(경로+크기+수정 시각)로 다시 풀지 않습니다.
-18. **저장 시 칸 충돌은 1920 분할 → 가까운 빈 칸 (`BmsWriter.FillSlots`)**:
+20. **저장 시 칸 충돌은 1920 분할 → 가까운 빈 칸 (`BmsWriter.FillSlots`)**:
     - 격자 없이 찍은 노트는 1/1920 마디보다 가까울 수 있습니다. 덮어쓰면 노트가 조용히 사라지므로, 위치가 다른 노트가 부딪히면 가장 가는 분할로 다시 나누고 그래도 부딪히면 옆 빈 칸으로 비킵니다. 부딪힘이 없으면 예전처럼 최소 분할을 씁니다(원본 줄 모양 보존).
-19. **키음 경로 색인은 깊이 4·파일 2만 개에서 멈춘다 (`BmsParser.MediaIndexMaxDepth`/`MediaIndexMaxFiles`)**:
+21. **키음 경로 색인은 깊이 4·파일 2만 개에서 멈춘다 (`BmsParser.MediaIndexMaxDepth`/`MediaIndexMaxFiles`)**:
     - 열기는 UI 스레드에서 돕니다. 바탕 화면·드라이브 루트에 둔 차트에서 무제한 재귀하면 창이 멈춥니다. 한계를 늘릴 때는 열기를 백그라운드로 옮기는 것부터 하십시오.
 
 ---
@@ -93,7 +97,7 @@
 * ❌ **미리듣기(`KeySoundPlayer.Play`)까지 디코딩 중복 제거**:
   - 재생 중 노트(`ScheduleIfDecoded`)는 파일당 백그라운드 작업 하나로 묶었지만, 미리듣기에도 같은 묶음을 쓰면 재생 예약이 먼저 풀기 시작한 파일을 사용자가 눌렀을 때 소리가 조용히 사라집니다. 미리듣기는 드물고 하나하나 들려야 하므로 예전처럼 둡니다.
 * ❌ **`waveOutSetVolume` 으로 배경음 음량만 따로 조절**:
-  - Vista 이후 이 API 는 프로세스 세션 음량이라 키음(`KeySoundPlayer`)까지 같이 줄었습니다(v0.1.6~v0.1.7). 핸들을 달리 열어도 같습니다. 표본에 곱하는 방식만 독립적입니다(Rationale 16).
+  - Vista 이후 이 API 는 프로세스 세션 음량이라 키음(`KeySoundPlayer`)까지 같이 줄었습니다(v0.1.6~v0.1.7). 핸들을 달리 열어도 같습니다. 표본에 곱하는 방식만 독립적입니다(Rationale 18).
 * ❌ **헤드리스 창 테스트에서 고친(dirty) 문서를 든 채 `window.Close()`**:
   - "저장하고 닫을까요?" 대화상자가 떠서 테스트 호스트가 끝나지 않습니다(5분 넘게 멈춤). 닫기 전에 `vm.MarkClean()` 하십시오.
 * ❌ **`CommunityToolkit.Mvvm` `OnPropertyChanging(ref T)` 부분 메서드 시도**:
@@ -111,7 +115,9 @@
   ```powershell
   dotnet test
   ```
-  *(현재 547개 단위/스모크 테스트 100% 통과 필수)*
+  *(현재 552개 단위/스모크 테스트 100% 통과 필수. 테스트는 CRLF·waveOut 을 전제하므로 Windows 에서 돌립니다)*
+* **CI**: `.github/workflows/ci.yml` 이 push·PR 마다 Windows 에서 `-warnaserror` 빌드와 전체 테스트를 돌립니다. 게임 DLL이 필요 없는 프로젝트라 클라우드 세션에서도 이 CI 결과로 검증할 수 있습니다.
+* **릴리즈**: `csproj` `<Version>`(4곳)과 `CHANGELOG.md` `## [<버전>]` 을 함께 올려 main 에 머지한 뒤 `v<버전>` 태그를 밀면 `.github/workflows/release.yml` 이 테스트 → 단일 exe 게시 → `bms-editer-v<버전>-win-x64.zip`(SHA256 포함) 릴리즈를 만듭니다. 둘이 다르면 멈춥니다.
 * **배포 산출물 빌드**:
   ```powershell
   dotnet publish "bms editer/bms editer.csproj" -p:PublishProfile=win-x64
