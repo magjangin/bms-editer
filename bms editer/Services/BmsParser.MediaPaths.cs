@@ -35,9 +35,16 @@ public static partial class BmsParser
                 if (++visited > MediaIndexMaxFiles)
                     break;
 
-                var fileName = Path.GetFileName(path);
-                if (!index.ContainsKey(fileName))
-                    index[fileName] = path;
+                try
+                {
+                    var fileName = Path.GetFileName(path);
+                    if (!string.IsNullOrEmpty(fileName) && !index.ContainsKey(fileName))
+                        index[fileName] = path;
+                }
+                catch
+                {
+                    // 개별 파일명 해석 실패 시 다음 파일로 계속 진행
+                }
             }
         }
         catch (Exception ex)

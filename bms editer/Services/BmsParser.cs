@@ -176,7 +176,8 @@ public static partial class BmsParser
             var audioOffsetMatch = AudioOffsetRegex().Match(line);
             if (audioOffsetMatch.Success)
             {
-                if (double.TryParse(audioOffsetMatch.Groups[1].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var tempOffset))
+                if (double.TryParse(audioOffsetMatch.Groups[1].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var tempOffset)
+                    && double.IsFinite(tempOffset))
                     chart.Header.AudioOffsetMs = tempOffset;
                 continue;
             }
