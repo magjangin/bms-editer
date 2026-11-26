@@ -40,7 +40,7 @@ public static class BmsWriter
 
         AppendIfPresent(sb, "#PLAYLEVEL", level);
 
-        if (Math.Abs(chart.Header.AudioOffsetMs) > 1e-4)
+        if (double.IsFinite(chart.Header.AudioOffsetMs) && Math.Abs(chart.Header.AudioOffsetMs) > 1e-4)
             sb.Append("#BMSEDITER_OFFSET ").AppendLine(chart.Header.AudioOffsetMs.ToString("0.####", CultureInfo.InvariantCulture));
 
         // 사용자가 고른 게임 프로파일만 적는다. 경로로 추정한 프로파일은 Header 에 들어오지 않는다.

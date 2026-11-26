@@ -741,4 +741,36 @@ public sealed class AuditRegressionTests : IDisposable
         Assert.Equal(932, cp932.GetEncoding()?.CodePage);
         Assert.Equal(949, cp949.GetEncoding()?.CodePage);
     }
+
+    [Fact]
+    public void BmsParser_오디오_오프셋이_NaN이나_무한대이면_기본값을_유지한다()
+    {
+        var path = WriteChart("#BPM 120\r\n#BMSEDITER_OFFSET NaN\r\n#00111:01\r\n");
+        var result = BmsParser.Parse(path);
+        Assert.Equal(0.0, result.Chart.Header.AudioOffsetMs);
+    }
+
+    [Fact]
+    public void BmsWriter_오디오_오프셋이_NaN이나_무한대이면_헤더를_쓰지_않는다()
+    {
+        var chart = new BmsChart();
+        chart.Header.AudioOffsetMs = double.NaN;
+        var written = BmsWriter.Write(
+            chart, "Title", "Artist", "Genre", 120, 0, 1, "1",
+            Array.Empty<BmsWavItem>(), Path.Combine(_directory, "out.bms"));
+
+        Assert.DoesNotContain("#BMSEDITER_OFFSET", written);
+    }
+
+    [Theory]
+    [InlineData(1e-12)]
+    [InlineData(1e12)]
+    [InlineData(double.MaxValue)]
+    public void ChartTimeline_극단적인_시간값에서도_MeasurePositionAt은_유한한_마디위치를_돌려준다(double seconds)
+    {
+        var timeline = ChartTimeline.Uniform(120);
+        var pos = timeline.MeasurePositionAt(seconds);
+        Assert.True(double.IsFinite(pos));
+        Assert.True(pos >= 0);
+    }
 }

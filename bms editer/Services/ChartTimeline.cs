@@ -142,10 +142,14 @@ public sealed class ChartTimeline
 
         // 남은 시간을 지금 BPM 으로 마디 비율로 되돌린다.
         var wholeMeasureSeconds = SpanSeconds(measure, 1.0, bpm);
-        if (wholeMeasureSeconds <= 0)
+        if (wholeMeasureSeconds <= 0 || !double.IsFinite(wholeMeasureSeconds))
             return measure + cursor;
 
-        return measure + Math.Min(1.0, cursor + (remaining / wholeMeasureSeconds));
+        var fraction = remaining / wholeMeasureSeconds;
+        if (!double.IsFinite(fraction) || fraction < 0)
+            fraction = 0;
+
+        return measure + Math.Min(1.0, cursor + fraction);
     }
 
     // 시작 시각이 seconds 이하인 마지막 마디. 경계는 뒤로 갈수록 커지므로 이분 탐색으로 찾는다.
