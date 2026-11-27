@@ -41,6 +41,9 @@ public abstract class TimelineControlBase : Control
     public static readonly StyledProperty<double> AudioOffsetSecondsProperty =
         AvaloniaProperty.Register<TimelineControlBase, double>(nameof(AudioOffsetSeconds));
 
+    public static readonly StyledProperty<double> AudioDurationSecondsProperty =
+        AvaloniaProperty.Register<TimelineControlBase, double>(nameof(AudioDurationSeconds));
+
     public static readonly StyledProperty<bool> IsPlaybackCursorVisibleProperty =
         AvaloniaProperty.Register<TimelineControlBase, bool>(nameof(IsPlaybackCursorVisible));
 
@@ -144,6 +147,12 @@ public abstract class TimelineControlBase : Control
         set => SetValue(AudioOffsetSecondsProperty, value);
     }
 
+    public double AudioDurationSeconds
+    {
+        get => GetValue(AudioDurationSecondsProperty);
+        set => SetValue(AudioDurationSecondsProperty, value);
+    }
+
     public double AudioRatio(double audioSeconds) =>
         DurationSeconds <= 0 ? 0.0 : (audioSeconds + AudioOffsetSeconds) / DurationSeconds;
 
@@ -216,10 +225,14 @@ public abstract class TimelineControlBase : Control
         double durationSeconds, int measureCount, double rowHeight, double verticalZoom, int beatSplit, int gridMeasure)
     {
         var spacingScale = ComputeGridSpacingScale(beatSplit, gridMeasure);
+        var measureLength = measureCount * rowHeight * verticalZoom * spacingScale;
         if (durationSeconds > 0)
-            return Math.Max(1.0, durationSeconds * rowHeight * verticalZoom * spacingScale / 2.0);
+        {
+            var audioLength = durationSeconds * rowHeight * verticalZoom * spacingScale / 2.0;
+            return Math.Max(1.0, Math.Max(audioLength, measureLength));
+        }
 
-        return measureCount * rowHeight * verticalZoom * spacingScale;
+        return measureLength;
     }
 
     public static double ComputeGridSpacingScale(int beatSplit, int gridMeasure) =>

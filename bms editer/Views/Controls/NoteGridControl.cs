@@ -29,6 +29,15 @@ public sealed partial class NoteGridControl : TimelineControlBase
     public static readonly StyledProperty<bool> SnapToGridProperty =
         AvaloniaProperty.Register<NoteGridControl, bool>(nameof(SnapToGrid), true);
 
+    public static readonly StyledProperty<IReadOnlyDictionary<string, string>?> WavTableProperty =
+        AvaloniaProperty.Register<NoteGridControl, IReadOnlyDictionary<string, string>?>(nameof(WavTable));
+
+    public IReadOnlyDictionary<string, string>? WavTable
+    {
+        get => GetValue(WavTableProperty);
+        set => SetValue(WavTableProperty, value);
+    }
+
     // 끄면 클릭한 자리에 그대로 찍는다. 잇단음처럼 격자로 표현할 수 없는 자리를
     // 손으로 잡을 때 쓴다. 예전에는 이 값이 바인딩만 되어 있고 아무도 읽지 않아서,
     // 체크를 꺼도 언제나 격자에 반올림됐다.
@@ -127,6 +136,8 @@ public sealed partial class NoteGridControl : TimelineControlBase
     // 노트 한 개마다 새로 만들면 프레임당 수천 개가 할당된다. 색이 고정이라 나눠 쓴다.
     // 백그라운드 스레드에서 정적 초기화되더라도 UI 스레드에서 접근할 수 있도록 ToImmutable()을 쓴다.
     private static readonly IPen NoteOutlinePen = new Pen(Brushes.Black, 1).ToImmutable();
+    private static readonly IPen UnregisteredOutlinePen = new Pen(new SolidColorBrush(Color.FromRgb(255, 60, 60)), 1.5).ToImmutable();
+    private static readonly IPen UnregisteredHatchPen = new Pen(new SolidColorBrush(Color.FromArgb(200, 255, 60, 60)), 1.2).ToImmutable();
 
     private static readonly IBrush ScratchNoteBrush = new SolidColorBrush(Color.FromRgb(230, 40, 40)).ToImmutable();
     private static readonly IBrush BlackKeyNoteBrush = new SolidColorBrush(Color.FromRgb(40, 140, 230)).ToImmutable();
@@ -208,7 +219,7 @@ public sealed partial class NoteGridControl : TimelineControlBase
     static NoteGridControl()
     {
         AffectsRender<NoteGridControl>(LanesProperty, LaneWidthProperty, NotesProperty, IsCircleNoteShapeProperty,
-            SelectedNotesProperty, HoldLinksProperty, HoldProblemNotesProperty);
+            SelectedNotesProperty, HoldLinksProperty, HoldProblemNotesProperty, WavTableProperty);
         AffectsMeasure<NoteGridControl>(LanesProperty, LaneWidthProperty);
     }
 
@@ -369,7 +380,8 @@ public sealed partial class NoteGridControl : TimelineControlBase
                 var note = noteIndex.Notes[index];
                 var noteBrush = GetNoteBrush(note.LaneId);
                 var laneOffset = noteIndex.LaneIndices[index] * laneThickness;
-                var blackPen = NoteOutlinePen;
+                var isUnregistered = noteIndex.IsUnregisteredWav[index];
+                var currentPen = isUnregistered ? UnregisteredOutlinePen : NoteOutlinePen;
 
                 if (isHorizontal)
                 {
@@ -377,13 +389,24 @@ public sealed partial class NoteGridControl : TimelineControlBase
                     {
                         var radius = Math.Min(7.5, (laneThickness - 4) / 2);
                         var center = new Point(noteTPos, laneOffset + laneThickness / 2);
-                        context.DrawEllipse(noteBrush, blackPen, center, radius, radius);
+                        context.DrawEllipse(noteBrush, currentPen, center, radius, radius);
+                        if (isUnregistered)
+                        {
+                            var off = radius * 0.7;
+                            context.DrawLine(UnregisteredHatchPen, new Point(center.X - off, center.Y - off), new Point(center.X + off, center.Y + off));
+                            context.DrawLine(UnregisteredHatchPen, new Point(center.X - off, center.Y + off), new Point(center.X + off, center.Y - off));
+                        }
                     }
                     else
                     {
                         var rect = new Rect(noteTPos - 3, laneOffset + 2, 6, laneThickness - 4);
                         context.FillRectangle(noteBrush, rect);
-                        context.DrawRectangle(null, blackPen, rect);
+                        context.DrawRectangle(null, currentPen, rect);
+                        if (isUnregistered)
+                        {
+                            context.DrawLine(UnregisteredHatchPen, rect.TopLeft, rect.BottomRight);
+                            context.DrawLine(UnregisteredHatchPen, rect.BottomLeft, rect.TopRight);
+                        }
                     }
                 }
                 else
@@ -392,13 +415,24 @@ public sealed partial class NoteGridControl : TimelineControlBase
                     {
                         var radius = Math.Min(7.5, (laneThickness - 4) / 2);
                         var center = new Point(laneOffset + laneThickness / 2, noteTPos);
-                        context.DrawEllipse(noteBrush, blackPen, center, radius, radius);
+                        context.DrawEllipse(noteBrush, currentPen, center, radius, radius);
+                        if (isUnregistered)
+                        {
+                            var off = radius * 0.7;
+                            context.DrawLine(UnregisteredHatchPen, new Point(center.X - off, center.Y - off), new Point(center.X + off, center.Y + off));
+                            context.DrawLine(UnregisteredHatchPen, new Point(center.X - off, center.Y + off), new Point(center.X + off, center.Y - off));
+                        }
                     }
                     else
                     {
                         var rect = new Rect(laneOffset + 2, noteTPos - 3, laneThickness - 4, 6);
                         context.FillRectangle(noteBrush, rect);
-                        context.DrawRectangle(null, blackPen, rect);
+                        context.DrawRectangle(null, currentPen, rect);
+                        if (isUnregistered)
+                        {
+                            context.DrawLine(UnregisteredHatchPen, rect.TopLeft, rect.BottomRight);
+                            context.DrawLine(UnregisteredHatchPen, rect.BottomLeft, rect.TopRight);
+                        }
                     }
                 }
 

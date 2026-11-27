@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using bms_editer.Models;
 using bms_editer.Services;
@@ -8,11 +9,47 @@ namespace bms_editer.ViewModels;
 
 public sealed partial class MainWindowViewModel
 {
+    [ObservableProperty] private int _activePlaybackBranchId;
+
+    public double EffectivePlaybackDuration
+    {
+        get
+        {
+            if (OggDurationSeconds <= 0)
+                return 0.0;
+
+            var lastNoteSec = GetLastNoteSeconds();
+            return Math.Max(OggDurationSeconds, lastNoteSec);
+        }
+    }
+
+    private double GetLastNoteSeconds()
+    {
+        if (_playbackNoteSeconds is { Length: > 0 })
+            return _playbackNoteSeconds[^1];
+
+        if (Notes is { Count: > 0 })
+        {
+            var maxPos = 0.0;
+            for (var i = 0; i < Notes.Count; i++)
+            {
+                var pos = Notes[i].Measure + Notes[i].Position;
+                if (pos > maxPos)
+                    maxPos = pos;
+            }
+            return Timeline.SecondsAt(maxPos);
+        }
+
+        return 0.0;
+    }
+
     [RelayCommand]
     private void Play()
     {
-        // 커서가 곡 끝에 남아 있으면 첫 틱에 바로 멈추므로 처음부터 다시 튼다. (P-8)
-        var atEnd = PlaybackPositionSeconds >= OggDurationSeconds - 0.05;
+        // 커서가 곡 끝이나 음원 끝에 남아 있으면 첫 틱에 바로 멈추므로 처음부터 다시 튼다. (P-8)
+        var totalSec = EffectivePlaybackDuration;
+        var atEnd = (totalSec > 0 && PlaybackPositionSeconds >= totalSec - 0.05)
+            || (OggDurationSeconds > 0 && PlaybackPositionSeconds >= OggDurationSeconds - 0.05);
         PlayFrom(IsPlaybackCursorVisible && !atEnd ? PlaybackPositionSeconds : 0);
     }
 
@@ -38,21 +75,23 @@ public sealed partial class MainWindowViewModel
     // 이벤트마다 오디오 장치를 닫았다 다시 열고(딸깍거림) 노트 전체를 다시 정렬했다.
     public void ScrubPreview(double ratio)
     {
-        if (OggDurationSeconds <= 0)
+        var totalSec = EffectivePlaybackDuration;
+        if (totalSec <= 0)
             return;
 
         StopPlayback(resetCursor: false);
-        PlaybackPositionSeconds = Math.Clamp(ratio, 0, 1) * OggDurationSeconds;
+        PlaybackPositionSeconds = Math.Clamp(ratio, 0, 1) * totalSec;
         IsPlaybackCursorVisible = true;
     }
 
     // 버튼을 뗄 때 한 번만 실제로 재생을 옮긴다.
     public void ScrubCommit(double ratio)
     {
-        if (_audioPlayer is null || OggDurationSeconds <= 0)
+        var totalSec = EffectivePlaybackDuration;
+        if (_audioPlayer is null || totalSec <= 0)
             return;
 
-        PlayFrom(Math.Clamp(ratio, 0, 1) * OggDurationSeconds);
+        PlayFrom(Math.Clamp(ratio, 0, 1) * totalSec);
     }
 
     public void StopPlaybackAtCurrentPosition() => StopPlayback(resetCursor: false);
@@ -75,7 +114,8 @@ public sealed partial class MainWindowViewModel
             return false;
         }
 
-        var startSeconds = Math.Clamp(seconds, 0, OggDurationSeconds);
+        var totalSec = EffectivePlaybackDuration;
+        var startSeconds = Math.Clamp(seconds, 0, totalSec);
         _playbackNotes = GetSortedNotes();
         _playbackNoteSeconds = _sortedNoteSecondsCache ?? Array.Empty<double>();
 
@@ -90,7 +130,8 @@ public sealed partial class MainWindowViewModel
 
         try
         {
-            _audioPlayer.Play(startSeconds, PlaybackSpeed, leadIn);
+            var audioStart = Math.Min(startSeconds, OggDurationSeconds);
+            _audioPlayer.Play(audioStart, PlaybackSpeed, leadIn);
         }
         catch (Exception ex)
         {
@@ -137,17 +178,18 @@ public sealed partial class MainWindowViewModel
             ? _playbackStartSeconds + played
             : _playbackStartSeconds + (DateTimeOffset.UtcNow - _playbackStartedAt).TotalSeconds * PlaybackSpeed;
 
+        var totalSec = EffectivePlaybackDuration;
         var reachedEnd = _audioPlayer.HasReachedEnd;
         var currentSec = Math.Max(clockSeconds, _playbackStartSeconds);
-        if (reachedEnd)
-            currentSec = Math.Max(currentSec, OggDurationSeconds);
+        if (reachedEnd && totalSec <= OggDurationSeconds)
+            currentSec = Math.Max(currentSec, totalSec);
 
         PlaybackPositionSeconds = currentSec;
 
         ScheduleDueKeySounds(clockSeconds, playedSeconds);
 
-        // 곡이 끝나서 멈출 때는 마지막 키음의 여운을 자르지 않는다.
-        if (reachedEnd || PlaybackPositionSeconds >= OggDurationSeconds)
+        // 차트와 곡이 모두 끝나서 멈출 때는 마지막 키음의 여운을 자르지 않는다.
+        if (PlaybackPositionSeconds >= totalSec || (reachedEnd && PlaybackPositionSeconds >= totalSec))
             StopPlayback(resetCursor: false, stopKeySounds: false);
     }
 
@@ -160,7 +202,8 @@ public sealed partial class MainWindowViewModel
         var lookahead = clocksRunning ? KeySoundLookaheadSeconds * PlaybackSpeed : 0;
 
         // 곡 끝을 넘겨 예약하면 끝난 뒤의 노트까지 울린다. 재생은 곡 끝에서 멈춘다.
-        var scheduleUntil = Math.Min(OggDurationSeconds, Math.Max(_keySoundsScheduledUntil, clockSeconds + lookahead));
+        var totalSec = EffectivePlaybackDuration;
+        var scheduleUntil = Math.Min(totalSec, Math.Max(_keySoundsScheduledUntil, clockSeconds + lookahead));
         var windowStart = GetKeySoundWindowStart(_keySoundsScheduledUntil, clockSeconds);
         if (scheduleUntil <= windowStart)
             return;
@@ -232,15 +275,35 @@ public sealed partial class MainWindowViewModel
         var invSpeed = 1.0 / Math.Max(0.05, PlaybackSpeed);
         var wavTable = Chart.WavTable;
 
+        // P-12: 조건 블록(#RANDOM) 차트에서 모든 갈래가 동시에 울려 소리가 뭉치는 것을 방지한다.
+        // 특정 갈래(ActivePlaybackBranchId)가 지정되지 않았다면 첫 번째 발견된 갈래를 기본으로 삼는다.
+        var targetBranch = ActivePlaybackBranchId > 0
+            ? ActivePlaybackBranchId
+            : GetFirstAvailableBranchId();
+
         for (var i = FindFirstNoteAtOrAfter(start); i < _playbackNotes.Length; i++)
         {
+            var note = _playbackNotes[i];
             var noteSeconds = _playbackNoteSeconds[i];
             if (noteSeconds >= end)
                 break;
 
-            if (wavTable.TryGetValue(_playbackNotes[i].WavKey, out var path))
+            if (note.BranchId != 0 && note.BranchId != targetBranch)
+                continue;
+
+            if (wavTable.TryGetValue(note.WavKey, out var path))
                 _keySoundPlayer.ScheduleIfDecoded(path, (noteSeconds - now) * invSpeed);
         }
+    }
+
+    private int GetFirstAvailableBranchId()
+    {
+        for (var i = 0; i < _playbackNotes.Length; i++)
+        {
+            if (_playbackNotes[i].BranchId > 0)
+                return _playbackNotes[i].BranchId;
+        }
+        return 0;
     }
 
     private void StopPlayback(bool resetCursor, bool stopKeySounds = true)

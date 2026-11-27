@@ -117,7 +117,7 @@
   ```powershell
   dotnet test
   ```
-  *(현재 557개 단위/스모크 테스트 100% 통과 필수. 테스트는 CRLF·waveOut 을 전제하므로 Windows 에서 돌립니다)*
+  *(현재 561개 단위/스모크 테스트 100% 통과 필수. 테스트는 CRLF·waveOut 을 전제하므로 Windows 에서 돌립니다)*
 * **CI**: `.github/workflows/ci.yml` 이 push·PR 마다 Windows 에서 `-warnaserror` 빌드와 전체 테스트를 돌립니다. 게임 DLL이 필요 없는 프로젝트라 클라우드 세션에서도 이 CI 결과로 검증할 수 있습니다.
 * **릴리즈**: `csproj` `<Version>`(4곳)과 `CHANGELOG.md` `## [<버전>]` 을 함께 올려 main 에 머지한 뒤 `v<버전>` 태그를 밀면 `.github/workflows/release.yml` 이 테스트 → 단일 exe 게시 → `bms-editer-v<버전>-win-x64.zip`(SHA256 포함) 릴리즈를 만듭니다. 둘이 다르면 멈춥니다.
 * **배포 산출물 빌드**:

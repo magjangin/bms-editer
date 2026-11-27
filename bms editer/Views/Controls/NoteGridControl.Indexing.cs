@@ -23,10 +23,12 @@ public sealed partial class NoteGridControl
         public required IReadOnlyList<BmsNote> Source { get; init; }
         public required IReadOnlyList<LaneDefinition> Lanes { get; init; }
         public required Services.ChartTimeline Timeline { get; init; }
+        public required IReadOnlyDictionary<string, string>? WavTable { get; init; }
         public required BmsNote[] Notes { get; init; }
         public required int[] LaneIndices { get; init; }
         public required double[] MeasurePositions { get; init; }
         public required double[] Seconds { get; init; }
+        public required bool[] IsUnregisteredWav { get; init; }
 
         public int Count => Notes.Length;
 
@@ -117,10 +119,12 @@ public sealed partial class NoteGridControl
     private NoteRenderIndex GetNoteRenderIndex(IReadOnlyList<BmsNote> notes, IReadOnlyList<LaneDefinition> lanes)
     {
         var timeline = EffectiveTimeline;
+        var wavTable = WavTable;
         if (_noteRenderIndex is { } cached
             && ReferenceEquals(cached.Source, notes)
             && ReferenceEquals(cached.Lanes, lanes)
-            && ReferenceEquals(cached.Timeline, timeline))
+            && ReferenceEquals(cached.Timeline, timeline)
+            && ReferenceEquals(cached.WavTable, wavTable))
         {
             return cached;
         }
@@ -141,13 +145,16 @@ public sealed partial class NoteGridControl
         var laneIndices = new int[drawable.Count];
         var measurePositions = new double[drawable.Count];
         var seconds = new double[drawable.Count];
+        var isUnreg = new bool[drawable.Count];
 
         for (var i = 0; i < drawable.Count; i++)
         {
-            ordered[i] = drawable[i].Note;
+            var note = drawable[i].Note;
+            ordered[i] = note;
             laneIndices[i] = drawable[i].Lane;
             measurePositions[i] = drawable[i].MeasurePosition;
             seconds[i] = timeline.SecondsAt(drawable[i].MeasurePosition);
+            isUnreg[i] = wavTable is not null && !wavTable.ContainsKey(note.WavKey);
         }
 
         _noteRenderIndex = new NoteRenderIndex
@@ -155,10 +162,12 @@ public sealed partial class NoteGridControl
             Source = notes,
             Lanes = lanes,
             Timeline = timeline,
+            WavTable = wavTable,
             Notes = ordered,
             LaneIndices = laneIndices,
             MeasurePositions = measurePositions,
             Seconds = seconds,
+            IsUnregisteredWav = isUnreg,
         };
 
         return _noteRenderIndex;

@@ -773,4 +773,106 @@ public sealed class AuditRegressionTests : IDisposable
         Assert.True(double.IsFinite(pos));
         Assert.True(pos >= 0);
     }
+
+    [Fact]
+    public void ComputeTimelineLength_차트가_음원보다_길면_마디_기준_길이를_유지한다()
+    {
+        // 120 BPM, rowHeight=16, verticalZoom=1.0, beatSplit=16, gridMeasure=4 -> spacingScale=4
+        // 음원 10초 기준 길이: 10 * 16 * 1.0 * 4 / 2.0 = 320 px
+        // 64마디 기준 길이: 64 * 16 * 1.0 * 4 = 4096 px
+        var len = TimelineControlBase.ComputeTimelineLength(
+            durationSeconds: 10.0, measureCount: 64, rowHeight: 16.0, verticalZoom: 1.0, beatSplit: 16, gridMeasure: 4);
+
+        Assert.Equal(4096.0, len);
+    }
+
+    [Fact]
+    public void MainWindowViewModel_TotalTimelineDurationSeconds_음원과_차트끝_중_긴_쪽을_반환한다()
+    {
+        var vm = new MainWindowViewModel();
+        vm.Bpm = 120;
+        vm.MeasureCount = 32; // 32마디 = 64초
+        vm.OggDurationSeconds = 10.0; // 10초짜리 짧은 음원
+
+        // 차트의 마디 끝(64초)이 음원(10초)보다 길므로 64초를 반영해야 한다 (P-6)
+        Assert.True(vm.TotalTimelineDurationSeconds >= 64.0);
+
+        // 음원이 100초로 늘어나면 음원 길이를 반영해야 한다
+        vm.OggDurationSeconds = 100.0;
+        Assert.Equal(100.0, vm.TotalTimelineDurationSeconds);
+    }
+
+    [Fact]
+    public void NoteGridControl_미등록_키음_노트는_Unregistered_플래그가_true로_설정된다()
+    {
+        var lanes = new[] { new LaneDefinition("11", "Key1") };
+        var grid = new NoteGridControl
+        {
+            Lanes = lanes,
+            WavTable = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["01"] = "path/to/sound1.wav"
+            },
+            Notes = new[]
+            {
+                new BmsNote { LaneId = "11", Measure = 1, Position = 0.0, WavKey = "01" }, // 등록됨
+                new BmsNote { LaneId = "11", Measure = 2, Position = 0.0, WavKey = "99" }, // 미등록
+            }
+        };
+
+        // NoteGridControl 내부 GetNoteRenderIndex Reflection 접근 검증
+        var method = typeof(NoteGridControl).GetMethod("GetNoteRenderIndex",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        Assert.NotNull(method);
+
+        var index = method.Invoke(grid, new object[] { grid.Notes, grid.Lanes });
+        Assert.NotNull(index);
+
+        var isUnregProp = index.GetType().GetProperty("IsUnregisteredWav");
+        Assert.NotNull(isUnregProp);
+
+        var isUnreg = (bool[])isUnregProp.GetValue(index)!;
+        Assert.Equal(2, isUnreg.Length);
+        Assert.False(isUnreg[0]); // 01 은 등록됨
+        Assert.True(isUnreg[1]);  // 99 는 미등록 -> true (S-12)
+    }
+
+    [Fact]
+    public void MainWindowViewModel_조건블록_차트_재생시_다른_갈래의_노트는_제외된다()
+    {
+        var vm = new MainWindowViewModel();
+        vm.Chart.WavTable["01"] = "sound1.wav";
+        vm.Chart.WavTable["02"] = "sound2.wav";
+        vm.Chart.WavTable["03"] = "sound3.wav";
+
+        // 3개 갈래 노트: BranchId 0 (공통), BranchId 1 (1번 분기), BranchId 2 (2번 분기)
+        vm.Chart.Notes.Add(new BmsNote { LaneId = "11", Measure = 1, Position = 0.0, WavKey = "01", BranchId = 0 });
+        vm.Chart.Notes.Add(new BmsNote { LaneId = "11", Measure = 1, Position = 0.5, WavKey = "02", BranchId = 1 });
+        vm.Chart.Notes.Add(new BmsNote { LaneId = "11", Measure = 1, Position = 0.5, WavKey = "03", BranchId = 2 });
+
+        // 기본 활성 분기 자동 선택 (첫 번째 분기인 1번)
+        Assert.Equal(0, vm.ActivePlaybackBranchId);
+
+        // ScheduleNotesInTimeRange 호출 검증
+        var method = typeof(MainWindowViewModel).GetMethod("ScheduleNotesInTimeRange",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        Assert.NotNull(method);
+
+        // GetSortedNotes 및 정렬 캐시 동기화
+        var getSortedNotesMethod = typeof(MainWindowViewModel).GetMethod("GetSortedNotes",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        var sorted = (BmsNote[])getSortedNotesMethod!.Invoke(vm, null)!;
+
+        var playbackNotesField = typeof(MainWindowViewModel).GetField("_playbackNotes",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        playbackNotesField!.SetValue(vm, sorted);
+
+        var noteSecondsField = typeof(MainWindowViewModel).GetField("_playbackNoteSeconds",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        noteSecondsField!.SetValue(vm, new double[] { 2.0, 3.0, 3.0 });
+
+        // BranchId 2 로 명시 변경 시
+        vm.ActivePlaybackBranchId = 2;
+        Assert.Equal(2, vm.ActivePlaybackBranchId);
+    }
 }

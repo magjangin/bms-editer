@@ -117,7 +117,7 @@ public sealed class OggWaveformControl : TimelineControlBase
 
         if (peaks is { Count: > 1 })
         {
-            DrawBlockWaveform(context, peaks, timelineLength, center, maxAmplitude, WaveFillBrush, WavePen, IsHorizontalView, AudioOffsetSeconds, DurationSeconds, minPos, maxPos);
+            DrawBlockWaveform(context, peaks, timelineLength, center, maxAmplitude, WaveFillBrush, WavePen, IsHorizontalView, AudioOffsetSeconds, DurationSeconds, AudioDurationSeconds, minPos, maxPos);
             DrawOnsetMarkers(context, waveformThickness, timelineLength, Onsets, IsHorizontalView, minPos, maxPos);
         }
         else
@@ -213,12 +213,14 @@ public sealed class OggWaveformControl : TimelineControlBase
         bool isHorizontal,
         double audioOffsetSeconds,
         double durationSeconds,
+        double audioDurationSeconds,
         double minPos,
         double maxPos)
     {
         var blockLength = 2.0;
         var displayPointCount = Math.Max(2, (int)Math.Ceiling(timelineLength / blockLength));
-        var offsetRatio = durationSeconds > 0 ? (audioOffsetSeconds / durationSeconds) : 0.0;
+        var actualAudioDuration = audioDurationSeconds > 0 ? audioDurationSeconds : durationSeconds;
+        var offsetRatio = actualAudioDuration > 0 ? (audioOffsetSeconds / actualAudioDuration) : 0.0;
 
         var startIndex = Math.Max(0, (int)Math.Floor((minPos - 2.0) / blockLength));
         var endIndex = Math.Min(displayPointCount, (int)Math.Ceiling((maxPos + 2.0) / blockLength));
@@ -227,19 +229,24 @@ public sealed class OggWaveformControl : TimelineControlBase
         {
             var tPos = i * blockLength;
 
-            // 이 칸이 덮는 시간 구간을 **픽셀 위치에서 곧바로** 구한다.
-            var startRatio = tPos / timelineLength;
-            var endRatio = (tPos + blockLength) / timelineLength;
+            // 이 칸이 덮는 시간 구간을 픽셀 위치에서 곧바로 구한다.
+            var startTimelineRatio = tPos / timelineLength;
+            var endTimelineRatio = (tPos + blockLength) / timelineLength;
 
-            // 세로 뷰는 아래가 0초다. 같은 픽셀 칸이 뒤집힌 시간 구간을 덮는다.
+            // 세로 뷰는 아래가 0초다.
             if (!isHorizontal)
-                (startRatio, endRatio) = (1.0 - endRatio, 1.0 - startRatio);
+                (startTimelineRatio, endTimelineRatio) = (1.0 - endTimelineRatio, 1.0 - startTimelineRatio);
 
-            // 음원 오프셋만큼 타임라인 위치에서 음원 버퍼 위치를 역산한다.
-            startRatio -= offsetRatio;
-            endRatio -= offsetRatio;
+            var startSec = startTimelineRatio * durationSeconds - audioOffsetSeconds;
+            var endSec = endTimelineRatio * durationSeconds - audioOffsetSeconds;
 
-            if (endRatio <= 0 || startRatio >= 1.0)
+            if (endSec <= 0 || startSec >= actualAudioDuration || actualAudioDuration <= 0)
+                continue;
+
+            var startRatio = Math.Clamp(startSec / actualAudioDuration, 0.0, 1.0);
+            var endRatio = Math.Clamp(endSec / actualAudioDuration, 0.0, 1.0);
+
+            if (endRatio <= startRatio)
                 continue;
 
             var half = GetDisplayPeak(peaks, startRatio, endRatio) * maxAmplitude;
@@ -293,12 +300,14 @@ public sealed class OggWaveformControl : TimelineControlBase
 
         var (firstOnset, lastOnset) = VisibleOnsetRange(onsets.Count, timelineLength, isHorizontal, minPos, maxPos);
 
+        var actualAudioDuration = AudioDurationSeconds > 0 ? AudioDurationSeconds : DurationSeconds;
+
         for (var i = firstOnset; i < lastOnset; i++)
         {
             var alphaVal = onsets[i];
             if (alphaVal <= 0.01f) continue;
 
-            var audioSeconds = OggPeakLoader.GetBucketRatio(i, onsets.Count) * DurationSeconds;
+            var audioSeconds = OggPeakLoader.GetBucketRatio(i, onsets.Count) * actualAudioDuration;
             var ratio = AudioRatio(audioSeconds);
             if (ratio < 0 || ratio > 1)
                 continue;

@@ -48,6 +48,24 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
     [ObservableProperty] private IReadOnlyList<float>? _oggOnsets;
     [ObservableProperty] private double _oggDurationSeconds;
 
+    public double TotalTimelineDurationSeconds
+    {
+        get
+        {
+            if (OggDurationSeconds <= 0)
+                return 0.0;
+
+            var chartMeasureDuration = Timeline.SecondsAt(MeasureCount);
+            return Math.Max(OggDurationSeconds, chartMeasureDuration);
+        }
+    }
+
+    partial void OnOggDurationSecondsChanged(double value)
+    {
+        OnPropertyChanged(nameof(TotalTimelineDurationSeconds));
+        OnPropertyChanged(nameof(PlaybackCursorRatio));
+    }
+
     private double _bgmVolume = 1.0;
     public double BgmVolume
     {
@@ -101,10 +119,16 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
 
     public double AudioOffsetSeconds => AudioOffsetMs / 1000.0;
 
-    public double PlaybackCursorRatio =>
-        OggDurationSeconds <= 0
-            ? 0.0
-            : Math.Clamp((PlaybackPositionSeconds + AudioOffsetSeconds) / OggDurationSeconds, 0, 1);
+    public double PlaybackCursorRatio
+    {
+        get
+        {
+            var total = TotalTimelineDurationSeconds > 0 ? TotalTimelineDurationSeconds : OggDurationSeconds;
+            return total <= 0
+                ? 0.0
+                : Math.Clamp((PlaybackPositionSeconds + AudioOffsetSeconds) / total, 0, 1);
+        }
+    }
 
     [RelayCommand]
     private void DetectAudioOffset()
@@ -427,6 +451,7 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
         }
 
         Chart.MeasureCount = value;
+        OnPropertyChanged(nameof(TotalTimelineDurationSeconds));
     }
 
     // 새로 만들기처럼 작업 내용을 버리는 동작 전에 사용자 확인을 받는 콜백. (View가 주입)
